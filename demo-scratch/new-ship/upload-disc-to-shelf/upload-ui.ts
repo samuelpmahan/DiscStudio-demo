@@ -331,10 +331,17 @@ function unrotate(dx: number, dy: number, rotation: number) {
 }
 let cropDrag:CropDrag|null=null;
 const cropStage=$('crop-stage');
+function sizeCropStage() {
+  cropStage.style.width = ''; cropStage.style.height = '';
+  const side = Math.floor(Math.min(cropStage.clientWidth, cropStage.clientHeight));
+  if (side > 0) { cropStage.style.width = `${side}px`; cropStage.style.height = `${side}px`; scheduleCropPreview(); }
+}
+const cropStageResize = new ResizeObserver(sizeCropStage); cropStageResize.observe(cropStage.parentElement!); cropStageResize.observe($('photo-crop-help'));
 function stagePoint(event: PointerEvent) { const rect = cropStage.getBoundingClientRect(); return { x:event.clientX - rect.left, y:event.clientY - rect.top }; }
 function stageSelection(crop: PhotoCrop) {
   if (!cropWorking) return null;
-  const placement = sourceImagePlacement(cropWorking.width, cropWorking.height, cropStage.clientWidth), centerX = placement.x + crop.centerX * placement.width, centerY = placement.y + crop.centerY * placement.height;
+  const rect = cropStage.getBoundingClientRect(), size = Math.min(rect.width, rect.height);
+  const placement = sourceImagePlacement(cropWorking.width, cropWorking.height, size), centerX = placement.x + crop.centerX * placement.width, centerY = placement.y + crop.centerY * placement.height;
   return { placement, centerX, centerY, radiusX: crop.radiusX * cropWorking.width * placement.scale, radiusY: crop.radiusY * cropWorking.height * placement.scale };
 }
 cropStage.addEventListener('pointerdown',event=>{
@@ -418,11 +425,11 @@ $('photo').addEventListener('change', async () => {
     discardPendingPhoto(); cropFile = file; cropBitmap = await decodePhoto(file);
     const workingScale = Math.min(1, 720 / Math.max(cropBitmap.width, cropBitmap.height)); cropWorking = document.createElement('canvas'); cropWorking.width = Math.max(1, Math.round(cropBitmap.width * workingScale)); cropWorking.height = Math.max(1, Math.round(cropBitmap.height * workingScale)); cropWorking.getContext('2d')!.drawImage(cropBitmap.image,0,0,cropWorking.width,cropWorking.height);
     manualCropRequired = true; ($('crop-apply') as HTMLButtonElement).disabled = true;
-    resetCrop(); autoFitCrop(); ($('photo-crop') as HTMLDialogElement).showModal(); $('crop-auto').focus();
+    resetCrop(); autoFitCrop(); ($('photo-crop') as HTMLDialogElement).showModal(); requestAnimationFrame(sizeCropStage); $('crop-auto').focus();
   } catch (error) { discardPendingPhoto(); photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; const message = `Photo could not open: ${String(error).replace(/^Error: /, '')}`; $('photo-status').textContent = message; $('status').textContent = message; updateSaveState(); }
 });
 function finishPhotoPreparation() { photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; updateSaveState(); }
-$('crop-cancel').addEventListener('click', () => { invalidateRimFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled. Your painting is unchanged.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); });
+$('crop-cancel').addEventListener('click', () => { invalidateRimFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled. Add a photo when you’re ready.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); });
 $('photo-crop').addEventListener('cancel', event => { event.preventDefault(); $('crop-cancel').click(); });
 $('photo-crop').addEventListener('close', invalidateRimFit);
 for (const id of cropIds) input(id).addEventListener('input', scheduleCropPreview);

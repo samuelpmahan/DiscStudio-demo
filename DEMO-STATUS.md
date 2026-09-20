@@ -1,19 +1,19 @@
 # DiscStudio demo status
 
-Published commit: `64f509ab282c7adf167e36c0bcfd4cdf4b06fed2`
-Recovery changes are included in this checkpoint; live verification is pending.
+Published recovery checkpoint: `8d44354cb3e3d7ee911e9ceb892aafeb020b5511`
+Working tree: square crop-surface repair and two copy corrections; live verification pending.
 
-## Repairs under review
+## Verified in the published recovery checkpoint
 
-- Honest manual-required near-full fallback after v3 abstention; accepted v3 proposals stay unchanged.
-- Honest next-upload composer state after Save; the saved photo remains in Today’s Bag.
-- PNG uses a genuine download anchor; ZIP is prepared before its explicit Save ZIP gesture.
-- Save ZIP uses the same visible button treatment as PNG.
+- Escape abstention keeps Use photo disabled; a real drag unlocks it; Reset disables it again.
+- Crop → mold → plastic → Save works, and the composer then shows the honest next-upload state.
+- PNG and prepared Save ZIP links appear with honest statuses; changing orientation invalidates the prepared ZIP. Actual download completion remains **UNVERIFIED** because browser download events timed out even after direct gestures.
+- Accepted orange Auto-fit enables Use photo; save and reload retained four Today’s Bag entries. Live card render dimensions were B01 `1920×1080` and U02 `1080×1920`.
 
-## Checks and limits
+## Current checks and limits
 
 - Native v3 accepts raw `6087-blue`, `6087-orange`, and `6088-maui`; it abstains on raw Escape and the different prepared-white input. Thresholds are unchanged.
-- A native Escape safety crop keeps the rim but also retains adjacent-disc/background content; it is manual recovery, not clean-cutout proof.
-- Public browser checks remain pending for crop correction, next-upload state, and download gestures.
+- Manual Escape recovery preserves the rim but retains adjacent-disc/background content; it is safety recovery, not a clean cutout.
+- The crop stage was observed stretched to `442×484.625` while its backing canvas is square. This checkpoint sizes the visible/pointer surface to one square side; live retest is pending for Escape, accepted orange, and reload.
 
 No deploy-ready claim is made here.

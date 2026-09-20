@@ -22,5 +22,5 @@ test('RimFit correction remains transient while a photo-only save restores', asy
   assert.doesNotMatch(raw, /(?:PhotoIntake|CircleFit|CropEdit)\.rimfit/);
   const restored = await openExperience(storage, () => {});
   assert.equal(restored.bag().length, 1);
-  assert.match(restored.persistenceStatus, /Restored local shelf/);
+  assert.match(restored.persistenceStatus, /Restored Today’s Bag/);
 });
