@@ -1,7 +1,7 @@
 # DiscStudio demo status
 
 Published recovery checkpoint: `8d44354cb3e3d7ee911e9ceb892aafeb020b5511`
-Working tree: square crop-surface repair and two copy corrections; live verification pending.
+Working tree: content-derived module-graph versioning repair; live verification pending.
 
 ## Verified in the published recovery checkpoint
 
@@ -14,6 +14,7 @@ Working tree: square crop-surface repair and two copy corrections; live verifica
 
 - Native v3 accepts raw `6087-blue`, `6087-orange`, and `6088-maui`; it abstains on raw Escape and the different prepared-white input. Thresholds are unchanged.
 - Manual Escape recovery preserves the rim but retains adjacent-disc/background content; it is safety recovery, not a clean cutout.
-- The crop stage was observed stretched to `442×484.625` while its backing canvas is square. This checkpoint sizes the visible/pointer surface to one square side; live retest is pending for Escape, accepted orange, and reload.
+- The crop stage was observed stretched to `442×484.625` while its backing canvas is square. The published checkpoint sizes the visible/pointer surface to one square side; live retest remains pending.
+- The public site previously served stable module URLs after a new Pages deployment. This checkpoint gives the HTML, stylesheet, and every relative JS/MJS import one deterministic content-derived build ID; live cache verification is pending.
 
 No deploy-ready claim is made here.
