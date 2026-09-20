@@ -98,6 +98,14 @@ const discView = createDiscView(experience);
 // has been cropped and retained.
 let painting: Depiction = { kind: 'painted', name: 'pressed-fern', src: './art/pressed-fern.svg' };
 let depiction: Depiction = painting, photo: Depiction | null = null;
+function photoDraftView(image: Depiction) {
+  const figure = document.createElement('figure');
+  const art = document.createElement('div'); art.className = 'disc-art photo-art';
+  const img = document.createElement('img'); img.src = image.src; img.alt = 'Prepared photo of your disc'; art.append(img);
+  const title = document.createElement('h3'); title.textContent = 'Photo ready';
+  const note = document.createElement('p'); note.textContent = 'Choose a manufacturer and mold to finish this disc.';
+  figure.append(title, art, note); return figure;
+}
 function resetPaintSeed() { input('paint-seed').value = String(recipeFromDraft(initialDraft(), painting).seed); }
 function recipe(material: Draft) {
   if (!input('paint-seed').value.trim()) throw Error('Enter a painting seed.');
@@ -159,15 +167,15 @@ function preview() {
   const material = draft();
   if (!material.mold) {
    $('flight').textContent = '';
-   $('depiction-name').textContent = '';
-   $('preview').replaceChildren();
+   $('depiction-name').textContent = photo ? photo.name : '';
+   $('preview').replaceChildren(...(photo ? [photoDraftView(photo)] : []));
    input('plastic').disabled = true;
-   input('photo').disabled = false;
+   input('photo').disabled = photoBusy;
    input('save').disabled = true;
    return;
   }
   const resolved = experience.resolve(material);
-  input('photo').disabled = false;
+  input('photo').disabled = photoBusy;
   $('flight').textContent = `FLIGHT  ${flightFields.map(field => resolved[field] ?? '?').join(' / ')}`;
   for (const field of flightFields) input(`disc-${field}`).placeholder = String(experience.seedAt(material.mold)[field] ?? 'Unknown');
   $('depiction-name').textContent = depiction.name.replaceAll('-', ' ');
@@ -257,7 +265,8 @@ function applyFinishPreview() {
   view.style.setProperty('--exp-y', `${painted ? Number(input('stamp-y').value) * 8 : 0}%`);
 }
 for (const id of finishIds) input(id).addEventListener('input', applyFinishPreview);
-let cropBitmap: ImageBitmap | null = null; let cropFile: File | null = null; let cropWorking: HTMLCanvasElement | null = null;
+type CropSource = { image: CanvasImageSource; width: number; height: number; dispose: () => void };
+let cropBitmap: CropSource | null = null; let cropFile: File | null = null; let cropWorking: HTMLCanvasElement | null = null;
 const cropIds = ['crop-center-x', 'crop-center-y', 'crop-radius-x', 'crop-radius-y'];
 let cropRotation = 0;
 // Every manual correction supersedes an in-flight rim-fit suggestion.
@@ -271,7 +280,6 @@ function setCrop(next: PhotoCrop, { invalidate = true }: { invalidate?: boolean 
   input('crop-center-x').value = String(crop.centerX); input('crop-center-y').value = String(crop.centerY);
   cropRotation = crop.rotation;
   input('crop-radius-x').value = String(crop.radiusX); input('crop-radius-y').value = String(crop.radiusY);
-  input('crop-scale-x').value = String(crop.radiusX * 2); input('crop-scale-y').value = String(crop.radiusY * 2);
   scheduleCropPreview();
 }
 function circleLockedCrop(width: number, height: number, ratio = .4): PhotoCrop {
@@ -345,51 +353,71 @@ async function autoFitCrop() {
     if (request !== rimFitRequest || !cropWorking) return;
     if (result.proposal.status === 'accepted' && result.proposal.crop) {
       setCrop(result.proposal.crop, { invalidate: false });
-      $('photo-crop-help').textContent = 'Rim fit suggested this aperture. Check it, then drag inside to move or drag its edge to resize.';
+      $('photo-crop-help').textContent = 'Rim fit suggested this selection. Check it, then drag inside to move or drag its edge to resize.';
     } else {
       resetCrop({ invalidate: false });
-      $('photo-crop-help').textContent = 'We could not confirm one clear rim, so this centered aperture is only a starting point. Drag inside to move it; drag its edge to resize.';
+      $('photo-crop-help').textContent = 'We could not confirm one clear rim, so this centered selection is only a starting point. Drag inside to move it; drag its edge to resize.';
     }
   } catch {
     if (request !== rimFitRequest) return;
     resetCrop({ invalidate: false });
-    $('photo-crop-help').textContent = 'Automatic rim fit was unavailable. This centered aperture is editable before any photo is kept.';
+    $('photo-crop-help').textContent = 'Automatic rim fit was unavailable. This centered selection is editable before any photo is kept.';
   }
 }
 $('crop-auto').addEventListener('click', autoFitCrop);
 function discardPendingPhoto() {
-  if (cropBitmap) cropBitmap.close(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
+  if (cropBitmap) cropBitmap.dispose(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
+}
+async function decodePhoto(file: File): Promise<CropSource> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file);
+      return { image: bitmap, width: bitmap.width, height: bitmap.height, dispose: () => bitmap.close() };
+    } catch { /* Safari can decode some camera formats through HTMLImageElement only. */ }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const candidate = new Image(); candidate.decoding = 'async';
+      candidate.onload = () => resolve(candidate); candidate.onerror = () => reject(Error('This browser could not decode that photo. Choose another image or export it as JPEG.'));
+      candidate.src = url;
+    });
+    if (!image.naturalWidth || !image.naturalHeight) throw Error('This photo has no usable dimensions.');
+    return { image, width: image.naturalWidth, height: image.naturalHeight, dispose: () => URL.revokeObjectURL(url) };
+  } catch (error) { URL.revokeObjectURL(url); throw error; }
 }
 $('photo').addEventListener('change', async () => {
   const file = input('photo').files?.[0]; if (!file) return;
-  photoBusy = true; input('save').disabled = true; input('shuffle').disabled = true;
+  photoBusy = true; input('photo').disabled = true; input('save').disabled = true; input('shuffle').disabled = true; $('photo-status').textContent = `Preparing ${file.name} on this device…`;
   try {
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 15_000_000) throw new Error('Choose a JPEG, PNG or WebP image under 15 MB. HEIC is not supported by this browser.');
-    discardPendingPhoto(); cropFile = file; cropBitmap = await createImageBitmap(file);
-    const workingScale = Math.min(1, 720 / Math.max(cropBitmap.width, cropBitmap.height)); cropWorking = document.createElement('canvas'); cropWorking.width = Math.max(1, Math.round(cropBitmap.width * workingScale)); cropWorking.height = Math.max(1, Math.round(cropBitmap.height * workingScale)); cropWorking.getContext('2d')!.drawImage(cropBitmap,0,0,cropWorking.width,cropWorking.height);
+    if (file.size > 15_000_000) throw Error('Choose a photo under 15 MB. Your prepared photo is unchanged.');
+    discardPendingPhoto(); cropFile = file; cropBitmap = await decodePhoto(file);
+    const workingScale = Math.min(1, 720 / Math.max(cropBitmap.width, cropBitmap.height)); cropWorking = document.createElement('canvas'); cropWorking.width = Math.max(1, Math.round(cropBitmap.width * workingScale)); cropWorking.height = Math.max(1, Math.round(cropBitmap.height * workingScale)); cropWorking.getContext('2d')!.drawImage(cropBitmap.image,0,0,cropWorking.width,cropWorking.height);
     resetCrop(); autoFitCrop(); ($('photo-crop') as HTMLDialogElement).showModal(); $('crop-auto').focus();
-  } catch (error) { discardPendingPhoto(); $('status').textContent = String(error); }
-  finally { photoBusy = false; updateSaveState(); input('shuffle').disabled = false; }
+  } catch (error) { discardPendingPhoto(); photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; const message = `Photo could not open: ${String(error).replace(/^Error: /, '')}`; $('photo-status').textContent = message; $('status').textContent = message; updateSaveState(); }
 });
-$('crop-cancel').addEventListener('click', () => { invalidateRimFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); $('status').textContent = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled. Your painting is unchanged.'; });
+function finishPhotoPreparation() { photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; updateSaveState(); }
+$('crop-cancel').addEventListener('click', () => { invalidateRimFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled. Your painting is unchanged.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); });
 $('photo-crop').addEventListener('cancel', event => { event.preventDefault(); $('crop-cancel').click(); });
 $('photo-crop').addEventListener('close', invalidateRimFit);
 for (const id of cropIds) input(id).addEventListener('input', scheduleCropPreview);
-for (const id of ['crop-scale-x', 'crop-scale-y']) { input(id).min = '.06'; input(id).max = '1'; input(id).step = '.01'; }
-input('crop-scale-x').addEventListener('input', () => { if (cropWorking) setCrop({ ...cropState(), radiusX: Number(input('crop-scale-x').value) / 2 }); });
-input('crop-scale-y').addEventListener('input', () => { if (cropWorking) setCrop({ ...cropState(), radiusY: Number(input('crop-scale-y').value) / 2 }); });
 $('crop-reset').addEventListener('click', resetCrop);
 $('crop-apply').addEventListener('click', async () => {
   if (!cropBitmap || !cropFile) return;
-  const bitmap = cropBitmap, fileName = cropFile.name, size = Math.min(1024, Math.max(256, Math.min(bitmap.width, bitmap.height)));
-  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
-  invalidateRimFit();
-  const ctx = canvas.getContext('2d')!, mapping = cropExportMapping(bitmap.width, bitmap.height, size, cropState());
-  ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap, mapping); ctx.restore();
-  const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
-  const photoAddress = await experience.addDraftPhoto(photoDepiction);
-  photo = photoDepiction; depiction = photoDepiction;
-  ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); $('status').textContent = `Photo cropped locally and retained at ${photoAddress}. The original file is unchanged.`; preview(); updateSaveState();
+  const apply = $('crop-apply') as HTMLButtonElement; apply.disabled = true;
+  try {
+    const bitmap = cropBitmap, fileName = cropFile.name, size = Math.min(1024, Math.max(256, Math.min(bitmap.width, bitmap.height)));
+    const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+    invalidateRimFit();
+    const ctx = canvas.getContext('2d')!, mapping = cropExportMapping(bitmap.width, bitmap.height, size, cropState());
+    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, mapping); ctx.restore();
+    const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
+    const photoAddress = await experience.addDraftPhoto(photoDepiction);
+    photo = photoDepiction; depiction = photoDepiction;
+    ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo ready. Choose a manufacturer and mold to finish it.`; $('photo-status').textContent = message; $('status').textContent = `${message} Retained at ${photoAddress}.`; finishPhotoPreparation(); preview();
+  } catch (error) {
+    ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo could not be kept: ${String(error).replace(/^Error: /, '')}`; $('photo-crop-help').textContent = message; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();
+  } finally { apply.disabled = false; }
 });
 $('composer').addEventListener('submit', async event => {
   event.preventDefault(); if (photoBusy || input('save').disabled) return;
@@ -403,6 +431,7 @@ $('composer').addEventListener('submit', async event => {
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
     depiction = painting; photo = null;
+    $('photo-status').textContent = 'Photo saved to Today’s Bag. Add another photo when you’re ready.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();
   } catch (error) { $('status').textContent = `Not saved: ${String(error)}`; }
   finally { updateSaveState(); }

@@ -31,6 +31,10 @@ npm test
 This runs the supported tournament gate: photo-first save/readback, RimFit-to-save-to-reload persistence, crop geometry, shared renderer presets, and PNG/ZIP export. `npm run test:all-history` is retained only to inspect the pre-rebuild painter, catalog-review, and archive workflows; it is not a release gate for this photo-first demo and currently includes intentionally incompatible historical expectations.
 
 
+## Crop fitting
+
+The browser-native v3 rim fitter remains the default. Its internal fitted geometry is preserved, while ellipse-specific editing controls are deferred from the demo UI.
+
 ## Optional paired capture
 
 After `npm run build`, the optional local capture CLI needs a Chrome executable plus `puppeteer-core` (install it locally without changing the demo dependencies with `npm install --no-save puppeteer-core`). Normal demo builds and tests do not need either. Capture a settled creator screen and the mounted **actual PxC DevTools** screen with the ready-to-run initial-screen scenario:
