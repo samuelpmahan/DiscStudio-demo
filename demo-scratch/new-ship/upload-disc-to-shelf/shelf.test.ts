@@ -1,0 +1,71 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createExperience, initialDraft } from './model.ts';
+
+test('preview, keep, and inherit reuse update without changing siblings or the retained base', async () => {
+  const app = createExperience(() => {}), image = await app.selectDraftDepiction(() => 0);
+  const a = await app.save({ ...initialDraft(), nickname: 'Minty' }, image);
+  const b = await app.save(initialDraft(), image), oldShelf = app.shelfAddress;
+  const originalArt = app.shelf()[0].art;
+  const candidate = await app.updateDisc(a, { turn: 0 });
+  assert.deepEqual(app.shelf().map(row => row.address), [a, b]);
+  await app.keepDisc(a, candidate);
+  assert.deepEqual(app.shelf().map(row => row.address), [candidate, b]);
+  assert.deepEqual(app.pxc.get(oldShelf).value, [a, b]);
+  assert.equal(app.resolve(app.pxc.get(a).value).turn, -1);
+  assert.equal(app.resolve(app.shelf()[0].disc).turn, 0);
+  assert.equal(app.events.at(-1)?.readbackMatched, true);
+  const inherit = await app.updateDisc(candidate, {}, ['turn']);
+  await app.keepDisc(candidate, inherit);
+  assert.equal(app.resolve(app.shelf()[0].disc).turn, -1);
+  assert.equal(app.shelf()[0].art, originalArt);
+});
+test('stale, unrelated and overlapping keeps cannot overwrite current selections', async () => {
+  const app = createExperience(() => {}), image = await app.selectDraftDepiction(() => 0);
+  const a = await app.save(initialDraft(), image), b = await app.save(initialDraft(), image);
+  const c = await app.updateDisc(a, { turn: -2 }), d = await app.updateDisc(a, { turn: 0 });
+  await assert.rejects(app.keepDisc(b, c), /selection changed/);
+  const first = app.keepDisc(a, c);
+  await assert.rejects(app.keepDisc(a, d), /in progress/); await first;
+  await assert.rejects(app.keepDisc(a, d), /selection changed/);
+  assert.deepEqual(app.shelf().map(row => row.address), [c, b]);
+});
+test('a failed shelf composition leaves the selected shelf intact', async () => {
+  const app = createExperience(() => {}), image = await app.selectDraftDepiction(() => 0);
+  const a = await app.save(initialDraft(), image), c = await app.updateDisc(a, { turn: null });
+  const previous = app.shelfAddress;
+  const compose = app.pxc.compose.bind(app.pxc);
+  app.pxc.compose = async () => { throw Error('fixture write failure'); };
+  await assert.rejects(app.keepDisc(a, c), /fixture write failure/);
+  assert.equal(app.shelfAddress, previous);
+  assert.equal(app.events.some(event => event.event === 'disc.edit.kept'), false);
+  app.pxc.compose = compose;
+  await app.keepDisc(a, c);
+  assert.equal(app.resolve(app.shelf()[0].disc).turn, null);
+});
+test('actual shelf finder distinguishes empty, unmatched and duplicate mold specimens', async () => {
+  const app = createExperience(() => {});
+  assert.deepEqual(app.shelf(''), []);
+  const image = { kind: 'photo' as const, name: 'fixture', src: 'data:image/webp;base64,AAAA' };
+  for (let i = 0; i < 102; i++) await app.save({ ...initialDraft(), nickname: `Disc ${i}`, plastic: i % 2 ? 'ESP' : 'Z' }, image);
+  assert.equal(app.shelf('').length, 102);
+  assert.equal(app.shelf('buzzz').length, 102);
+  assert.equal(app.shelf('DISCRAFT buzZZ esp').length, 51);
+  assert.equal(app.shelf('Buzzz · ESP').length, 51);
+  assert.deepEqual(app.shelf('Disc 101'), []);
+  assert.deepEqual(app.shelf('101 esp'), []);
+  assert.deepEqual(app.shelf('innova esp'), []);
+  assert.deepEqual(app.shelf('unmatched'), []);
+});
+test('nickname remains inspection data and never changes shelf search or retained order', async () => {
+  const app = createExperience(() => {});
+  const image = { kind: 'photo' as const, name: 'fixture', src: 'data:image/webp;base64,AAAA' };
+  const a = await app.save({ ...initialDraft(), nickname: 'Secret token', plastic: 'ESP', weight: 174 }, image);
+  const b = await app.save({ ...initialDraft(), nickname: 'Discraft Buzzz ESP', plastic: 'Z', weight: 172 }, image);
+  const before = app.shelf().map(row => row.address);
+  assert.deepEqual(app.shelf('discraft buzZZ ESP 174').map(row => row.address), [a]);
+  assert.deepEqual(app.shelf('Buzzz, Z, 172').map(row => row.address), [b]);
+  assert.deepEqual(app.shelf('secret'), []);
+  assert.equal(app.pxc.get(a).value.nickname, 'Secret token');
+  assert.deepEqual(app.shelf().map(row => row.address), before);
+});

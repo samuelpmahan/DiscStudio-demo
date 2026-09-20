@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const IMPORT = /(?:from\s*|import\s*\(\s*)['"]([^'"]+)['"]/g;
+export function builtModuleGraph(entry, root) {
+  const seen = new Set(), active = new Set(), ordered = [], depsByFile = new Map(), base = path.resolve(root);
+  const visit = file => { file = path.resolve(file); if (active.has(file)) throw new Error(`module cycle: ${file}`); if (seen.has(file)) return; active.add(file); const source = fs.readFileSync(file, 'utf8'), deps = {}; for (const match of source.matchAll(IMPORT)) { const specifier = match[1]; if (!specifier.startsWith('.')) continue; const dependency = path.resolve(path.dirname(file), specifier); if (!dependency.startsWith(base + path.sep) || !fs.existsSync(dependency)) throw new Error(`missing built dependency: ${file} -> ${specifier}`); deps[specifier] = dependency; visit(dependency); } active.delete(file); seen.add(file); depsByFile.set(file, deps); ordered.push(file); };
+  visit(entry); return ordered.map(file => ({ id: path.relative(base, file), source: fs.readFileSync(file, 'utf8'), deps: Object.fromEntries(Object.entries(depsByFile.get(file)).map(([spec, dep]) => [spec, path.relative(base, dep)])) }));
+}
+export function inlineBuiltHtml(html) { return html.replace(/<script type="module"[^>]*><\/script>/, ''); }
+export function installBlobModules(modules) { const urls = {}; for (const module of modules) { let source = module.source; for (const [specifier, dependency] of Object.entries(module.deps)) { if (!urls[dependency]) throw new Error(`dependency was not materialized first: ${dependency}`); source = source.split(`'${specifier}'`).join(`'${urls[dependency]}'`).split(`"${specifier}"`).join(`"${urls[dependency]}"`); } urls[module.id] = URL.createObjectURL(new Blob([source], { type: 'text/javascript' })); } window.__dsBlobModules = urls; }
+export function storageShim(seed) { const values = new Map(Object.entries(seed || {})); Object.defineProperty(window, 'localStorage', { configurable: true, value: { get length() { return values.size; }, key: index => [...values.keys()][index] ?? null, getItem: key => values.get(String(key)) ?? null, setItem: (key, value) => values.set(String(key), String(value)), removeItem: key => values.delete(String(key)), clear: () => values.clear() } }); }

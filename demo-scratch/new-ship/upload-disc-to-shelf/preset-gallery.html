@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpotlightCard Presets - Transparency Check</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a1a; color: #eee; font-family: system-ui, sans-serif; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 8px; }
+  .sub { color: #888; font-size: 13px; margin-bottom: 32px; }
+  .preset { margin-bottom: 48px; }
+  .preset h2 { font-size: 16px; margin-bottom: 4px; }
+  .preset .dims { color: #888; font-size: 12px; font-family: monospace; margin-bottom: 12px; }
+  .checker {
+    background-image:
+      linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+      linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+      linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+    background-size: 24px 24px;
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    background-color: #1e1e1e;
+    display: inline-block;
+    border: 1px solid #444;
+  }
+  .checker img { display: block; max-width: 100%; height: auto; }
+  .h .checker { max-width: 960px; }
+  .v .checker { max-width: 360px; }
+  .note { color: #666; font-size: 11px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>SpotlightCard Presets</h1>
+<p class="sub">Checkerboard = transparent. Card baked into overlay per CapCut hypothesis. Native dimensions labeled.</p>
+
+<div class="preset h">
+  <h2>B01 Pop Color Eject</h2>
+  <div class="dims">1920x1080</div>
+  <div class="checker"><img src="mvp-output/preset-b01.png" alt="B01"></div>
+</div>
+
+<div class="preset h">
+  <h2>B02 Smoky Fade Slab</h2>
+  <div class="dims">1920x1080</div>
+  <div class="checker"><img src="mvp-output/preset-b02.png" alt="B02"></div>
+</div>
+
+<div class="preset h">
+  <h2>B03 Trading Plate Break</h2>
+  <div class="dims">1920x1080</div>
+  <div class="checker"><img src="mvp-output/preset-b03.png" alt="B03"></div>
+</div>
+
+<div class="preset h">
+  <h2>B04 Flight-Path Arc</h2>
+  <div class="dims">1920x1080</div>
+  <div class="checker"><img src="mvp-output/preset-b04.png" alt="B04"></div>
+</div>
+
+<div class="preset h">
+  <h2>B05 Stamp Macro + Hero</h2>
+  <div class="dims">1920x1080</div>
+  <div class="checker"><img src="mvp-output/preset-b05.png" alt="B05"></div>
+  <p class="note">KNOWN BUG: name renders vertical, cut off at left edge</p>
+</div>
+
+<div class="preset v">
+  <h2>U01 Top-Band Scorebug</h2>
+  <div class="dims">1080x1920</div>
+  <div class="checker"><img src="mvp-output/preset-u01.png" alt="U01"></div>
+</div>
+
+<div class="preset v">
+  <h2>U02 Stacked Poster</h2>
+  <div class="dims">1080x1920</div>
+  <div class="checker"><img src="mvp-output/preset-u02.png" alt="U02"></div>
+</div>
+
+<div class="preset v">
+  <h2>U03 Rail Card</h2>
+  <div class="dims">1080x1920</div>
+  <div class="checker"><img src="mvp-output/preset-u03.png" alt="U03"></div>
+</div>
+
+<div class="preset v">
+  <h2>U04 Kinetic Name Drop</h2>
+  <div class="dims">1080x1920</div>
+  <div class="checker"><img src="mvp-output/preset-u04.png" alt="U04"></div>
+</div>
+
+<div class="preset v">
+  <h2>U05 Glass Stat Drawer</h2>
+  <div class="dims">1080x1920</div>
+  <div class="checker"><img src="mvp-output/preset-u05.png" alt="U05"></div>
+</div>
+
+</body>
+</html>
