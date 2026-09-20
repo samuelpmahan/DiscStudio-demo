@@ -3,6 +3,9 @@ import { cropForSourceSamples } from './crop-geometry.ts';
 
 export type DiscCircle = { x: number; y: number; radius: number; confidence: number };
 type Raster = { width: number; height: number; rgba: Uint8ClampedArray };
+export type CircleCandidate = { id: string; circle: DiscCircle; score: number };
+export type CircleCandidateRequest = { operation: 'initial' | 'refine' | 'other'; selected?: CircleCandidate; excluded?: readonly CircleCandidate[] };
+export type CircleCandidateSession = { photoIntake: string; serial: number };
 
 type CircleCropHelpers = {
   clampCropSelection: (width: number, height: number, crop: any) => any;
@@ -104,6 +107,52 @@ export function ensureCircleFitCalculations(pxc: any, helpers: CircleCropHelpers
     const crop = helpers.clampCropSelection(photo.source.width, photo.source.height, cropForSourceSamples(photo.source.width, photo.source.height, evidence.circle));
     return Object.freeze({ schema: 'CircleCropProposal@1', status: 'accepted', crop, circle: evidence.circle });
   }));
+}
+
+/** Register the transient circle-choice calculations without retaining a new photo raster per round. */
+export function ensureCircleCandidateCalculations(pxc: any, helpers: CircleCropHelpers) {
+  ensureCircleFitCalculations(pxc, helpers);
+  const names = new Set(pxc.entries().map(([address]: [string, unknown]) => address));
+  if (!names.has('oc.studio.circleCandidates')) pxc.set('oc.studio.circleCandidates', new Part(async ({ photo, request }: { photo: { working: Raster; source: Raster }; request: CircleCandidateRequest }) => {
+    const candidates = await import('./circle-candidates.ts');
+    const operation = request?.operation;
+    const rows = operation === 'refine' && request.selected
+      ? candidates.refineCircleCandidates(photo.source, request.selected)
+      : operation === 'other'
+        ? candidates.findOtherCircleCandidates(photo.working, photo.source, request.excluded ?? [])
+        : operation === 'initial'
+          ? candidates.findInitialCircleCandidates(photo.working, photo.source)
+          : [];
+    return Object.freeze({ schema: 'CircleCandidates@1', status: rows.length ? 'accepted' : 'abstained', operation, candidates: rows, reason: rows.length ? null : 'no-distinct-supported-circles' });
+  }));
+  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence }: any) => {
+    if (evidence.status !== 'accepted') return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'abstained', candidates: [], reason: evidence.reason });
+    const candidates = evidence.candidates.map((entry: CircleCandidate) => Object.freeze({ ...entry, crop: helpers.clampCropSelection(photo.source.width, photo.source.height, cropForSourceSamples(photo.source.width, photo.source.height, entry.circle)) }));
+    return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'accepted', candidates });
+  }));
+}
+
+/** Create one full-resolution transient photo Part for this upload. Subsequent rounds reuse it. */
+export function createCircleCandidateSession(pxc: any, source: CanvasImageSource, sourceWidth: number, sourceHeight: number, working: HTMLCanvasElement, serial: number, helpers: CircleCropHelpers): CircleCandidateSession {
+  ensureCircleCandidateCalculations(pxc, helpers);
+  const workingContext = working.getContext('2d', { willReadFrequently: true }); if (!workingContext) throw Error('Circle-choice working raster is unavailable.');
+  const full = document.createElement('canvas'); full.width = sourceWidth; full.height = sourceHeight;
+  const fullContext = full.getContext('2d', { willReadFrequently: true }); if (!fullContext) throw Error('Circle-choice source raster is unavailable.');
+  fullContext.drawImage(source, 0, 0, sourceWidth, sourceHeight);
+  const photoIntake = `ds.px.PhotoIntake.circlefit.${serial}`;
+  const photo = Object.freeze({ schema: 'PhotoRaster@1', working: { width: working.width, height: working.height, rgba: workingContext.getImageData(0, 0, working.width, working.height).data }, source: { width: sourceWidth, height: sourceHeight, rgba: fullContext.getImageData(0, 0, sourceWidth, sourceHeight).data } });
+  pxc.set(photoIntake, new Part(photo));
+  full.width = 0; full.height = 0;
+  return Object.freeze({ photoIntake, serial });
+}
+
+/** Compose a small round request against the upload's retained transient raster. */
+export async function composeCircleCandidateChoices(pxc: any, session: CircleCandidateSession, serial: number, request: CircleCandidateRequest) {
+  const requestPart = `ds.px.CircleCandidateRequest.circlefit.${session.serial}.${serial}`, candidates = `ds.px.CircleCandidates.circlefit.${session.serial}.${serial}`, cropChoices = `ds.px.CircleCandidateCrops.circlefit.${session.serial}.${serial}`;
+  pxc.set(requestPart, new Part(Object.freeze({ operation: request.operation, ...(request.selected ? { selected: request.selected } : {}), ...(request.excluded?.length ? { excluded: [...request.excluded] } : {}) })));
+  await pxc.compose({ into: candidates, calculation: 'oc.studio.circleCandidates', inputs: { photo: session.photoIntake, request: requestPart } });
+  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates } });
+  return { requestPart, candidates, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
 }
 
 export async function composeCircleFitCrop(pxc: any, source: CanvasImageSource, sourceWidth: number, sourceHeight: number, working: HTMLCanvasElement, serial: number, helpers: CircleCropHelpers) {

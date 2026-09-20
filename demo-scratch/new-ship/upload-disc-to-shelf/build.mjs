@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(here, 'dist');
-const ignored = new Set(['node_modules', 'dist', 'renders', 'renders-real', 'mvp-output']);
+const ignored = new Set(['node_modules', 'dist', 'renders', 'renders-real', 'mvp-output', 'candidate-evidence']);
 const skip = name => /(?:\.test\.|\.bundle\.js$|^(?:drive-real-ui|paired-capture|capture-output|url-free-materializer|capture-initial-scenario|instrumented-run|mvp-run|render-presets|render-breakout)\.mjs$|^(?:test-page|preset-gallery))/.test(name);
 const rewriteImports = text => text
   .replace(/(from\s*['"][^'"]+)\.ts(['"])/g, '$1.js$2')

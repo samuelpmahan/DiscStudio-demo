@@ -4,9 +4,9 @@ import { createDiscView } from './disc-view.ts';
 import { recipeFromDraft, validatePaintRecipe, renderDepiction } from './paint-recipe.ts';
 import { fuzzyMoldOptions } from './mold-search.ts';
 import { cropForSourceSamples, drawRotatedCrop, normalizeCropRotation } from './crop-geometry.ts';
-import { composeCircleFitCrop, type DiscCircle } from './circle-fit.ts';
+import { composeCircleCandidateChoices, createCircleCandidateSession, type CircleCandidate, type CircleCandidateSession, type DiscCircle } from './circle-fit.ts';
 export { detectDiscCircle } from './circle-fit.ts';
-export type { DiscCircle } from './circle-fit.ts';
+export type { CircleCandidate, DiscCircle } from './circle-fit.ts';
 
 export type PhotoCrop = { centerX: number; centerY: number; radiusX: number; radiusY: number; rotation: number };
 
@@ -311,11 +311,12 @@ function applyFinishPreview() {
 for (const id of finishIds) input(id).addEventListener('input', applyFinishPreview);
 type CropSource = { image: CanvasImageSource; width: number; height: number; dispose: () => void };
 let cropBitmap: CropSource | null = null; let cropFile: File | null = null; let cropWorking: HTMLCanvasElement | null = null;
+let candidateSession: CircleCandidateSession | null = null, candidateChoices: CircleCandidate[] = [], seenCandidates: CircleCandidate[] = [], selectedCandidate: CircleCandidate | null = null, candidateBusy = false;
 const cropIds = ['crop-center-x', 'crop-center-y', 'crop-radius-x', 'crop-radius-y'];
 let cropRotation = 0;
-// Every new photo or crop action supersedes an in-flight circle suggestion.
-let circleFitRequest = 0, circleFitSerial = 0;
-function invalidateCircleFit() { circleFitRequest++; }
+// Every new photo or crop action supersedes an in-flight circle request.
+let circleFitRequest = 0, circleFitSerial = 0, candidateRequest = 0;
+function invalidateCircleFit() { circleFitRequest++; candidateRequest++; candidateBusy = false; syncCandidateApply(); }
 function cropState(): PhotoCrop { return { centerX: Number(input('crop-center-x').value), centerY: Number(input('crop-center-y').value), radiusX: Number(input('crop-radius-x').value), radiusY: Number(input('crop-radius-y').value), rotation: cropRotation }; }
 function setCrop(next: PhotoCrop, { invalidate = true }: { invalidate?: boolean } = {}) {
   if (!cropWorking || !cropBitmap) return;
@@ -358,6 +359,88 @@ function updateCropPreview() {
   const circleSize = Math.round(crop.radiusX * cropBitmap.width * 200 / Math.min(cropBitmap.width, cropBitmap.height));
   ($('crop-zoom-value') as HTMLOutputElement).value = `Circle size ${circleSize}%`;
 }
+const candidatePicker = $('circle-candidate-picker'), candidateList = $('circle-candidates'), candidateHeading = $('circle-candidate-heading'), refineButton = $('crop-refine') as HTMLButtonElement, otherButton = $('crop-other') as HTMLButtonElement, cropApply = $('crop-apply') as HTMLButtonElement;
+const manualCrop = $('crop-manual') as HTMLDetailsElement;
+function syncCandidateApply() { cropApply.disabled = candidateBusy || !cropBitmap || !cropFile || (!selectedCandidate && !manualCrop.open); }
+function syncManualMode() {
+  cropStage.dataset.manual = String(manualCrop.open);
+  resizeHandle.disabled = !manualCrop.open;
+  syncCandidateApply(); requestAnimationFrame(sizeCropStage);
+}
+function candidateCrop(candidate: CircleCandidate) {
+  return cropBitmap ? cropForDetectedCircle(cropBitmap.width, cropBitmap.height, candidate.circle) : null;
+}
+function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCandidate, selected: boolean) {
+  if (!cropWorking || !cropBitmap) return;
+  const crop = candidateCrop(candidate); if (!crop) return;
+  const context = canvas.getContext('2d')!, view = fixedCirclePreviewGeometry(cropBitmap.width, cropBitmap.height, crop, canvas.width);
+  context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#dfe5db'; context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(cropWorking, view.imageX, view.imageY, view.imageWidth, view.imageHeight);
+  context.save(); context.fillStyle = 'rgba(18,39,31,.58)'; context.beginPath(); context.rect(0, 0, canvas.width, canvas.height); context.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2, true); context.fill('evenodd'); context.beginPath(); context.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2); context.strokeStyle = selected ? '#168a87' : '#fff'; context.lineWidth = 2; context.stroke(); context.restore();
+}
+function renderCandidateChoices() {
+  candidateList.replaceChildren();
+  candidatePicker.hidden = candidateChoices.length === 0;
+  candidateHeading.textContent = candidateChoices.length ? 'Pick the closest circle' : 'No circle choices yet';
+  const fragment = document.createDocumentFragment();
+  candidateChoices.forEach((candidate, index) => {
+    const selected = selectedCandidate?.id === candidate.id;
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'circle-candidate'; button.setAttribute('aria-pressed', String(selected)); button.setAttribute('aria-label', `Circle ${index + 1}${selected ? ', selected' : ''}`);
+    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate, selected);
+    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}`;
+    button.append(canvas, label); button.addEventListener('click', () => chooseCandidate(candidate)); fragment.append(button);
+  });
+  candidateList.append(fragment); refineButton.disabled = candidateBusy || !selectedCandidate; otherButton.disabled = candidateBusy || candidateChoices.length === 0; syncCandidateApply(); requestAnimationFrame(sizeCropStage);
+}
+function clearCandidateSelection() { if (!selectedCandidate) return; selectedCandidate = null; renderCandidateChoices(); }
+function chooseCandidate(candidate: CircleCandidate) {
+  const crop = candidateCrop(candidate); if (!crop) return;
+  invalidateCircleFit(); manualCrop.open = false; syncManualMode(); selectedCandidate = candidate; setCrop(crop, { invalidate: false }); renderCandidateChoices();
+  $('photo-crop-help').textContent = 'Circle selected. Refine choice stays near it, or use this circle as-is.';
+}
+function resetCandidateChoices() {
+  candidateChoices = []; seenCandidates = []; selectedCandidate = null; renderCandidateChoices();
+}
+function sameCandidateCircle(a: CircleCandidate, b: CircleCandidate) {
+  return a.id === b.id && a.circle.x === b.circle.x && a.circle.y === b.circle.y && a.circle.radius === b.circle.radius && a.circle.confidence === b.circle.confidence;
+}
+async function loadCircleCandidates(operation: 'initial' | 'refine' | 'other') {
+  const session = candidateSession, bitmap = cropBitmap, working = cropWorking, anchor = selectedCandidate;
+  if (!session || !bitmap || !working || (operation === 'refine' && !anchor)) return;
+  const previousChoices = candidateChoices, previousSelection = selectedCandidate;
+  const request = ++candidateRequest;
+  if (operation === 'initial') { candidateChoices = []; seenCandidates = []; selectedCandidate = null; manualCrop.open = false; syncManualMode(); }
+  candidateBusy = true; renderCandidateChoices(); refineButton.disabled = true; otherButton.disabled = true;
+  $('photo-crop-help').textContent = operation === 'refine' ? 'Refining around your selected circle…' : operation === 'other' ? 'Finding other circles…' : 'Finding circle choices…';
+  try {
+    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
+    if (request !== candidateRequest || session !== candidateSession || bitmap !== cropBitmap || working !== cropWorking) return;
+    candidateBusy = false;
+    const rows = result.proposal.status === 'accepted' ? result.proposal.candidates as CircleCandidate[] : [];
+    if (!rows.length) {
+      if (operation === 'other' && previousSelection) {
+        candidateChoices = previousChoices; selectedCandidate = previousSelection; renderCandidateChoices();
+        $('photo-crop-help').textContent = 'No other supported circles were found. Your selected circle is still ready to use.';
+        return;
+      }
+      candidateChoices = []; selectedCandidate = null; renderCandidateChoices(); manualCrop.open = true; syncManualMode();
+      $('photo-crop-help').textContent = 'Could not confirm distinct circles. Adjust manually if needed.';
+      return;
+    }
+    if (operation === 'refine') {
+      if (!anchor || !sameCandidateCircle(rows[0], anchor)) throw Error('Refine did not retain the selected circle.');
+      selectedCandidate = rows[0];
+    }
+    candidateChoices = rows;
+    if (operation === 'initial' || operation === 'other') { seenCandidates = [...seenCandidates, ...rows]; if (operation === 'other') selectedCandidate = null; }
+    renderCandidateChoices();
+    $('photo-crop-help').textContent = operation === 'refine' ? 'Your circle is kept first. Choose a nearby alternative only if it looks better.' : 'Pick the closest circle, then refine it if needed.';
+  } catch {
+    if (request !== candidateRequest || session !== candidateSession) return;
+    candidateBusy = false; candidateChoices = previousChoices; selectedCandidate = previousSelection; renderCandidateChoices(); manualCrop.open = true; syncManualMode();
+    $('photo-crop-help').textContent = 'Circle choices were unavailable. Adjust manually if needed.';
+  }
+}
 let cropFrame = 0;
 function scheduleCropPreview() { if (cropFrame) return; cropFrame = requestAnimationFrame(() => { cropFrame = 0; updateCropPreview(); }); }
 function sizeCropStage() {
@@ -370,11 +453,11 @@ const cropStageResize = new ResizeObserver(sizeCropStage); cropStageResize.obser
 function stagePoint(event: PointerEvent) { const rect = cropStage.getBoundingClientRect(); return { x:event.clientX - rect.left, y:event.clientY - rect.top }; }
 function currentStageView(crop: PhotoCrop) { const rect = cropStage.getBoundingClientRect(); return fixedCropView(crop, Math.min(rect.width, rect.height)); }
 function beginCropGesture(event: PointerEvent, mode: CropGesture['mode']) {
-  if (cropGesture || !event.isPrimary || event.button !== 0 || !cropWorking || !cropBitmap) return;
+  if (!manualCrop.open || cropGesture || !event.isPrimary || event.button !== 0 || !cropWorking || !cropBitmap) return;
   const crop = cropState(), view = currentStageView(crop); if (!view) return;
   const point = stagePoint(event);
   cropGesture = { mode, pointerId: event.pointerId, startClientX: event.clientX, startClientY: event.clientY, startPointerRadius: Math.hypot(point.x - view.centerX, point.y - view.centerY), crop, view };
-  invalidateCircleFit(); setGestureState(mode); cropStage.setPointerCapture(event.pointerId); scheduleCropPreview(); event.preventDefault();
+  invalidateCircleFit(); clearCandidateSelection(); setGestureState(mode); cropStage.setPointerCapture(event.pointerId); scheduleCropPreview(); event.preventDefault();
 }
 function endCropGesture(event?: PointerEvent) {
   if (!cropGesture || (event && event.pointerId !== cropGesture.pointerId)) return;
@@ -393,31 +476,18 @@ cropStage.addEventListener('pointermove', event => {
   }
 });
 for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) cropStage.addEventListener(eventName, event => endCropGesture(event as PointerEvent));
-function stepZoom(deltaPercent:number){ if (cropBitmap) setCrop(resizeCircleCrop(cropBitmap.width, cropBitmap.height, cropState(), deltaPercent)); }
+function stepZoom(deltaPercent:number){ if (cropBitmap) { invalidateCircleFit(); clearCandidateSelection(); setCrop(resizeCircleCrop(cropBitmap.width, cropBitmap.height, cropState(), deltaPercent), { invalidate:false }); } }
 for (const button of root.querySelectorAll<HTMLButtonElement>('[data-zoom-delta]')) button.addEventListener('click',()=>stepZoom(Number(button.dataset.zoomDelta)));
-async function autoFitCrop() {
-  if (!cropWorking || !cropBitmap) return resetCrop({ invalidate: false });
-  const request = ++circleFitRequest;
-  $('photo-crop-help').textContent = 'Circle stays fixed. Drag the photo anywhere to position it, or use the handle to resize.';
-  try {
-    const result = await composeCircleFitCrop(experience.pxc, cropBitmap.image, cropBitmap.width, cropBitmap.height, cropWorking, ++circleFitSerial, { clampCropSelection });
-    if (request !== circleFitRequest || !cropWorking) return;
-    if (result.proposal.status === 'accepted' && result.proposal.crop) {
-      setCrop(result.proposal.crop, { invalidate: false });
-      $('photo-crop-help').textContent = 'Circle fit suggested this size. Drag the photo anywhere to position it, or use the handle to resize.';
-    } else {
-      resetCrop({ invalidate: false });
-      $('photo-crop-help').textContent = 'Could not confirm a disc edge. Drag the photo anywhere to position it, or use the handle to resize.';
-    }
-  } catch {
-    if (request !== circleFitRequest) return;
-    resetCrop({ invalidate: false });
-    $('photo-crop-help').textContent = 'Circle fit was unavailable. Drag the photo anywhere to position it, or use the handle to resize.';
-  }
+function startOverCircleChoices() {
+  if (!candidateSession || !cropBitmap) return;
+  invalidateCircleFit(); resetCrop({ invalidate: false }); loadCircleCandidates('initial');
 }
-$('crop-auto').addEventListener('click', autoFitCrop);
+$('crop-auto').addEventListener('click', startOverCircleChoices);
+refineButton.addEventListener('click', () => loadCircleCandidates('refine'));
+otherButton.addEventListener('click', () => loadCircleCandidates('other'));
+manualCrop.addEventListener('toggle', () => { if (manualCrop.open) invalidateCircleFit(); syncManualMode(); }); syncManualMode();
 function discardPendingPhoto() {
-  endCropGesture();
+  endCropGesture(); invalidateCircleFit(); candidateSession = null; resetCandidateChoices(); manualCrop.open = false; syncManualMode();
   if (cropBitmap) cropBitmap.dispose(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
 }
 async function decodePhoto(file: File): Promise<CropSource> {
@@ -445,7 +515,8 @@ $('photo').addEventListener('change', async () => {
     if (file.size > 15_000_000) throw Error('Choose a photo under 15 MB. Your prepared photo is unchanged.');
     discardPendingPhoto(); cropFile = file; cropBitmap = await decodePhoto(file);
     const workingScale = Math.min(1, 720 / Math.max(cropBitmap.width, cropBitmap.height)); cropWorking = document.createElement('canvas'); cropWorking.width = Math.max(1, Math.round(cropBitmap.width * workingScale)); cropWorking.height = Math.max(1, Math.round(cropBitmap.height * workingScale)); cropWorking.getContext('2d')!.drawImage(cropBitmap.image,0,0,cropWorking.width,cropWorking.height);
-    resetCrop(); autoFitCrop(); ($('photo-crop') as HTMLDialogElement).showModal(); requestAnimationFrame(sizeCropStage); $('crop-auto').focus();
+    resetCrop({ invalidate: false }); candidateSession = createCircleCandidateSession(experience.pxc, cropBitmap.image, cropBitmap.width, cropBitmap.height, cropWorking, ++circleFitSerial, { clampCropSelection });
+    ($('photo-crop') as HTMLDialogElement).showModal(); requestAnimationFrame(sizeCropStage); $('crop-cancel').focus(); loadCircleCandidates('initial');
   } catch (error) { discardPendingPhoto(); photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; const message = `Photo could not open: ${String(error).replace(/^Error: /, '')}`; $('photo-status').textContent = message; $('status').textContent = message; updateSaveState(); }
 });
 function finishPhotoPreparation() { photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; updateSaveState(); }
@@ -454,12 +525,12 @@ $('photo-crop').addEventListener('cancel', event => { event.preventDefault(); $(
 $('photo-crop').addEventListener('close', () => { endCropGesture(); invalidateCircleFit(); });
 for (const id of cropIds) input(id).addEventListener('input', scheduleCropPreview);
 $('crop-reset').addEventListener('click', () => {
-  resetCrop();
+  invalidateCircleFit(); clearCandidateSelection(); resetCrop({ invalidate: false });
   $('photo-crop-help').textContent = 'Circle centered and reset. Drag the photo anywhere to position it, or use the handle to resize.';
 });
 $('crop-apply').addEventListener('click', async () => {
-  if (!cropBitmap || !cropFile) return;
-  const apply = $('crop-apply') as HTMLButtonElement; apply.disabled = true;
+  if (!cropBitmap || !cropFile || (!selectedCandidate && !manualCrop.open)) return;
+  const apply = cropApply; apply.disabled = true;
   try {
     const bitmap = cropBitmap, fileName = cropFile.name, size = Math.min(1024, Math.max(256, Math.min(bitmap.width, bitmap.height)));
     const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
@@ -472,7 +543,7 @@ $('crop-apply').addEventListener('click', async () => {
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo ready. Choose a manufacturer and mold to finish it.`; $('photo-status').textContent = message; $('status').textContent = `${message} Retained at ${photoAddress}.`; finishPhotoPreparation(); preview();
   } catch (error) {
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo could not be kept: ${String(error).replace(/^Error: /, '')}`; $('photo-crop-help').textContent = message; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();
-  } finally { apply.disabled = false; }
+  } finally { syncCandidateApply(); }
 });
 $('composer').addEventListener('submit', async event => {
   event.preventDefault(); if (photoBusy || input('save').disabled) return;
