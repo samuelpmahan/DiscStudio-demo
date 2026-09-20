@@ -3,23 +3,28 @@ import assert from 'node:assert/strict';
 import { createCanvas } from '@napi-rs/canvas';
 import { openExperience } from './persistent-experience.ts';
 import { initialDraft } from './model.ts';
-import { composeRimFitCrop } from './rimfit.ts';
+import { ensureCircleFitCalculations } from './circle-fit.ts';
+import { Part } from '../part-first-kernel/src/pxc.mjs';
 import { clampCropSelection } from './upload-ui.ts';
-import { cropForSourceSamples } from './crop-geometry.ts';
 
-test('RimFit correction remains transient while a photo-only save restores', async () => {
+test('CircleFit correction remains transient while a photo-only save restores', async () => {
   const values = new Map<string, string>();
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) };
   const app = await openExperience(storage, () => {});
   const canvas = createCanvas(96, 96), ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#1c2930'; ctx.fillRect(0, 0, 96, 96); ctx.fillStyle = '#75b7db'; ctx.beginPath(); ctx.ellipse(48, 48, 34, 31, .2, 0, Math.PI * 2); ctx.fill();
-  const fit = await composeRimFitCrop(app.pxc, { width: 96, height: 96 }, canvas as any, 1, { clampCropSelection, cropForSourceSamples });
-  assert.ok(['accepted', 'abstained'].includes(fit.proposal.status));
+  ctx.fillStyle = '#1c2930'; ctx.fillRect(0, 0, 96, 96); ctx.fillStyle = '#75b7db'; ctx.beginPath(); ctx.arc(48, 48, 34, 0, Math.PI * 2); ctx.fill();
+  const data = ctx.getImageData(0, 0, 96, 96).data;
+  ensureCircleFitCalculations(app.pxc, { clampCropSelection });
+  app.pxc.set('ds.px.PhotoIntake.circlefit.test', new Part({ schema: 'PhotoRaster@1', working: { width: 96, height: 96, rgba: data }, source: { width: 96, height: 96, rgba: data } }));
+  await app.pxc.compose({ into: 'ds.px.CircleFit.circlefit.test', calculation: 'oc.studio.circleFit', inputs: { photo: 'ds.px.PhotoIntake.circlefit.test' } });
+  await app.pxc.compose({ into: 'ds.px.CropEdit.circlefit.test', calculation: 'fn.studio.circleCropProposal', inputs: { photo: 'ds.px.PhotoIntake.circlefit.test', evidence: 'ds.px.CircleFit.circlefit.test' } });
+  const fit = app.pxc.get('ds.px.CropEdit.circlefit.test').value;
+  assert.ok(['accepted', 'abstained'].includes(fit.status));
   await app.addDraftPhoto({ kind: 'photo', name: 'rimfit.png', src: 'data:image/png;base64,iVBORw0KGgo=' });
   const depiction = await app.selectDraftDepiction(), hydrated = await app.hydrateSeed(initialDraft().mold);
   await app.save({ ...initialDraft(), mold: hydrated.address, plastic: 'ESP' }, depiction);
   const raw = values.get('discstudio.pxc.shelf.v1')!;
-  assert.doesNotMatch(raw, /(?:PhotoIntake|CircleFit|CropEdit)\.rimfit/);
+  assert.doesNotMatch(raw, /(?:PhotoIntake|CircleFit|CropEdit)\.circlefit/);
   const restored = await openExperience(storage, () => {});
   assert.equal(restored.bag().length, 1);
   assert.match(restored.persistenceStatus, /Restored Today’s Bag/);

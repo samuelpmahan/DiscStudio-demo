@@ -15,7 +15,7 @@ Open the printed localhost address. For a Pages subpath, deploy the **contents o
 
 ## Tournament flow
 
-1. Add a disc photo and correct its editable aperture. RimFit supplies a proposal only when it accepts; otherwise the centered aperture remains an explicit human correction.
+1. Add a disc photo and correct its editable circle. CircleFit makes a bounded proposal, then refines the same supported foreground at full source resolution. If it cannot propose, the centered circle remains usable for manual correction.
 2. Search and select the mold, then add plastic, weight, nickname, and any flight overrides. The latest prepared photo is the visible draft.
 3. Save to Today’s Bag. The shelf remains a silent retained PxC sidecar.
 4. Select one or more bag cards, choose one of five vertical or five horizontal fixed layouts, then preview, download a transparent PNG, or download selected cards together as a ZIP.
@@ -28,12 +28,12 @@ If a selection changes while a preview is rendering, the app clears it and makes
 npm test
 ```
 
-This runs the supported tournament gate: photo-first save/readback, RimFit-to-save-to-reload persistence, crop geometry, shared renderer presets, and PNG/ZIP export. `npm run test:all-history` is retained only to inspect the pre-rebuild painter, catalog-review, and archive workflows; it is not a release gate for this photo-first demo and currently includes intentionally incompatible historical expectations.
+This runs the supported tournament gate: photo-first save/readback, CircleFit-to-save-to-reload persistence, circle crop geometry, shared renderer presets, and PNG/ZIP export. `npm run test:all-history` is retained only to inspect the pre-rebuild painter, catalog-review, and archive workflows; it is not a release gate for this photo-first demo and currently includes intentionally incompatible historical expectations.
 
 
 ## Crop fitting
 
-The browser-native v3 rim fitter remains the default. Its internal fitted geometry is preserved, while ellipse-specific editing controls are deferred from the demo UI.
+CircleFit is the creator default. It runs its edge-ring search on a bounded working raster, maps the proposal to source pixels, and refines that same foreground component at full source resolution. The crop remains one editable circle; manual use stays available when CircleFit abstains. The former RimFit v3 ellipse experiment remains deferred source and is not imported by the creator.
 
 ## Optional paired capture
 

@@ -25,10 +25,10 @@ export function archive(state: State) {
     nodes.push({ id, material, ...(composition ? { calculation, inputs } : {}) });
     return id;
   }
-  // RimFit rasters and their derived proposals are session-only correction
+  // CircleFit rasters and their derived proposals are session-only correction
   // scratch work. They can contain Uint8ClampedArray pixels and are not part
   // of a saved disc; retaining them would make a normal Save fail archival.
-  const bindings = state.pxc.entries().filter(([name]: any) => name.startsWith('ds.px.') && !/^ds\.px\.(?:PhotoIntake|CircleFit|CropEdit)\.rimfit\./.test(name)).map(([name, part]: any) => [name, visit(part)]);
+  const bindings = state.pxc.entries().filter(([name]: any) => name.startsWith('ds.px.') && !/^ds\.px\.(?:PhotoIntake|CircleFit|CropEdit)\.(?:rimfit|circlefit)\./.test(name)).map(([name, part]: any) => [name, visit(part)]);
   return JSON.stringify({ version: 1, serial: state.serial, shelfAddress: state.shelfAddress, currentSeeds: state.currentSeeds, ...(state.bagsAddress ? { bagsAddress: state.bagsAddress } : {}), ...(state.bagAddress ? { bagAddress: state.bagAddress } : {}), nodes, bindings });
 }
 
