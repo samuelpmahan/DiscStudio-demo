@@ -57,10 +57,33 @@ export function clampCircleCropSelection(width: number, height: number, crop: Ph
   return { centerX: centerX / width, centerY: centerY / height, radiusX: radius / width, radiusY: radius / height, rotation: 0 };
 }
 
+/** Cap a manual resize at the current center, never translating the photo. */
+export function resizeCircleAtFixedCenter(width: number, height: number, crop: PhotoCrop, requestedRadius: number): PhotoCrop {
+  if (!Number.isFinite(requestedRadius)) throw Error('Circle resize needs a finite radius.');
+  const bounded = clampCircleCropSelection(width, height, crop), centerX = bounded.centerX * width, centerY = bounded.centerY * height;
+  const minRadius = minCropRadiusRatio * Math.min(width, height), maxRadius = Math.min(centerX, width - centerX, centerY, height - centerY);
+  const radius = clamp(requestedRadius, minRadius, maxRadius);
+  return { centerX: bounded.centerX, centerY: bounded.centerY, radiusX: radius / width, radiusY: radius / height, rotation: 0 };
+}
+
 export function resizeCircleCrop(width: number, height: number, crop: PhotoCrop, deltaPercent: number): PhotoCrop {
   if (!cropZoomNudges.includes(deltaPercent as typeof cropZoomNudges[number])) throw Error('Unsupported crop selection nudge.');
   const bounded = clampCircleCropSelection(width, height, crop), radius = bounded.radiusX * width + Math.min(width, height) * deltaPercent / 200;
-  return clampCircleCropSelection(width, height, { ...bounded, radiusX: radius / width, radiusY: radius / height });
+  return resizeCircleAtFixedCenter(width, height, bounded, radius);
+}
+
+/** Move the source photo beneath the fixed preview aperture. */
+export function panCircleCrop(width: number, height: number, crop: PhotoCrop, sourceDeltaX: number, sourceDeltaY: number): PhotoCrop {
+  if (![sourceDeltaX, sourceDeltaY].every(Number.isFinite)) throw Error('Photo pan needs finite source movement.');
+  const bounded = clampCircleCropSelection(width, height, crop);
+  return clampCircleCropSelection(width, height, { ...bounded, centerX: bounded.centerX - sourceDeltaX / width, centerY: bounded.centerY - sourceDeltaY / height });
+}
+
+/** Resize from a captured screen-space delta; zero movement never changes size. */
+export function resizeCircleCropByScreenDelta(width: number, height: number, crop: PhotoCrop, screenDelta: number, sourceToScreenScale: number): PhotoCrop {
+  if (![screenDelta, sourceToScreenScale].every(Number.isFinite) || sourceToScreenScale <= 0) throw Error('Circle resize needs finite screen geometry.');
+  const bounded = clampCircleCropSelection(width, height, crop), radius = bounded.radiusX * width + screenDelta / sourceToScreenScale;
+  return resizeCircleAtFixedCenter(width, height, bounded, radius);
 }
 
 export function circleCropExportMapping(width: number, height: number, size: number, crop: PhotoCrop) {
@@ -69,6 +92,14 @@ export function circleCropExportMapping(width: number, height: number, size: num
   const selection = clampCircleCropSelection(width, height, crop), radius = selection.radiusX * width;
   const centerX = selection.centerX * width, centerY = selection.centerY * height;
   return { sourceX: centerX - radius, sourceY: centerY - radius, sourceWidth: radius * 2, sourceHeight: radius * 2, sourceCenterX: centerX, sourceCenterY: centerY, sourceRadiusX: radius, sourceRadiusY: radius, outputSize: size, rotation: 0, selection };
+}
+
+/** Screen geometry for one fixed aperture with a translated source photo. */
+export function fixedCirclePreviewGeometry(width: number, height: number, crop: PhotoCrop, size: number) {
+  validDimensions(width, height);
+  if (!Number.isFinite(size) || size <= 0) throw Error('Preview size must be positive.');
+  const selection = clampCircleCropSelection(width, height, crop), placement = sourceImagePlacement(width, height, size), centerX = size / 2, centerY = size / 2;
+  return { scale: placement.scale, centerX, centerY, radius: selection.radiusX * width * placement.scale, imageX: centerX - selection.centerX * placement.width, imageY: centerY - selection.centerY * placement.height, imageWidth: placement.width, imageHeight: placement.height };
 }
 
 export function sourceImagePlacement(width: number, height: number, size: number) {
@@ -286,14 +317,13 @@ let cropRotation = 0;
 let circleFitRequest = 0, circleFitSerial = 0;
 function invalidateCircleFit() { circleFitRequest++; }
 function cropState(): PhotoCrop { return { centerX: Number(input('crop-center-x').value), centerY: Number(input('crop-center-y').value), radiusX: Number(input('crop-radius-x').value), radiusY: Number(input('crop-radius-y').value), rotation: cropRotation }; }
-function setCrop(next: PhotoCrop, { invalidate = true, manual = false }: { invalidate?: boolean; manual?: boolean } = {}) {
-  if (!cropWorking) return;
+function setCrop(next: PhotoCrop, { invalidate = true }: { invalidate?: boolean } = {}) {
+  if (!cropWorking || !cropBitmap) return;
   if (invalidate) invalidateCircleFit();
-  const crop = clampCircleCropSelection(cropBitmap!.width, cropBitmap!.height, next);
+  const crop = clampCircleCropSelection(cropBitmap.width, cropBitmap.height, next);
   input('crop-center-x').value = String(crop.centerX); input('crop-center-y').value = String(crop.centerY);
   cropRotation = 0;
   input('crop-radius-x').value = String(crop.radiusX); input('crop-radius-y').value = String(crop.radiusY);
-  if (manual) $('photo-crop-help').textContent = 'Manual circle set. Confirm the full rim is inside the selection, then use this photo.';
   scheduleCropPreview();
 }
 function circleLockedCrop(width: number, height: number, ratio = .48): PhotoCrop {
@@ -301,95 +331,93 @@ function circleLockedCrop(width: number, height: number, ratio = .48): PhotoCrop
   return { centerX:.5, centerY:.5, radiusX:radius / width, radiusY:radius / height, rotation:0 };
 }
 function resetCrop({ invalidate = true }: { invalidate?: boolean } = {}) { if (cropBitmap) setCrop(circleLockedCrop(cropBitmap.width, cropBitmap.height), { invalidate }); }
+type CropView = { scale: number; centerX: number; centerY: number; radius: number; imageX: number; imageY: number; imageWidth: number; imageHeight: number };
+function fixedCropView(crop: PhotoCrop, size: number): CropView | null {
+  return cropBitmap ? fixedCirclePreviewGeometry(cropBitmap.width, cropBitmap.height, crop, size) : null;
+}
+type CropGesture = { mode: 'pan' | 'resize'; pointerId: number; startClientX: number; startClientY: number; startPointerRadius: number; crop: PhotoCrop; view: CropView };
+let cropGesture: CropGesture | null = null;
+const cropStage = $('crop-stage');
+const resizeHandle = $('crop-resize-handle') as HTMLButtonElement;
+const gestureState = $('crop-gesture-state');
+function setGestureState(mode: CropGesture['mode'] | null) {
+  cropStage.dataset.mode = mode ?? 'ready';
+  gestureState.textContent = mode === 'resize' ? 'Resizing circle' : mode === 'pan' ? 'Panning photo' : 'Circle ready';
+}
 function updateCropPreview() {
   if (!cropWorking || !cropBitmap) return;
-  const canvas = $('crop-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, crop = cropState();
-  const placement = sourceImagePlacement(cropBitmap.width, cropBitmap.height, canvas.width);
+  const canvas = $('crop-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, crop = cropState(), view = fixedCropView(crop, canvas.width); if (!view) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#dfe5db'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(cropWorking, placement.x, placement.y, placement.width, placement.height);
-  const centerX = placement.x + crop.centerX * placement.width, centerY = placement.y + crop.centerY * placement.height;
-  const radius = crop.radiusX * cropBitmap.width * placement.scale;
-  // One selection boundary only: everything it contains is kept; the
-  // semitransparent exterior is what will be trimmed. The border is painted
-  // into the same source-space canvas, so it stays honest as the stage grows.
-  ctx.save(); ctx.fillStyle = 'rgba(18,39,31,.68)'; ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2, true); ctx.fill('evenodd'); ctx.beginPath(); ctx.arc(centerX, centerY, radius, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,255,255,.96)'; ctx.lineWidth = Math.max(2, canvas.width / 260); ctx.stroke(); ctx.restore();
+  ctx.drawImage(cropWorking, view.imageX, view.imageY, view.imageWidth, view.imageHeight);
+  const mode = cropGesture?.mode, stroke = mode === 'resize' ? '#d88938' : mode === 'pan' ? '#168a87' : 'rgba(255,255,255,.96)';
+  // The source image moves beneath one fixed circular aperture. The whole
+  // outline changes only while a captured gesture is active.
+  ctx.save(); ctx.fillStyle = 'rgba(18,39,31,.68)'; ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height); ctx.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2, true); ctx.fill('evenodd'); ctx.beginPath(); ctx.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2); ctx.strokeStyle = stroke; ctx.lineWidth = Math.max(2, canvas.width / 260); ctx.stroke(); ctx.restore();
+  cropStage.style.setProperty('--crop-handle-x', `${view.radius / Math.SQRT2 / canvas.width * 100}%`);
+  cropStage.style.setProperty('--crop-handle-y', `${view.radius / Math.SQRT2 / canvas.height * 100}%`);
   const circleSize = Math.round(crop.radiusX * cropBitmap.width * 200 / Math.min(cropBitmap.width, cropBitmap.height));
   ($('crop-zoom-value') as HTMLOutputElement).value = `Circle size ${circleSize}%`;
 }
 let cropFrame = 0;
 function scheduleCropPreview() { if (cropFrame) return; cropFrame = requestAnimationFrame(() => { cropFrame = 0; updateCropPreview(); }); }
-type CropDrag = { mode:'move'|'resize'; x:number; y:number; crop:PhotoCrop };
-function unrotate(dx: number, dy: number, rotation: number) {
-  const cos = Math.cos(rotation), sin = Math.sin(rotation);
-  // Canvas rotates the ellipse by `rotation`; interaction uses the inverse
-  // transform so hit-testing and resizing follow the visible rim.
-  return { x: cos * dx + sin * dy, y: -sin * dx + cos * dy };
-}
-let cropDrag:CropDrag|null=null;
-const cropStage=$('crop-stage');
 function sizeCropStage() {
+  if (cropGesture) return;
   cropStage.style.width = ''; cropStage.style.height = '';
   const side = Math.floor(Math.min(cropStage.clientWidth, cropStage.clientHeight));
   if (side > 0) { cropStage.style.width = `${side}px`; cropStage.style.height = `${side}px`; scheduleCropPreview(); }
 }
-const cropStageResize = new ResizeObserver(sizeCropStage); cropStageResize.observe(cropStage.parentElement!); cropStageResize.observe($('photo-crop-help'));
+const cropStageResize = new ResizeObserver(sizeCropStage); cropStageResize.observe(cropStage.parentElement!);
 function stagePoint(event: PointerEvent) { const rect = cropStage.getBoundingClientRect(); return { x:event.clientX - rect.left, y:event.clientY - rect.top }; }
-function stageSelection(crop: PhotoCrop) {
-  if (!cropWorking || !cropBitmap) return null;
-  const rect = cropStage.getBoundingClientRect(), size = Math.min(rect.width, rect.height);
-  const placement = sourceImagePlacement(cropBitmap.width, cropBitmap.height, size), centerX = placement.x + crop.centerX * placement.width, centerY = placement.y + crop.centerY * placement.height;
-  const radius = crop.radiusX * cropBitmap.width * placement.scale;
-  return { placement, centerX, centerY, radiusX: radius, radiusY: radius };
+function currentStageView(crop: PhotoCrop) { const rect = cropStage.getBoundingClientRect(); return fixedCropView(crop, Math.min(rect.width, rect.height)); }
+function beginCropGesture(event: PointerEvent, mode: CropGesture['mode']) {
+  if (cropGesture || !event.isPrimary || event.button !== 0 || !cropWorking || !cropBitmap) return;
+  const crop = cropState(), view = currentStageView(crop); if (!view) return;
+  const point = stagePoint(event);
+  cropGesture = { mode, pointerId: event.pointerId, startClientX: event.clientX, startClientY: event.clientY, startPointerRadius: Math.hypot(point.x - view.centerX, point.y - view.centerY), crop, view };
+  invalidateCircleFit(); setGestureState(mode); cropStage.setPointerCapture(event.pointerId); scheduleCropPreview(); event.preventDefault();
 }
-cropStage.addEventListener('pointerdown',event=>{
-  if (!cropWorking) return;
-  const crop = cropState(), view = stageSelection(crop); if (!view) return;
-  const point = stagePoint(event), local = unrotate(point.x - view.centerX, point.y - view.centerY, crop.rotation);
-  const normalized = Math.hypot(local.x / view.radiusX, local.y / view.radiusY), edge = Math.max(10 / Math.max(1, view.radiusX), .08);
-  if (Math.abs(normalized - 1) <= edge) cropDrag={mode:'resize',x:event.clientX,y:event.clientY,crop};
-  else if (normalized < 1) cropDrag={mode:'move',x:event.clientX,y:event.clientY,crop};
-  else return;
-  cropStage.setPointerCapture(event.pointerId); event.preventDefault();
-});
-cropStage.addEventListener('pointermove',event=>{
-  if (!cropDrag || !cropWorking) return;
-  const view = stageSelection(cropDrag.crop), point = stagePoint(event); if (!view) return;
-  if (cropDrag.mode === 'move') {
-    const dx = (event.clientX - cropDrag.x) / view.placement.scale, dy = (event.clientY - cropDrag.y) / view.placement.scale;
-    setCrop({ ...cropDrag.crop, centerX:cropDrag.crop.centerX + dx / cropBitmap!.width, centerY:cropDrag.crop.centerY + dy / cropBitmap!.height }, { manual: true });
+function endCropGesture(event?: PointerEvent) {
+  if (!cropGesture || (event && event.pointerId !== cropGesture.pointerId)) return;
+  cropGesture = null; setGestureState(null); scheduleCropPreview();
+}
+resizeHandle.addEventListener('pointerdown', event => { event.stopPropagation(); beginCropGesture(event, 'resize'); });
+cropStage.addEventListener('pointerdown', event => beginCropGesture(event, 'pan'));
+cropStage.addEventListener('pointermove', event => {
+  const gesture = cropGesture; if (!gesture || event.pointerId !== gesture.pointerId || !cropBitmap) return;
+  if (gesture.mode === 'pan') {
+    const sourceX = (event.clientX - gesture.startClientX) / gesture.view.scale, sourceY = (event.clientY - gesture.startClientY) / gesture.view.scale;
+    setCrop(panCircleCrop(cropBitmap.width, cropBitmap.height, gesture.crop, sourceX, sourceY), { invalidate: false });
   } else {
-    const sourceX = (point.x - view.placement.x) / view.placement.scale, sourceY = (point.y - view.placement.y) / view.placement.scale;
-    const local = unrotate(sourceX - cropDrag.crop.centerX * cropBitmap!.width, sourceY - cropDrag.crop.centerY * cropBitmap!.height, cropDrag.crop.rotation);
-    const factor = Math.hypot(local.x, local.y) / (cropDrag.crop.radiusX * cropBitmap!.width);
-    setCrop({ ...cropDrag.crop, radiusX:cropDrag.crop.radiusX * factor, radiusY:cropDrag.crop.radiusY * factor }, { manual: true });
+    const point = stagePoint(event), delta = Math.hypot(point.x - gesture.view.centerX, point.y - gesture.view.centerY) - gesture.startPointerRadius;
+    setCrop(resizeCircleCropByScreenDelta(cropBitmap.width, cropBitmap.height, gesture.crop, delta, gesture.view.scale), { invalidate: false });
   }
 });
-for (const eventName of ['pointerup','pointercancel']) cropStage.addEventListener(eventName,()=>{cropDrag=null;});
-function stepZoom(deltaPercent:number){ if (cropBitmap) setCrop(resizeCircleCrop(cropBitmap.width, cropBitmap.height, cropState(), deltaPercent), { manual: true }); }
-cropStage.addEventListener('wheel',event=>{event.preventDefault();stepZoom(event.deltaY<0?10:-10);},{passive:false});
+for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) cropStage.addEventListener(eventName, event => endCropGesture(event as PointerEvent));
+function stepZoom(deltaPercent:number){ if (cropBitmap) setCrop(resizeCircleCrop(cropBitmap.width, cropBitmap.height, cropState(), deltaPercent)); }
 for (const button of root.querySelectorAll<HTMLButtonElement>('[data-zoom-delta]')) button.addEventListener('click',()=>stepZoom(Number(button.dataset.zoomDelta)));
 async function autoFitCrop() {
   if (!cropWorking || !cropBitmap) return resetCrop({ invalidate: false });
   const request = ++circleFitRequest;
-  $('photo-crop-help').textContent = 'Checking the disc edge… You can still adjust the circle or use this photo.';
+  $('photo-crop-help').textContent = 'Circle stays fixed. Drag the photo anywhere to position it, or use the handle to resize.';
   try {
     const result = await composeCircleFitCrop(experience.pxc, cropBitmap.image, cropBitmap.width, cropBitmap.height, cropWorking, ++circleFitSerial, { clampCropSelection });
     if (request !== circleFitRequest || !cropWorking) return;
     if (result.proposal.status === 'accepted' && result.proposal.crop) {
       setCrop(result.proposal.crop, { invalidate: false });
-      $('photo-crop-help').textContent = 'Circle fit suggested this size. Drag inside to move it or drag its edge to resize.';
+      $('photo-crop-help').textContent = 'Circle fit suggested this size. Drag the photo anywhere to position it, or use the handle to resize.';
     } else {
       resetCrop({ invalidate: false });
-      $('photo-crop-help').textContent = 'Could not confirm a disc edge. Adjust the circle if needed, then use this photo.';
+      $('photo-crop-help').textContent = 'Could not confirm a disc edge. Drag the photo anywhere to position it, or use the handle to resize.';
     }
   } catch {
     if (request !== circleFitRequest) return;
     resetCrop({ invalidate: false });
-    $('photo-crop-help').textContent = 'Circle fit was unavailable. Adjust the circle if needed, then use this photo.';
+    $('photo-crop-help').textContent = 'Circle fit was unavailable. Drag the photo anywhere to position it, or use the handle to resize.';
   }
 }
 $('crop-auto').addEventListener('click', autoFitCrop);
 function discardPendingPhoto() {
+  endCropGesture();
   if (cropBitmap) cropBitmap.dispose(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
 }
 async function decodePhoto(file: File): Promise<CropSource> {
@@ -423,11 +451,11 @@ $('photo').addEventListener('change', async () => {
 function finishPhotoPreparation() { photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; updateSaveState(); }
 $('crop-cancel').addEventListener('click', () => { invalidateCircleFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled. Add a photo when you’re ready.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); });
 $('photo-crop').addEventListener('cancel', event => { event.preventDefault(); $('crop-cancel').click(); });
-$('photo-crop').addEventListener('close', invalidateCircleFit);
+$('photo-crop').addEventListener('close', () => { endCropGesture(); invalidateCircleFit(); });
 for (const id of cropIds) input(id).addEventListener('input', scheduleCropPreview);
 $('crop-reset').addEventListener('click', () => {
   resetCrop();
-  $('photo-crop-help').textContent = 'Circle reset. Adjust it if needed, then use this photo.';
+  $('photo-crop-help').textContent = 'Circle centered and reset. Drag the photo anywhere to position it, or use the handle to resize.';
 });
 $('crop-apply').addEventListener('click', async () => {
   if (!cropBitmap || !cropFile) return;

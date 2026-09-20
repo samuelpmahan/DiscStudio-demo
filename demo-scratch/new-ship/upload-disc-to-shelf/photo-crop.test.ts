@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clampCircleCropSelection, clampCropSelection, circleCropExportMapping, cropExportMapping, cropForDetectedCircle, cropZoomNudges, detectDiscCircle, resizeCircleCrop, resizeCrop, sourceImagePlacement } from './upload-ui.ts';
+import { clampCircleCropSelection, clampCropSelection, circleCropExportMapping, cropExportMapping, cropForDetectedCircle, cropZoomNudges, detectDiscCircle, fixedCirclePreviewGeometry, panCircleCrop, resizeCircleAtFixedCenter, resizeCircleCrop, resizeCircleCropByScreenDelta, resizeCrop, sourceImagePlacement } from './upload-ui.ts';
 import { mapWorkingCircleToSource, refineDiscCircle } from './circle-fit.ts';
 
 test('correction strip exposes the exact discrete nudges', () => {
@@ -114,4 +114,37 @@ test('active circle crop keeps one radius through clamp, nudge, and export', () 
   assert.equal(nudged.radiusX * 1200, nudged.radiusY * 600);
   assert.equal(mapping.sourceRadiusX, mapping.sourceRadiusY);
   assert.equal(mapping.rotation, 0);
+});
+
+
+test('handle resize uses captured movement with no grab-offset jump', () => {
+  const initial = clampCircleCropSelection(1200, 600, { centerX: .5, centerY: .5, radiusX: .2, radiusY: .4, rotation: 0 });
+  assert.deepEqual(resizeCircleCropByScreenDelta(1200, 600, initial, 0, .5), initial, 'stationary handle press changes nothing');
+  const moved = resizeCircleCropByScreenDelta(1200, 600, initial, 1, .5);
+  assert.equal(moved.radiusX * 1200 - initial.radiusX * 1200, 2, 'one screen pixel moves only its source-space equivalent');
+  assert.equal(moved.centerX, initial.centerX);
+  assert.equal(moved.centerY, initial.centerY);
+});
+
+test('fixed aperture keeps its screen center while photo panning reverses source center', () => {
+  const initial = clampCircleCropSelection(1200, 600, { centerX: .5, centerY: .5, radiusX: .2, radiusY: .4, rotation: 0 });
+  const panned = panCircleCrop(1200, 600, initial, 36, -18);
+  const before = fixedCirclePreviewGeometry(1200, 600, initial, 320), after = fixedCirclePreviewGeometry(1200, 600, panned, 320);
+  assert.equal(panned.centerX, initial.centerX - 36 / 1200);
+  assert.equal(panned.centerY, initial.centerY + 18 / 600);
+  assert.equal(after.centerX, before.centerX);
+  assert.equal(after.centerY, before.centerY);
+  assert.equal(after.radius, before.radius);
+  assert.ok(after.imageX > before.imageX, 'dragging the photo right translates its pixels right under the fixed aperture');
+  assert.ok(after.imageY < before.imageY, 'dragging the photo up translates its pixels up under the fixed aperture');
+});
+
+
+test('manual resize caps at a fixed center instead of translating the photo', () => {
+  const nearEdge = clampCircleCropSelection(1200, 600, { centerX: .2, centerY: .5, radiusX: .1, radiusY: .2, rotation: 0 });
+  const grown = resizeCircleAtFixedCenter(1200, 600, nearEdge, 500);
+  assert.equal(grown.centerX, nearEdge.centerX);
+  assert.equal(grown.centerY, nearEdge.centerY);
+  assert.equal(grown.radiusX * 1200, 240, 'left edge caps the radius at the retained center');
+  assert.equal(grown.radiusY * 600, 240);
 });
