@@ -8,6 +8,10 @@ export async function exportBrowserZip(queue: readonly QueuedCard[], renderCard:
   const blob = storedZip([...rendered.map(({ filename, png }) => ({ name: filename, bytes: png })), { name: 'manifest.json', bytes: new TextEncoder().encode(JSON.stringify(manifest, null, 2)) }]);
   return { blob, manifest };
 }
+export function downloadUrl(url: string, filename: string) {
+  const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.style.position = 'fixed'; anchor.style.left = '-10000px';
+  document.body.append(anchor); anchor.click(); anchor.remove();
+}
 export function downloadBlob(blob: Blob, filename: string) {
-  const anchor = document.createElement('a'), url = URL.createObjectURL(blob); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const url = URL.createObjectURL(blob); downloadUrl(url, filename); setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }

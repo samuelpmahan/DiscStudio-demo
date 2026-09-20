@@ -58,3 +58,4 @@
 /* The production creator is photo-first; painter/debug controls remain in the
    authored DOM only where their retained IDs support older model paths. */
 .experimental,#receipts-panel{display:none!important}
+.card-export-actions a.primary:not([hidden]){display:block;margin:0;border-radius:9px;font:inherit;font-size:12px;font-weight:650;text-align:center;text-decoration:none;cursor:pointer}

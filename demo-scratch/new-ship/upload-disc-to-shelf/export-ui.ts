@@ -1,6 +1,6 @@
 import { renderCardBlob, renderCardPreview, type CardOrientation, type CardPreset } from './browser-card-renderer.ts';
 import { cardFilename, type QueuedCard } from './export-queue-core.ts';
-import { downloadBlob, exportBrowserZip } from './browser-export.ts';
+import { exportBrowserZip } from './browser-export.ts';
 import type { createExperience } from './model.ts';
 
 const PRESETS: { id: CardPreset; orientation: CardOrientation; name: string }[] = [
@@ -29,12 +29,12 @@ export function mountExport(experience: Experience, { root = document }: { root?
     <div class="bag-export-grid"><div><div id="bag-export-list" class="bag-export-list" aria-live="polite"></div><p id="bag-export-empty" class="subtle">Save a cropped disc photo to add it here.</p></div>
     <div class="bag-export-controls"><label>Orientation<select id="card-orientation"><option value="vertical">Vertical · 9:16</option><option value="horizontal">Horizontal · 16:9</option></select></label><label>Fixed layout<select id="card-preset"></select></label>
       <div id="card-preview" class="card-preview"><p class="subtle">Your selected card will appear here.</p></div><p id="card-export-status" class="subtle" role="status"></p>
-      <div class="card-export-actions"><button id="card-png" type="button" class="primary">Download PNG</button><button id="card-zip" type="button">Download selected cards</button></div>
+      <div class="card-export-actions"><a id="card-png" class="primary" download>Download PNG</a><button id="card-zip" type="button">Prepare ZIP</button><a id="card-zip-download" class="primary" hidden download="discstudio-cards.zip">Save ZIP</a></div>
       <p class="subtle">PNG is transparent outside the card. Selected cards download together as a ZIP.</p></div></div>`;
   (priorShelf?.parentElement ?? root.querySelector('main')!).insertBefore(section, priorShelf ?? null);
   const $ = (id: string) => section.querySelector<HTMLElement>(`#${id}`)!;
   const orientation = $('card-orientation') as HTMLSelectElement, preset = $('card-preset') as HTMLSelectElement;
-  const selected = new Set<string>(); let previewUrl = '', previewSerial = 0, busy = false, previewSnapshot: Snapshot | null = null;
+  const selected = new Set<string>(); let previewUrl = '', zipUrl = '', previewSerial = 0, busy = false, previewSnapshot: Snapshot | null = null;
   const status = (text: string) => { $('card-export-status').textContent = text; };
   const activePreset = () => preset.value as CardPreset;
   const rows = () => experience.bag();
@@ -54,12 +54,18 @@ export function mountExport(experience: Experience, { root = document }: { root?
     busy = next;
     for (const button of section.querySelectorAll<HTMLButtonElement>('.bag-export-disc')) button.disabled = next;
     const downloadable = !next && !!previewSnapshot && !!previewUrl;
-    ($('card-png') as HTMLButtonElement).disabled = !downloadable;
+    const png = $('card-png') as HTMLAnchorElement;
+    png.setAttribute('aria-disabled', String(!downloadable)); png.tabIndex = downloadable ? 0 : -1;
+    png.style.margin = '0';
+    if (downloadable) { png.href = previewUrl; png.download = cardFilename(previewSnapshot!.cards[0]); } else { png.removeAttribute('href'); png.removeAttribute('download'); }
     ($('card-zip') as HTMLButtonElement).disabled = !downloadable;
+    orientation.disabled = next; preset.disabled = next;
   }
+  function clearZip() { if (zipUrl) URL.revokeObjectURL(zipUrl); zipUrl = ''; const link = $('card-zip-download') as HTMLAnchorElement; link.hidden = true; link.removeAttribute('href'); }
   async function preview() {
     const current = snapshot(), serial = ++previewSerial;
     if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = ''; previewSnapshot = null;
+    clearZip();
     if (!current) { $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Choose a saved disc to preview its card.' })); setBusy(false); return; }
     $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Rendering your overlay…' }));
     status(`Rendering ${current.preset.toUpperCase()} for preview…`); setBusy(true);
@@ -89,17 +95,17 @@ export function mountExport(experience: Experience, { root = document }: { root?
   }
   orientation.onchange = () => { presets(); void preview(); };
   preset.onchange = () => void preview();
-  ($('card-png') as HTMLButtonElement).onclick = async () => {
-    const current = previewSnapshot; if (!current || busy) return; setBusy(true); status('Preparing your transparent PNG…');
-    try { const card = current.cards[0], blob = await renderCardBlob(card.disc as any, current.orientation, current.preset); downloadBlob(blob, cardFilename(card)); status(`Downloaded ${cardFilename(card)} from ${current.preset.toUpperCase()}.`); }
-    catch (error) { status(`PNG not downloaded: ${String(error)}`); } finally { setBusy(false); }
+  ($('card-png') as HTMLAnchorElement).onclick = event => {
+    if (!previewSnapshot || busy || !previewUrl) { event.preventDefault(); return; }
+    status('PNG download requested.');
   };
   ($('card-zip') as HTMLButtonElement).onclick = async () => {
-    const current = previewSnapshot; if (!current || busy) return; setBusy(true); status(`Preparing ${current.cards.length} selected card${current.cards.length === 1 ? '' : 's'}…`);
+    const current = previewSnapshot, serial = previewSerial; if (!current || busy) return; setBusy(true); status(`Preparing ${current.cards.length} selected card${current.cards.length === 1 ? '' : 's'}…`);
     try {
       const result = await exportBrowserZip(current.cards, async card => new Uint8Array(await (await renderCardBlob(card.disc as any, card.orientation, card.cardDesign as CardPreset)).arrayBuffer()));
-      downloadBlob(result.blob, 'discstudio-cards.zip'); status(`Downloaded ${current.cards.length} card${current.cards.length === 1 ? '' : 's'} from ${current.preset.toUpperCase()}.`);
-    } catch (error) { status(`ZIP not downloaded: ${String(error)}`); } finally { setBusy(false); }
+      if (serial !== previewSerial || previewSnapshot !== current) return;
+      clearZip(); zipUrl = URL.createObjectURL(result.blob); const link = $('card-zip-download') as HTMLAnchorElement; link.href = zipUrl; link.hidden = false; status(`ZIP ready. Tap Save ZIP to download ${current.cards.length} card${current.cards.length === 1 ? '' : 's'}.`);
+    } catch (error) { if (serial === previewSerial && previewSnapshot === current) status(`ZIP not prepared: ${String(error)}`); } finally { if (serial === previewSerial && previewSnapshot === current) setBusy(false); }
   };
   presets(); renderBag(); void preview();
   document.addEventListener('discstudio:bag-changed', () => { renderBag(); void preview(); });

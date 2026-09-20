@@ -98,6 +98,7 @@ const discView = createDiscView(experience);
 // has been cropped and retained.
 let painting: Depiction = { kind: 'painted', name: 'pressed-fern', src: './art/pressed-fern.svg' };
 let depiction: Depiction = painting, photo: Depiction | null = null;
+let savedPhotoConsumed = false;
 function photoDraftView(image: Depiction) {
   const figure = document.createElement('figure');
   const art = document.createElement('div'); art.className = 'disc-art photo-art';
@@ -105,6 +106,12 @@ function photoDraftView(image: Depiction) {
   const title = document.createElement('h3'); title.textContent = 'Photo ready';
   const note = document.createElement('p'); note.textContent = 'Choose a manufacturer and mold to finish this disc.';
   figure.append(title, art, note); return figure;
+}
+function nextUploadView() {
+  const figure = document.createElement('figure');
+  const title = document.createElement('h3'); title.textContent = 'Ready for another photo';
+  const note = document.createElement('p'); note.textContent = 'Your saved disc is in Today’s Bag. Add a photo to start the next one.';
+  figure.append(title, note); return figure;
 }
 function resetPaintSeed() { input('paint-seed').value = String(recipeFromDraft(initialDraft(), painting).seed); }
 function recipe(material: Draft) {
@@ -165,10 +172,16 @@ function preview() {
  try {
   syncDepictionControls();
   const material = draft();
+  if (savedPhotoConsumed && !photo) {
+   $('flight').textContent = ''; $('depiction-name').textContent = '';
+   $('preview').replaceChildren(nextUploadView());
+   input('photo').disabled = photoBusy; input('save').disabled = true;
+   return;
+  }
   if (!material.mold) {
    $('flight').textContent = '';
    $('depiction-name').textContent = photo ? photo.name : '';
-   $('preview').replaceChildren(...(photo ? [photoDraftView(photo)] : []));
+   $('preview').replaceChildren(...(photo ? [photoDraftView(photo)] : savedPhotoConsumed ? [nextUploadView()] : []));
    input('plastic').disabled = true;
    input('photo').disabled = photoBusy;
    input('save').disabled = true;
@@ -270,19 +283,25 @@ let cropBitmap: CropSource | null = null; let cropFile: File | null = null; let 
 const cropIds = ['crop-center-x', 'crop-center-y', 'crop-radius-x', 'crop-radius-y'];
 let cropRotation = 0;
 // Every manual correction supersedes an in-flight rim-fit suggestion.
-let rimFitRequest = 0, rimFitSerial = 0;
+let rimFitRequest = 0, rimFitSerial = 0, manualCropRequired = false;
 function invalidateRimFit() { rimFitRequest++; }
 function cropState(): PhotoCrop { return { centerX: Number(input('crop-center-x').value), centerY: Number(input('crop-center-y').value), radiusX: Number(input('crop-radius-x').value), radiusY: Number(input('crop-radius-y').value), rotation: cropRotation }; }
-function setCrop(next: PhotoCrop, { invalidate = true }: { invalidate?: boolean } = {}) {
+function setCrop(next: PhotoCrop, { invalidate = true, manual = false }: { invalidate?: boolean; manual?: boolean } = {}) {
   if (!cropWorking) return;
   if (invalidate) invalidateRimFit();
+  const prior = cropState();
   const crop = clampCropSelection(cropWorking.width, cropWorking.height, next);
   input('crop-center-x').value = String(crop.centerX); input('crop-center-y').value = String(crop.centerY);
   cropRotation = crop.rotation;
   input('crop-radius-x').value = String(crop.radiusX); input('crop-radius-y').value = String(crop.radiusY);
+  const changed = ['centerX', 'centerY', 'radiusX', 'radiusY', 'rotation'].some(key => Math.abs((crop as any)[key] - (prior as any)[key]) > 1e-7);
+  if (manual && manualCropRequired && changed) {
+    manualCropRequired = false; ($('crop-apply') as HTMLButtonElement).disabled = false;
+    $('photo-crop-help').textContent = 'Manual correction set. Confirm the full rim is inside the selection, then use this photo.';
+  }
   scheduleCropPreview();
 }
-function circleLockedCrop(width: number, height: number, ratio = .4): PhotoCrop {
+function circleLockedCrop(width: number, height: number, ratio = .48): PhotoCrop {
   const radius = Math.min(width, height) * ratio;
   return { centerX:.5, centerY:.5, radiusX:radius / width, radiusY:radius / height, rotation:0 };
 }
@@ -333,35 +352,40 @@ cropStage.addEventListener('pointermove',event=>{
   const view = stageSelection(cropDrag.crop), point = stagePoint(event); if (!view) return;
   if (cropDrag.mode === 'move') {
     const dx = (event.clientX - cropDrag.x) / view.placement.scale, dy = (event.clientY - cropDrag.y) / view.placement.scale;
-    setCrop({ ...cropDrag.crop, centerX:cropDrag.crop.centerX + dx / cropWorking.width, centerY:cropDrag.crop.centerY + dy / cropWorking.height });
+    setCrop({ ...cropDrag.crop, centerX:cropDrag.crop.centerX + dx / cropWorking.width, centerY:cropDrag.crop.centerY + dy / cropWorking.height }, { manual: true });
   } else {
     const sourceX = (point.x - view.placement.x) / view.placement.scale, sourceY = (point.y - view.placement.y) / view.placement.scale;
     const local = unrotate(sourceX - cropDrag.crop.centerX * cropWorking.width, sourceY - cropDrag.crop.centerY * cropWorking.height, cropDrag.crop.rotation);
     const factor = Math.max(Math.abs(local.x) / (cropDrag.crop.radiusX * cropWorking.width), Math.abs(local.y) / (cropDrag.crop.radiusY * cropWorking.height));
-    setCrop({ ...cropDrag.crop, radiusX:cropDrag.crop.radiusX * factor, radiusY:cropDrag.crop.radiusY * factor });
+    setCrop({ ...cropDrag.crop, radiusX:cropDrag.crop.radiusX * factor, radiusY:cropDrag.crop.radiusY * factor }, { manual: true });
   }
 });
 for (const eventName of ['pointerup','pointercancel']) cropStage.addEventListener(eventName,()=>{cropDrag=null;});
-function stepZoom(deltaPercent:number){ if (cropWorking) setCrop(resizeCrop(cropWorking.width, cropWorking.height, cropState(), deltaPercent)); }
+function stepZoom(deltaPercent:number){ if (cropWorking) setCrop(resizeCrop(cropWorking.width, cropWorking.height, cropState(), deltaPercent), { manual: true }); }
 cropStage.addEventListener('wheel',event=>{event.preventDefault();stepZoom(event.deltaY<0?10:-10);},{passive:false});
 for (const button of root.querySelectorAll<HTMLButtonElement>('[data-zoom-delta]')) button.addEventListener('click',()=>stepZoom(Number(button.dataset.zoomDelta)));
 async function autoFitCrop() {
   if (!cropWorking || !cropBitmap) return resetCrop({ invalidate: false });
   const request = ++rimFitRequest;
+  manualCropRequired = true; ($('crop-apply') as HTMLButtonElement).disabled = true;
+  $('photo-crop-help').textContent = 'Checking the rim before this photo can be used…';
   try {
     const result = await composeRimFitCrop(experience.pxc, { width: cropBitmap.width, height: cropBitmap.height }, cropWorking, ++rimFitSerial, { clampCropSelection, cropForSourceSamples });
     if (request !== rimFitRequest || !cropWorking) return;
     if (result.proposal.status === 'accepted' && result.proposal.crop) {
+      manualCropRequired = false; ($('crop-apply') as HTMLButtonElement).disabled = false;
       setCrop(result.proposal.crop, { invalidate: false });
       $('photo-crop-help').textContent = 'Rim fit suggested this selection. Check it, then drag inside to move or drag its edge to resize.';
     } else {
       resetCrop({ invalidate: false });
-      $('photo-crop-help').textContent = 'We could not confirm one clear rim, so this centered selection is only a starting point. Drag inside to move it; drag its edge to resize.';
+      manualCropRequired = true; ($('crop-apply') as HTMLButtonElement).disabled = true;
+      $('photo-crop-help').textContent = 'Rim fit could not confirm the full rim. Adjust the near-full selection until the whole rim is inside it; a manual correction is required before use.';
     }
   } catch {
     if (request !== rimFitRequest) return;
     resetCrop({ invalidate: false });
-    $('photo-crop-help').textContent = 'Automatic rim fit was unavailable. This centered selection is editable before any photo is kept.';
+    manualCropRequired = true; ($('crop-apply') as HTMLButtonElement).disabled = true;
+    $('photo-crop-help').textContent = 'Rim fit was unavailable. Adjust the near-full selection until the whole rim is inside it; a manual correction is required before use.';
   }
 }
 $('crop-auto').addEventListener('click', autoFitCrop);
@@ -393,6 +417,7 @@ $('photo').addEventListener('change', async () => {
     if (file.size > 15_000_000) throw Error('Choose a photo under 15 MB. Your prepared photo is unchanged.');
     discardPendingPhoto(); cropFile = file; cropBitmap = await decodePhoto(file);
     const workingScale = Math.min(1, 720 / Math.max(cropBitmap.width, cropBitmap.height)); cropWorking = document.createElement('canvas'); cropWorking.width = Math.max(1, Math.round(cropBitmap.width * workingScale)); cropWorking.height = Math.max(1, Math.round(cropBitmap.height * workingScale)); cropWorking.getContext('2d')!.drawImage(cropBitmap.image,0,0,cropWorking.width,cropWorking.height);
+    manualCropRequired = true; ($('crop-apply') as HTMLButtonElement).disabled = true;
     resetCrop(); autoFitCrop(); ($('photo-crop') as HTMLDialogElement).showModal(); $('crop-auto').focus();
   } catch (error) { discardPendingPhoto(); photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; const message = `Photo could not open: ${String(error).replace(/^Error: /, '')}`; $('photo-status').textContent = message; $('status').textContent = message; updateSaveState(); }
 });
@@ -401,9 +426,12 @@ $('crop-cancel').addEventListener('click', () => { invalidateRimFit(); ($('photo
 $('photo-crop').addEventListener('cancel', event => { event.preventDefault(); $('crop-cancel').click(); });
 $('photo-crop').addEventListener('close', invalidateRimFit);
 for (const id of cropIds) input(id).addEventListener('input', scheduleCropPreview);
-$('crop-reset').addEventListener('click', resetCrop);
+$('crop-reset').addEventListener('click', () => {
+  resetCrop(); manualCropRequired = true; ($('crop-apply') as HTMLButtonElement).disabled = true;
+  $('photo-crop-help').textContent = 'Selection reset. Adjust it until the whole rim is inside; a manual correction is required before use.';
+});
 $('crop-apply').addEventListener('click', async () => {
-  if (!cropBitmap || !cropFile) return;
+  if (!cropBitmap || !cropFile || manualCropRequired) return;
   const apply = $('crop-apply') as HTMLButtonElement; apply.disabled = true;
   try {
     const bitmap = cropBitmap, fileName = cropFile.name, size = Math.min(1024, Math.max(256, Math.min(bitmap.width, bitmap.height)));
@@ -413,7 +441,7 @@ $('crop-apply').addEventListener('click', async () => {
     ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, mapping); ctx.restore();
     const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
     const photoAddress = await experience.addDraftPhoto(photoDepiction);
-    photo = photoDepiction; depiction = photoDepiction;
+    photo = photoDepiction; depiction = photoDepiction; savedPhotoConsumed = false;
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo ready. Choose a manufacturer and mold to finish it.`; $('photo-status').textContent = message; $('status').textContent = `${message} Retained at ${photoAddress}.`; finishPhotoPreparation(); preview();
   } catch (error) {
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo could not be kept: ${String(error).replace(/^Error: /, '')}`; $('photo-crop-help').textContent = message; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();
@@ -430,7 +458,7 @@ $('composer').addEventListener('submit', async event => {
     for (const field of flightFields) { input(`own-${field}`).checked = false; input(`disc-${field}`).value = ''; input(`disc-${field}`).disabled = true; }
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
-    depiction = painting; photo = null;
+    depiction = painting; photo = null; savedPhotoConsumed = true;
     $('photo-status').textContent = 'Photo saved to Today’s Bag. Add another photo when you’re ready.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();
   } catch (error) { $('status').textContent = `Not saved: ${String(error)}`; }
