@@ -63,6 +63,9 @@
 /* Fixed-aperture crop control: only its visible lower-right handle resizes. */
 .crop-resize-handle{position:absolute;z-index:5;left:calc(50% + var(--crop-handle-x,0%));top:calc(50% + var(--crop-handle-y,0%));width:44px;height:44px;min-width:44px;min-height:44px;margin:0;translate:-50% -50%;border:2px solid #fff;border-radius:50%;padding:0;background:#204e3e;color:#fff;box-shadow:0 2px 9px #10291f66;touch-action:none;font-size:20px;line-height:1}.crop-resize-handle span{position:static;display:block;translate:0;background:transparent;padding:0;font-size:20px;pointer-events:none}.crop-gesture-state{position:absolute;z-index:4;left:50%;top:12px;translate:-50% 0;min-width:92px;padding:5px 9px;border-radius:20px;background:#173a30cc;color:#fff;text-align:center;font-size:10px;font-weight:650;line-height:1.2;pointer-events:none;white-space:nowrap}.crop-stage[data-mode=pan]{cursor:grabbing}.crop-stage[data-mode=pan] .crop-resize-handle{background:#168a87}.crop-stage[data-mode=resize]{cursor:default}.crop-stage[data-mode=resize] .crop-resize-handle{background:#d88938}.crop-resize-handle:focus-visible{outline:3px solid #d8a36d;outline-offset:3px}
 
+/* The crop modal is a direct-manipulation surface, not selectable prose. */
+#photo-crop,#photo-crop *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}#photo-crop input:not([type=hidden]),#photo-crop textarea,#photo-crop [contenteditable=true]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+
 @media(max-width:420px){
   .crop-quick{grid-template-columns:1fr}
   .crop-zoom{grid-template-columns:repeat(4,minmax(0,1fr))}
