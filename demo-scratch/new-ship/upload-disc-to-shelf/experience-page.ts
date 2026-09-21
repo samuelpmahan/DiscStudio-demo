@@ -44,9 +44,15 @@ const input = (id: string) => $(id) as HTMLInputElement;
 Object.assign(window, { discStudio: experience });
 const persistenceNotice = document.createElement('p'); persistenceNotice.id = 'persistence-status'; persistenceNotice.setAttribute('role', 'status');
 document.querySelector('main')!.prepend(persistenceNotice);
-const showPersistence = () => { persistenceNotice.textContent = experience.persistenceStatus; };
+const persistenceText = () => {
+  const status = experience.persistenceStatus;
+  if (status.startsWith('Saved in this session archive')) return 'Saved on this device.';
+  if (status.startsWith('Fresh session')) return 'New session.';
+  return status;
+};
+const showPersistence = () => { persistenceNotice.textContent = persistenceText(); };
 showPersistence();
-$('status').textContent = experience.persistenceStatus;
+$('status').textContent = persistenceText();
 document.addEventListener('click', () => setTimeout(showPersistence, 0));
 document.addEventListener('submit', () => setTimeout(showPersistence, 0));
 const devtools = (sandbox || inspector) ? mountDevTools(experience.pxc, { label: sandbox ? (sandbox === 'shelf' ? 'ExploreShelf · sandbox' : 'UploadDiscToShelf · sandbox') : 'DiscStudio · local instrumentation' }) : null;
