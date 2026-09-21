@@ -4,6 +4,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import { openExperience } from './persistent-experience.ts';
 import { initialDraft } from './model.ts';
 import { ensureCircleFitCalculations } from './circle-fit.ts';
+import { sessionKeyPrefix } from './session-storage.ts';
 import { Part } from '../part-first-kernel/src/pxc.mjs';
 import { clampCropSelection } from './upload-ui.ts';
 
@@ -23,9 +24,10 @@ test('CircleFit correction remains transient while a photo-only save restores', 
   await app.addDraftPhoto({ kind: 'photo', name: 'rimfit.png', src: 'data:image/png;base64,iVBORw0KGgo=' });
   const depiction = await app.selectDraftDepiction(), hydrated = await app.hydrateSeed(initialDraft().mold);
   await app.save({ ...initialDraft(), mold: hydrated.address, plastic: 'ESP' }, depiction);
-  const raw = values.get('discstudio.pxc.shelf.v1')!;
+  const sessionKey = [...values.keys()].find(key => key.startsWith(sessionKeyPrefix))!;
+  const raw = values.get(sessionKey)!;
   assert.doesNotMatch(raw, /(?:PhotoIntake|CircleFit|CropEdit)\.circlefit/);
-  const restored = await openExperience(storage, () => {});
-  assert.equal(restored.bag().length, 1);
-  assert.match(restored.persistenceStatus, /Restored Today’s Bag/);
+  const fresh = await openExperience(storage, () => {});
+  assert.equal(fresh.bag().length, 0);
+  assert.match(fresh.persistenceStatus, /Fresh session/);
 });

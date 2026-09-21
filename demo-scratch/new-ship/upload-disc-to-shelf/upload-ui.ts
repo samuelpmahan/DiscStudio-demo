@@ -250,14 +250,14 @@ function suggestPlastics() {
   // A guide is a suggestion, not a gate: tournament players can retain an
   // explicit unknown blend when the manufacturer is not in the small guide.
   const choices = unavailable ? ['', 'Unknown / not listed'] : ['', ...guide.values];
-  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || (unavailable ? 'Choose unknown / not listed' : 'Choose plastic'); return option; }));
+  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || (unavailable ? 'Plastic optional · unknown / not listed' : 'Plastic optional · leave blank if unknown'); return option; }));
   input('plastic').value = choices.includes(preferred) ? preferred : '';
   input('plastic').disabled = false;
   updateSaveState();
   const link = $('plastic-source') as HTMLAnchorElement; link.href = guide.source; link.textContent = `${seed.manufacturer} plastic guide`; link.hidden = !guide.source;
 }
 function updateSaveState() {
- input('save').disabled = photoBusy || !photo || input('plastic').disabled || !input('seed').value || !input('plastic').value;
+ input('save').disabled = photoBusy || !photo || input('plastic').disabled || !input('seed').value;
 }
 ['change', 'input'].forEach(event => input('plastic').addEventListener(event, updateSaveState));
 input('nickname').addEventListener('input', () => { nicknameDirty = input('nickname').value !== autoNickname; });

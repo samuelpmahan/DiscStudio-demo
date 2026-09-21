@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderCard, renderCardDataUrl, CARD_SIZE } from './card-renderer.ts';
+import { resolveCardDisc } from './card-renderer-core.ts';
 import type { Disc } from './model.ts';
 
 // 1x1 red PNG data URL: exercises the photo load path without fixtures.
@@ -68,6 +69,16 @@ test('own flight numbers win over the mold', async () => {
   const disc = testDisc({ speed: 9 });
   const buf = await renderCard(disc, 'horizontal');
   pngSize(buf);
+});
+
+test('held renderer facts win over a later catalog lookup', async () => {
+  const held: any = testDisc({
+    renderer: { moldName: 'Held Buzzz', flights: [5, 4, -1, 1] },
+  } as any);
+  for (const field of ['speed', 'glide', 'turn', 'fade']) delete held[field];
+  const resolved = await resolveCardDisc({ loadImage: async () => null, getMoldDetails: async () => ({ mold: 'Changed catalog name', flight: [99, 98, 97, 96] }) }, held);
+  assert.equal(resolved.moldName, 'Held Buzzz');
+  assert.deepEqual(resolved.flights, [5, 4, -1, 1]);
 });
 
 test('unknown mold id falls back to the id as name', async () => {

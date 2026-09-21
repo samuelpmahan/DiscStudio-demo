@@ -37,7 +37,7 @@ function moldIdFromAddress(address: string): string {
   return m ? m[1] : address;
 }
 
-async function resolveDisc(environment: CardRenderEnvironment, disc: RendererDisc): Promise<ResolvedDisc> {
+export async function resolveCardDisc(environment: CardRenderEnvironment, disc: RendererDisc): Promise<ResolvedDisc> {
   const id = moldIdFromAddress(disc.mold);
   const supplied = disc.renderer ?? {};
   let moldName = supplied.moldName ?? id;
@@ -45,8 +45,10 @@ async function resolveDisc(environment: CardRenderEnvironment, disc: RendererDis
   try {
     const details: any = environment.getMoldDetails ? await environment.getMoldDetails(id) : null;
     if (details) {
-      moldName = details.mold ?? details.name ?? moldName;
-      if (Array.isArray(details.flight)) flights = details.flight;
+      // A queued card holds renderer facts at enqueue time. Catalog lookup can
+      // fill a missing value, never replace the held card's provenance.
+      if (supplied.moldName === undefined) moldName = details.mold ?? details.name ?? moldName;
+      if (!Array.isArray(supplied.flights) && Array.isArray(details.flight)) flights = details.flight;
     }
   } catch {
     // Browser exports retain their passed-in model facts when detail lookup is unavailable.
@@ -734,7 +736,7 @@ export async function drawCard(
   if (orientation !== 'horizontal' && orientation !== 'vertical') {
     throw new Error(`orientation must be 'horizontal' or 'vertical', got ${String(orientation)}`);
   }
-  const rd = await resolveDisc(environment, disc);
+  const rd = await resolveCardDisc(environment, disc);
   if (preset) {
     const fn = presetRenderers[preset];
     if (!fn) throw new Error(`unknown card preset: ${preset}`);

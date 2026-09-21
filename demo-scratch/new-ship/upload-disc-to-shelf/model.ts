@@ -8,6 +8,7 @@ import { catalogLite, searchMolds, getMoldDetails } from './mold-library.ts';
 import { create, read, update, destroy, runStage, type Stage } from './operations.ts';
 import { find } from './devtools-data.mjs';
 import type { State } from './persistence.ts';
+import { queueCards, type QueuedCard } from './export-queue-core.ts';
 
 export type Seed = { id: string; manufacturer: string; mold: string; flight: (number | null)[]; source?: string; sourceKind?: string; observations?: { flight: (number | null)[]; source: string }[]; conflicting?: boolean; reviewStatus?: string };
 export const flightFields = ['speed', 'glide', 'turn', 'fade'] as const;
@@ -43,6 +44,13 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     'fn.renderPainting': renderDiscPainting,
     'fn.paintRecipe': ({ recipe }: any) => validatePaintRecipe(recipe), 'fn.renderDepiction': renderDepiction,
     'fn.shelfQuery': shelfQuery, 'fn.createBag': createBag,
+    // Output is a calculated PxC collection. Each enqueue receives an exact
+    // card snapshot Part, so later editor choices cannot rewrite held output.
+    'fn.appendOutputQueue': ({ queue, cards }: { queue: readonly QueuedCard[]; cards: readonly QueuedCard[] }) => queueCards([...queue, ...cards]),
+    'fn.removeOutputQueueItem': ({ queue, index }: { queue: readonly QueuedCard[]; index: number }) => {
+      if (!Number.isSafeInteger(index) || index < 0 || index >= queue.length) throw Error('Queued output no longer exists.');
+      return queueCards(queue.filter((_, itemIndex) => itemIndex !== index));
+    },
     'fn.shelfRows': ({ references, ...parts }: any) => Object.freeze(references.map((address: string, i: number) => Object.freeze({ address, disc: parts[`disc${i}`], seed: parts[`seed${i}`], art: parts[`art${i}`] }))),
     'fn.addReference': ({ collection, reference, value }: any) => {
       if (!value.id || collection.includes(reference)) throw Error('Reference already retained.');
@@ -60,12 +68,18 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   pxc.set('ds.px.shelf.0', new Part(Object.freeze([])));
   // MVP: the bag is the primary collection. Shelf is retained for legacy.
   pxc.set('ds.px.bag.0', new Part(Object.freeze([])));
+  pxc.set('ds.px.output.queue.0', new Part(Object.freeze([])));
   }
   let shelfAddress = options.state?.shelfAddress ?? 'ds.px.shelf.0', serial = options.state?.serial ?? 0;
   let bagAddress = options.state?.bagAddress ?? 'ds.px.bag.0';
   if (!pxc.entries().some(([name]: [string, unknown]) => name === bagAddress)) pxc.set(bagAddress, new Part(Object.freeze([])));
   let bagsAddress = options.state?.bagsAddress ?? 'ds.px.bags.0';
   if (!pxc.entries().some(([name]: [string, unknown]) => name === bagsAddress)) pxc.set(bagsAddress, new Part(Object.freeze([])));
+  // Output is deliberately current-session material. It is represented in PxC
+  // for calculated provenance, but a fresh launch never restores it into the
+  // creator flow.
+  let outputQueueAddress = 'ds.px.output.queue.0';
+  if (!pxc.entries().some(([name]: [string, unknown]) => name === outputQueueAddress)) pxc.set(outputQueueAddress, new Part(Object.freeze([])));
   let saving = false;
   const events: Record<string, unknown>[] = [];
   const emit = (event: Record<string, unknown>) => { events.push(event); try { log(event); } catch (error) { console.warn('Diagnostic sink failed; receipt remains in PxC.', error); } };
@@ -106,6 +120,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     get shelfAddress() { return shelfAddress; },
     get bagAddress() { return bagAddress; },
     get bagsAddress() { return bagsAddress; },
+    get outputQueueAddress() { return outputQueueAddress; },
     seedOptions(query = ''): { address: string; seed: Mold }[] {
       // Trie-based prefix search. O(k) where k = query length.
       const matches = searchMolds(query, 20);
@@ -245,6 +260,26 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       pxc.set(address, new Part(Object.freeze({ ...photo })));
       return address;
     },
+    outputQueue(): readonly QueuedCard[] { return pxc.get(outputQueueAddress).value as readonly QueuedCard[]; },
+    async enqueueOutput(cards: readonly QueuedCard[]) {
+      const held = queueCards(cards);
+      if (!held.length) throw Error('Select at least one disc before adding output.');
+      const operationId = `enqueue-${++serial}`, cardsAddress = `ds.px.output.cards.${operationId}`, next = `ds.px.output.queue.${operationId}`;
+      pxc.set(cardsAddress, new Part(held));
+      await pxc.compose({ into: next, calculation: 'fn.appendOutputQueue', inputs: { queue: outputQueueAddress, cards: cardsAddress } });
+      const result = pxc.get(next).value as readonly QueuedCard[];
+      if (result.length !== this.outputQueue().length + held.length || result.slice(-held.length).some((card, index) => card !== held[index] && JSON.stringify(card) !== JSON.stringify(held[index]))) throw Error('Output queue readback failed.');
+      const receipt = Object.freeze({ event: 'output.queue.enqueued', operationId, inputCards: cardsAddress, previousQueue: outputQueueAddress, outputQueue: next, count: held.length });
+      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); outputQueueAddress = next; emit(receipt);
+      return next;
+    },
+    async removeOutput(index: number) {
+      const operationId = `remove-output-${++serial}`, next = `ds.px.output.queue.${operationId}`;
+      await pxc.compose({ into: next, calculation: 'fn.removeOutputQueueItem', inputs: { queue: outputQueueAddress, index: new Part(index) } });
+      const receipt = Object.freeze({ event: 'output.queue.removed', operationId, previousQueue: outputQueueAddress, outputQueue: next, index });
+      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); outputQueueAddress = next; emit(receipt);
+      return next;
+    },
     async selectDraftDepiction(): Promise<Depiction> {
       const id = ++serial;
       const depictionAddress = `ds.px.draft.depiction.${id}`;
@@ -305,10 +340,12 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         if (!bag.includes(discAddress)) throw new Error('Bag readback failed.');
         const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
         pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
-        // Consume draft photos: they belong to this draft, not the next one.
+        persist(nextShelf, currentSeeds, bagsAddress, nextBag);
+        // Do not consume a retryable draft until its durable write succeeds.
+        // A quota error must leave the same photo available for correction or
+        // a second Save attempt in this current session.
         const photoKeys = [...pxc.entries()].filter(([name]) => name.startsWith('ds.px.draft.photos.')).map(([name]) => name);
         if (photoKeys.length > 0) pxc.set(`ds.px.draft.consumedPhotos.${operationId}`, new Part(Object.freeze(photoKeys)));
-        persist(nextShelf, currentSeeds, bagsAddress, nextBag);
         shelfAddress = nextShelf;
         bagAddress = nextBag;
         emit(receipt);

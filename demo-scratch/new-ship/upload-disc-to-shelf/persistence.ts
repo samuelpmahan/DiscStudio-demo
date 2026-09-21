@@ -28,7 +28,14 @@ export function archive(state: State) {
   // CircleFit rasters and their derived proposals are session-only correction
   // scratch work. They can contain Uint8ClampedArray pixels and are not part
   // of a saved disc; retaining them would make a normal Save fail archival.
-  const bindings = state.pxc.entries().filter(([name]: any) => name.startsWith('ds.px.') && !/^ds\.px\.(?:PhotoIntake|CircleFit|CropEdit|CircleCandidateRequest|CircleCandidates|CircleCandidateCrops)\.(?:rimfit|circlefit)\./.test(name)).map(([name, part]: any) => [name, visit(part)]);
+  const bindings = state.pxc.entries().filter(([name]: any) => name.startsWith('ds.px.')
+    && !/^ds\.px\.(?:PhotoIntake|CircleFit|CropEdit|CircleCandidateRequest|CircleCandidates|CircleCandidateCrops)\.(?:rimfit|circlefit)\./.test(name)
+    // Output is a current-session workspace. Retaining every queue generation
+    // would duplicate photo metadata on each later disc save, while startup
+    // intentionally begins fresh and never restores that queue.
+    && !name.startsWith('ds.px.output.')
+    && !/^ds\.px\.receipt\.(?:enqueue|remove-output)-/.test(name))
+    .map(([name, part]: any) => [name, visit(part)]);
   return JSON.stringify({ version: 1, serial: state.serial, shelfAddress: state.shelfAddress, currentSeeds: state.currentSeeds, ...(state.bagsAddress ? { bagsAddress: state.bagsAddress } : {}), ...(state.bagAddress ? { bagAddress: state.bagAddress } : {}), nodes, bindings });
 }
 

@@ -69,6 +69,10 @@ function verifyVersionedImports(root, buildId) {
 }
 fs.rmSync(dist, { recursive: true, force: true }); fs.mkdirSync(dist, { recursive: true });
 copyTree(here);
+// Neat's browser component is a classic script, so it is deliberately copied
+// outside the module-only source whitelist above.
+fs.mkdirSync(path.join(dist, 'vendor', 'neat'), { recursive: true });
+fs.copyFileSync(path.join(here, 'vendor/neat/tick-part-checklist.js'), path.join(dist, 'vendor/neat/tick-part-checklist.js'));
 // Native-only adapters have bare Node imports and are deliberately absent from
 // the Pages graph. The shared Canvas2D renderer is browser-card-renderer.js.
 for (const file of ['card-renderer.js', 'export-queue.js']) fs.rmSync(path.join(dist, file), { force: true });
@@ -81,7 +85,12 @@ for (const relative of filesIn(dist).filter(file => /\.(?:js|mjs)$/.test(file)))
 }
 fs.writeFileSync(index, fs.readFileSync(index, 'utf8')
   .replace('href="./style.css"', `href="./style.css?v=${buildId}"`)
+  .replace('src="./vendor/neat/tick-part-checklist.js"', `src="./vendor/neat/tick-part-checklist.js?v=${buildId}"`)
   .replace('src="./app.ts"', `src="./app.js?v=${buildId}"`));
+const reviewGuide = path.join(dist, 'creator-review.html');
+fs.writeFileSync(reviewGuide, fs.readFileSync(reviewGuide, 'utf8')
+  .replace('href="./style.css"', `href="./style.css?v=${buildId}"`)
+  .replace('src="./creator-review.js"', `src="./creator-review.js?v=${buildId}"`));
 verifyVersionedImports(dist, buildId);
 fs.writeFileSync(path.join(dist, '.nojekyll'), '');
 fs.writeFileSync(path.join(dist, 'BUILD_INFO.json'), JSON.stringify({ artifact: 'discstudio-tournament-pages', source: 'new-ship/upload-disc-to-shelf', build: 'node-strip-types', static: true, buildId }, null, 2) + '\n');

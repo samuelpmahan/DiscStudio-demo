@@ -21,9 +21,17 @@ function checkCard(card: QueuedCard, index: number): void {
   if (!orientations.includes(card.orientation)) throw new Error(`${where}: orientation must be 'horizontal' or 'vertical'.`);
   if (typeof card.cardDesign !== 'string' || !card.cardDesign.trim()) throw new Error(`${where}: cardDesign must be a non-empty string.`);
 }
+/** Queue cards are portable metadata, not arbitrary JavaScript objects. */
+function snapshot(value: unknown): any {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return Object.freeze(value.map(snapshot));
+  if (value && Object.getPrototypeOf(value) === Object.prototype) return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, child]) => [key, snapshot(child)])));
+  throw Error('Queued output must contain only plain card metadata.');
+}
 export function queueCards(items: readonly QueuedCard[]): readonly QueuedCard[] {
   if (!Array.isArray(items)) throw new Error('queueCards: expected an array.');
-  items.forEach(checkCard); return Object.freeze(items.map(card => Object.freeze({ ...card, disc: Object.freeze({ ...card.disc }) })));
+  items.forEach(checkCard); return Object.freeze(items.map(card => snapshot(card)));
 }
 export interface ManifestCard {
   filename: string; discId: string; nickname: string; mold: string; plastic: string; weight: number | null;

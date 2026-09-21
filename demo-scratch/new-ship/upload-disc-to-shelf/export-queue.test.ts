@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { inflateSync } from 'node:zlib';
 import JSZip from 'jszip';
 import {
   queueCards, cardFilename, cardDimensions, moldSlug,
@@ -36,6 +37,22 @@ test('queueCards freezes a validated copy', () => {
   assert.ok(Object.isFrozen(q));
   assert.notEqual(q, input);
   assert.equal(q[1].orientation, 'vertical');
+});
+
+test('queueCards snapshots nested renderer and depiction data', () => {
+  const input = card({ disc: disc({
+    depiction: { kind: 'photo', src: 'data:image/png;base64,ORIGINAL=', name: 'original.png' },
+    renderer: { flights: [7, 5, -2, 1], options: { frame: 'original' } },
+  } as any) });
+  const q = queueCards([input]);
+  (input.disc.depiction as any).src = 'data:image/png;base64,MUTATED=';
+  (input.disc as any).renderer.flights[0] = 99;
+  (input.disc as any).renderer.options.frame = 'mutated';
+  assert.equal(q[0].disc.depiction.src, 'data:image/png;base64,ORIGINAL=');
+  assert.deepEqual((q[0].disc as any).renderer, { flights: [7, 5, -2, 1], options: { frame: 'original' } });
+  assert.ok(Object.isFrozen(q[0].disc.depiction));
+  assert.ok(Object.isFrozen((q[0].disc as any).renderer.flights));
+  assert.ok(Object.isFrozen((q[0].disc as any).renderer.options));
 });
 
 test('queueCards rejects bad input', () => {
@@ -112,6 +129,41 @@ test('exportZip dedupes identical mold+design+orientation', async () => {
   const zip = await JSZip.loadAsync(await exportZip(q));
   const names = Object.keys(zip.files).sort();
   assert.deepEqual(names, ['buzzz-spotlight-horizontal-2.png', 'buzzz-spotlight-horizontal.png', 'manifest.json']);
+});
+
+test('exportZip holds the queued snapshot through rendering and ZIP metadata', async () => {
+  const heldDisc: any = disc({
+    nickname: 'Before mutation',
+    depiction: { kind: 'photo', src: 'data:image/png;base64,BEFORE=', name: 'before.png' },
+    renderer: { flights: [8, 6, -3, 2] },
+  } as any);
+  for (const field of ['speed', 'glide', 'turn', 'fade']) delete heldDisc[field];
+  const source = card({ disc: heldDisc });
+  const q = queueCards([source]);
+  const first = await exportZip(q, { renderCard: async held => {
+    assert.equal(held.disc.nickname, 'Before mutation');
+    assert.equal(held.disc.depiction.src, 'data:image/png;base64,BEFORE=');
+    assert.deepEqual((held.disc as any).renderer.flights, [8, 6, -3, 2]);
+    return encodeTransparentPng(...Object.values(cardDimensions(held.orientation)) as [number, number]);
+  } });
+  (source.disc as any).nickname = 'After mutation';
+  (source.disc as any).depiction.src = 'data:image/png;base64,AFTER=';
+  (source.disc as any).renderer.flights[0] = 99;
+  const second = await exportZip(q, { renderCard: stubCardRenderer });
+  const firstZip = await JSZip.loadAsync(first), secondZip = await JSZip.loadAsync(second);
+  const firstManifest = JSON.parse(await firstZip.file('manifest.json')!.async('string'));
+  const secondManifest = JSON.parse(await secondZip.file('manifest.json')!.async('string'));
+  assert.equal(firstManifest.cards[0].nickname, 'Before mutation');
+  assert.equal(firstManifest.cards[0].flight.speed, 8);
+  assert.equal(firstManifest.cards[0].flightSource.speed, 'mold');
+  assert.deepEqual(secondManifest, firstManifest);
+  assert.deepEqual(await firstZip.file(firstManifest.cards[0].filename)!.async('uint8array'), await secondZip.file(secondManifest.cards[0].filename)!.async('uint8array'));
+  const png = Buffer.from(await secondZip.file(secondManifest.cards[0].filename)!.async('uint8array'));
+  assert.deepEqual(pngDimensions(png), { width: 1920, height: 1080 });
+  assert.equal(png[25], 6, 'PNG must use RGBA color type');
+  const idat = png.subarray(41, 41 + png.readUInt32BE(33));
+  const pixels = inflateSync(idat);
+  for (let row = 0; row < 1080; row++) for (let x = 0; x < 1920; x++) assert.equal(pixels[row * (1 + 1920 * 4) + 1 + x * 4 + 3], 0);
 });
 
 test('exportZip uses the injected renderer', async () => {
