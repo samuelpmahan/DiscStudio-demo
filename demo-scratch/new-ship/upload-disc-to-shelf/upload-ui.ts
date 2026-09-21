@@ -178,6 +178,7 @@ async function chooseSeed(row: SeedOption) {
   const hydrated = await experience.hydrateSeed(row.address);
   if (token !== selectionSerial) return;
   input('seed').value = hydrated.address; input('mold-search').value = seedLabel({ ...row, seed: hydrated.seed }); closeSeedChoices(); suggestPlastics();
+  if (photo) { $('photo-status').textContent = 'Photo ready.'; $('status').textContent = 'Photo ready.'; }
   const next = photo ? await experience.selectDraftDepiction(random) : painting;
   // Photo-first: a draft photo wins over a fresh painting. `painting` must stay
   // painted because recipeFromDraft throws otherwise. A photo Part from a
