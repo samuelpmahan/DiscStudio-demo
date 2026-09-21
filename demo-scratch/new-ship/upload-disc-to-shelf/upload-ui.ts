@@ -345,9 +345,28 @@ function setGestureState(mode: CropGesture['mode'] | null) {
   cropStage.dataset.mode = mode ?? 'ready';
   gestureState.textContent = mode === 'resize' ? 'Resizing circle' : mode === 'pan' ? 'Panning photo' : 'Circle ready';
 }
+function drawTransparentGutter(ctx: CanvasRenderingContext2D, size: number) {
+  const cell = Math.max(8, Math.round(size / 28));
+  for (let y = 0; y < size; y += cell) for (let x = 0; x < size; x += cell) {
+    ctx.fillStyle = ((x / cell + y / cell) & 1) ? '#eef0ec' : '#f8f8f5';
+    ctx.fillRect(x, y, cell, cell);
+  }
+}
+/** One candidate tap shows the same full circular cutout that Apply prepares. */
+function drawCandidateCutoutPreview(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+  if (!cropBitmap) return;
+  const gutter = Math.max(12, Math.round(canvas.width * .05)), size = canvas.width - gutter * 2;
+  drawTransparentGutter(ctx, canvas.width);
+  const mapping = circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
+  ctx.save(); ctx.beginPath(); ctx.ellipse(canvas.width / 2, canvas.height / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.translate(gutter, gutter); drawRotatedCrop(ctx, cropBitmap.image, mapping); ctx.restore();
+}
 function updateCropPreview() {
   if (!cropWorking || !cropBitmap) return;
-  const canvas = $('crop-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, crop = cropState(), view = fixedCropView(crop, canvas.width); if (!view) return;
+  const canvas = $('crop-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, showCandidate = !!selectedCandidate && !manualCrop.open;
+  cropStage.dataset.candidate = String(showCandidate);
+  if (showCandidate) { drawCandidateCutoutPreview(canvas, ctx); return; }
+  const crop = cropState(), view = fixedCropView(crop, canvas.width); if (!view) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#dfe5db'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(cropWorking, view.imageX, view.imageY, view.imageWidth, view.imageHeight);
   const mode = cropGesture?.mode, stroke = mode === 'resize' ? '#d88938' : mode === 'pan' ? '#168a87' : 'rgba(255,255,255,.96)';
@@ -364,6 +383,7 @@ const manualCrop = $('crop-manual') as HTMLDetailsElement;
 function syncCandidateApply() { cropApply.disabled = candidateBusy || !cropBitmap || !cropFile || (!selectedCandidate && !manualCrop.open); }
 function syncManualMode() {
   cropStage.dataset.manual = String(manualCrop.open);
+  cropStage.dataset.candidate = String(!!selectedCandidate && !manualCrop.open);
   resizeHandle.disabled = !manualCrop.open;
   syncCandidateApply(); requestAnimationFrame(sizeCropStage);
 }
