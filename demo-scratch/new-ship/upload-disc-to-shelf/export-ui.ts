@@ -25,13 +25,13 @@ export function mountExport(experience: Experience, { root = document }: { root?
   if (priorShelf) priorShelf.hidden = true;
   const section = document.createElement('section'); section.id = 'todays-bag'; section.className = 'todays-bag-export';
   section.innerHTML = `<div class="section-title"><div><p class="eyebrow">TODAY’S BAG</p><h2>Make your cards.</h2></div><span>03 — output queue</span></div>
-    <p class="subtle">Select one or more saved discs, apply one layout and orientation, then preview before you add cards to the output queue.</p>
+    <p class="subtle">Select discs, choose a layout, then add cards to the queue.</p>
     <div class="bag-export-grid"><div><div id="bag-export-list" class="bag-export-list" aria-live="polite"></div><p id="bag-export-empty" class="subtle">Save a cropped disc photo to add it here.</p>
       <section class="output-queue" aria-labelledby="output-queue-title"><h3 id="output-queue-title">Output queue</h3><p id="output-queue-empty" class="subtle">Nothing queued yet. Preview a selection, then add it here.</p><ol id="output-queue-list"></ol></section></div>
     <div class="bag-export-controls"><label>Orientation<select id="card-orientation"><option value="vertical">Vertical · 9:16</option><option value="horizontal">Horizontal · 16:9</option></select></label><label>Fixed layout<select id="card-preset"></select></label>
       <div id="card-preview" class="card-preview"><p class="subtle">Select one or more saved discs to preview a card.</p></div><p id="card-export-status" class="subtle" role="status"></p>
       <div class="card-export-actions"><button id="card-enqueue" type="button">Add to output queue</button><button id="card-zip" class="primary" type="button">Export queue ZIP</button></div>
-      <p class="subtle">Each queued card keeps this selection, layout, orientation, and photo. The ZIP contains only the output queue and stays queued after download is requested.</p></div></div>`;
+      <p class="subtle">Export downloads the queued cards as a ZIP.</p></div></div>`;
   (priorShelf?.parentElement ?? root.querySelector('main')!).insertBefore(section, priorShelf ?? null);
   const $ = (id: string) => section.querySelector<HTMLElement>(`#${id}`)!;
   const orientation = $('card-orientation') as HTMLSelectElement, preset = $('card-preset') as HTMLSelectElement;
@@ -77,7 +77,7 @@ export function mountExport(experience: Experience, { root = document }: { root?
       previewUrl = url; previewSnapshot = current;
       const image = document.createElement('img'); image.src = url; image.alt = `${current.preset.toUpperCase()} preview for ${current.cards[0].disc.nickname || current.cards[0].disc.mold}`;
       $('card-preview').replaceChildren(image);
-      status(`${current.cards.length > 1 ? `Previewing the first of ${current.cards.length} selected cards. ` : ''}${current.preset.toUpperCase()} ${current.orientation} preview ready. Add ${current.cards.length} card${current.cards.length === 1 ? '' : 's'} only when satisfied.`);
+      status(`${current.cards.length > 1 ? `Previewing the first of ${current.cards.length} selected cards. ` : ''}${current.preset.toUpperCase()} ${current.orientation} preview ready.`);
     } catch (error) { if (serial === previewSerial) { $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'This prepared photo cannot be rendered for preview.' })); status(`Preview unavailable: ${String(error)}`); } }
     finally { if (serial === previewSerial) setBusy(false); }
   }

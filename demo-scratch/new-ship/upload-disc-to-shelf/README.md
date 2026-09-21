@@ -16,7 +16,7 @@ Open the printed localhost address. For a Pages subpath, deploy the **contents o
 ## Tournament flow
 
 1. Add a disc photo and correct its editable circle. CircleFit makes a bounded proposal, then refines the same supported foreground at full source resolution. If it cannot propose, the centered circle remains usable for manual correction.
-2. Search and select the mold, then add plastic, weight, nickname, and any flight overrides. The latest prepared photo is the visible draft.
+2. Search and select the mold, then add plastic, weight, and any flight overrides. The latest prepared photo is the visible draft.
 3. Save to Today’s Bag. The shelf remains a silent retained PxC sidecar.
 4. Select one or more bag cards, choose one of five vertical or five horizontal fixed layouts, then preview, download a transparent PNG, or download selected cards together as a ZIP.
 

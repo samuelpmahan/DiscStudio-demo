@@ -135,13 +135,13 @@ function photoDraftView(image: Depiction) {
   const art = document.createElement('div'); art.className = 'disc-art photo-art';
   const img = document.createElement('img'); img.src = image.src; img.alt = 'Prepared photo of your disc'; art.append(img);
   const title = document.createElement('h3'); title.textContent = 'Photo ready';
-  const note = document.createElement('p'); note.textContent = 'Choose a manufacturer and mold to finish this disc.';
+  const note = document.createElement('p'); note.textContent = 'Select a manufacturer and mold.';
   figure.append(title, art, note); return figure;
 }
 function nextUploadView() {
   const figure = document.createElement('figure');
-  const title = document.createElement('h3'); title.textContent = 'Ready for another photo';
-  const note = document.createElement('p'); note.textContent = 'Your disc is in Today’s Bag. Add a photo to start the next one.';
+  const title = document.createElement('h3'); title.textContent = 'Add another disc';
+  const note = document.createElement('p'); note.textContent = 'Added to Today’s Bag.';
   figure.append(title, note); return figure;
 }
 function resetPaintSeed() { input('paint-seed').value = String(recipeFromDraft(initialDraft(), painting).seed); }
@@ -156,7 +156,7 @@ const defaults = initialDraft();
 type SeedOption = ReturnType<typeof experience.seedOptions>[number];
 const seedLabel = ({ seed }: SeedOption) => `${seed.manufacturer} · ${seed.name}`;
 let visibleSeeds: SeedOption[] = [], activeSeed = -1;
-let selectionSerial = 0, autoNickname = '', nicknameDirty = false;
+let selectionSerial = 0;
 function eligibleSeeds(query = '') { return experience.seedOptions(query); }
 function closeSeedChoices() {
   $('mold-options').hidden = true; input('mold-search').setAttribute('aria-expanded', 'false'); input('mold-search').removeAttribute('aria-activedescendant'); activeSeed = -1;
@@ -173,8 +173,6 @@ function renderSeedChoices(query = input('mold-search').value) {
 }
 async function chooseSeed(row: SeedOption) {
   const token = ++selectionSerial;
-  const currentNickname = input('nickname').value.trim();
-  if (!nicknameDirty && (!currentNickname || currentNickname === autoNickname)) { input('nickname').value = row.seed.name; autoNickname = row.seed.name; nicknameDirty = false; }
   // Load catalog facts before committing the address, so the crop, metadata,
   // card renderer, and retained bag all start from the same mold values.
   const hydrated = await experience.hydrateSeed(row.address);
@@ -194,11 +192,14 @@ async function chooseSeed(row: SeedOption) {
 input('mold-search').value = '';
 input('seed').value = '';
 const overrides = document.createElement('details');
-overrides.innerHTML = '<summary>Edit flight numbers (this disc only)</summary><p>Unchecked fields inherit from the mold. Check to specialize; checked + blank means unknown.</p>' + flightFields.map(field => `<label><span><input id="own-${field}" type="checkbox"> Own ${field}</span><input id="disc-${field}" aria-label="Disc ${field}" type="number" step="any" disabled></label>`).join('');
+overrides.innerHTML = '<summary>Override flight numbers</summary><p>Use catalog values unless overridden. Leave an override blank if unknown.</p>' + flightFields.map(field => `<label><span><input id="own-${field}" type="checkbox"> Override ${field}</span><input id="disc-${field}" aria-label="Disc ${field}" type="number" step="any" disabled></label>`).join('');
 $('flight').after(overrides);
 for (const field of flightFields) input(`own-${field}`).addEventListener('change', () => { input(`disc-${field}`).disabled = !input(`own-${field}`).checked; });
-function draft(): Draft { return { mold: input('seed').value, nickname: input('nickname').value.trim(), plastic: input('plastic').value.trim(), weight: input('weight').value === '' ? null : Number(input('weight').value), Color1: input('Color1').value, Color2: input('Color2').value, paintMode: input('paint-mode').value as Draft['paintMode'], colorPainting: input('color-painting').checked,
-  ...Object.fromEntries(flightFields.filter(field => input(`own-${field}`).checked).map(field => [field, input(`disc-${field}`).value === '' ? null : Number(input(`disc-${field}`).value)])) }; }
+function draft(): Draft {
+  const mold = input('seed').value;
+  return { mold, nickname: mold ? experience.seedAt(mold).name : '', plastic: input('plastic').value.trim(), weight: input('weight').value === '' ? null : Number(input('weight').value), Color1: input('Color1').value, Color2: input('Color2').value, paintMode: input('paint-mode').value as Draft['paintMode'], colorPainting: input('color-painting').checked,
+    ...Object.fromEntries(flightFields.filter(field => input(`own-${field}`).checked).map(field => [field, input(`disc-${field}`).value === '' ? null : Number(input(`disc-${field}`).value)])) };
+}
 function preview() {
  try {
   syncDepictionControls();
@@ -250,7 +251,7 @@ function suggestPlastics() {
   // A guide is a suggestion, not a gate: tournament players can retain an
   // explicit unknown blend when the manufacturer is not in the small guide.
   const choices = unavailable ? ['', 'Unknown / not listed'] : ['', ...guide.values];
-  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || (unavailable ? 'Plastic optional · unknown / not listed' : 'Plastic optional · leave blank if unknown'); return option; }));
+  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || (unavailable ? 'Unknown / not listed' : 'Not specified'); return option; }));
   input('plastic').value = choices.includes(preferred) ? preferred : '';
   input('plastic').disabled = false;
   updateSaveState();
@@ -260,7 +261,6 @@ function updateSaveState() {
  input('save').disabled = photoBusy || !photo || input('plastic').disabled || !input('seed').value;
 }
 ['change', 'input'].forEach(event => input('plastic').addEventListener(event, updateSaveState));
-input('nickname').addEventListener('input', () => { nicknameDirty = input('nickname').value !== autoNickname; });
 input('mold-search').addEventListener('focus', () => renderSeedChoices(''));
 input('mold-search').addEventListener('input', () => {
   selectionSerial++;
@@ -540,7 +540,7 @@ $('photo').addEventListener('change', async () => {
   } catch (error) { discardPendingPhoto(); photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; const message = `Photo could not open: ${String(error).replace(/^Error: /, '')}`; $('photo-status').textContent = message; $('status').textContent = message; updateSaveState(); }
 });
 function finishPhotoPreparation() { photoBusy = false; input('photo').disabled = false; input('shuffle').disabled = false; updateSaveState(); }
-$('crop-cancel').addEventListener('click', () => { invalidateCircleFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled. Add a photo when you’re ready.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); });
+$('crop-cancel').addEventListener('click', () => { invalidateCircleFit(); ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = photo ? 'Photo crop cancelled. Your prepared photo is unchanged.' : 'Photo crop cancelled.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); });
 $('photo-crop').addEventListener('cancel', event => { event.preventDefault(); $('crop-cancel').click(); });
 $('photo-crop').addEventListener('close', () => { endCropGesture(); invalidateCircleFit(); });
 for (const id of cropIds) input(id).addEventListener('input', scheduleCropPreview);
@@ -558,9 +558,9 @@ $('crop-apply').addEventListener('click', async () => {
     const ctx = canvas.getContext('2d')!, mapping = circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
     ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, mapping); ctx.restore();
     const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
-    const photoAddress = await experience.addDraftPhoto(photoDepiction);
+    await experience.addDraftPhoto(photoDepiction);
     photo = photoDepiction; depiction = photoDepiction; savedPhotoConsumed = false;
-    ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo ready. Choose a manufacturer and mold to finish it.`; $('photo-status').textContent = message; $('status').textContent = `${message} Retained at ${photoAddress}.`; finishPhotoPreparation(); preview();
+    ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = input('seed').value ? 'Photo ready.' : 'Photo ready. Select a manufacturer and mold.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();
   } catch (error) {
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = `Photo could not be kept: ${String(error).replace(/^Error: /, '')}`; $('photo-crop-help').textContent = message; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();
   } finally { syncCandidateApply(); }
@@ -574,16 +574,16 @@ $('composer').addEventListener('submit', async event => {
     onSaved(address);
     const storage = experience.persistenceStatus;
     $('status').textContent = storage.startsWith('Saved in this session archive')
-      ? 'Saved to Today’s Bag. Add another when you’re ready.'
+      ? 'Saved to Today’s Bag.'
       : `Added to Today’s Bag. ${storage}`;
-    input('nickname').value = ''; autoNickname = ''; nicknameDirty = false; input('photo').value = '';
+    input('photo').value = '';
     for (const field of flightFields) { input(`own-${field}`).checked = false; input(`disc-${field}`).value = ''; input(`disc-${field}`).disabled = true; }
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
     depiction = painting; photo = null; savedPhotoConsumed = true;
     $('photo-status').textContent = storage.startsWith('Saved in this session archive')
-      ? 'Photo saved to Today’s Bag. Add another photo when you’re ready.'
-      : 'Photo added for this session only. Add another photo when you’re ready.';
+      ? 'Photo saved to Today’s Bag.'
+      : 'Photo added for this session only.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();
   } catch (error) { $('status').textContent = `Not saved: ${String(error)}`; }
   finally { updateSaveState(); }
