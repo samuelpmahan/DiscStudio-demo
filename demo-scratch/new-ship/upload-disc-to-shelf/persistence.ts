@@ -3,12 +3,18 @@ import { validatePaintRecipe } from './paint-recipe.ts';
 
 export const storageKey = 'discstudio.pxc.shelf.v1';
 export type State = { pxc: any; serial: number; shelfAddress: string; currentSeeds: [string, string][]; bagsAddress?: string; bagAddress?: string };
+const photoDataUri = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 // This archive is an OnTop format, not serialization of arbitrary JavaScript.
 export function archive(state: State) {
-  const nodes: any[] = [], ids = new Map<any, number>();
+  const nodes: any[] = [], ids = new Map<any, number>(), photos: string[] = [], photoIds = new Map<string, number>();
   const known = new Map(state.pxc.entries().filter(([name]: any) => /^(fn|oc)\./.test(name)).map(([name, part]: any) => [part, name]));
   function value(item: any): any {
     if (item instanceof Part) return { part: visit(item) };
+    if (typeof item === 'string' && photoDataUri.test(item)) {
+      let id = photoIds.get(item);
+      if (id === undefined) { id = photos.length; photos.push(item); photoIds.set(item, id); }
+      return { photo: id };
+    }
     if (item === null || typeof item === 'string' || typeof item === 'boolean' || (typeof item === 'number' && Number.isFinite(item))) return { scalar: item };
     if (Array.isArray(item)) return { array: item.map(value) };
     if (item && Object.getPrototypeOf(item) === Object.prototype) return { object: Object.entries(item).map(([k, v]) => [k, value(v)]) };
@@ -36,12 +42,14 @@ export function archive(state: State) {
     && !name.startsWith('ds.px.output.')
     && !/^ds\.px\.receipt\.(?:enqueue|remove-output)-/.test(name))
     .map(([name, part]: any) => [name, visit(part)]);
-  return JSON.stringify({ version: 1, serial: state.serial, shelfAddress: state.shelfAddress, currentSeeds: state.currentSeeds, ...(state.bagsAddress ? { bagsAddress: state.bagsAddress } : {}), ...(state.bagAddress ? { bagAddress: state.bagAddress } : {}), nodes, bindings });
+  return JSON.stringify({ version: 2, photos, serial: state.serial, shelfAddress: state.shelfAddress, currentSeeds: state.currentSeeds, ...(state.bagsAddress ? { bagsAddress: state.bagsAddress } : {}), ...(state.bagAddress ? { bagAddress: state.bagAddress } : {}), nodes, bindings });
 }
 
 export async function restore(raw: string, knownStore: any): Promise<State> {
   const data = JSON.parse(raw), pxc = new PxC(), parts = new Map<number, any>();
-  if (data.version !== 1 || !Number.isSafeInteger(data.serial) || data.serial < 0 || !Array.isArray(data.nodes) || data.nodes.length > 100000 || !Array.isArray(data.bindings) || !Array.isArray(data.currentSeeds)) throw Error('Invalid shelf archive.');
+  if (![1, 2].includes(data.version) || !Number.isSafeInteger(data.serial) || data.serial < 0 || !Array.isArray(data.nodes) || data.nodes.length > 100000 || !Array.isArray(data.bindings) || !Array.isArray(data.currentSeeds)) throw Error('Invalid shelf archive.');
+  const photos = data.version === 2 ? data.photos : [];
+  if (data.version === 2 && (!Array.isArray(photos) || photos.length > 100000 || photos.some((photo: unknown) => typeof photo !== 'string' || !photoDataUri.test(photo)) || new Set(photos).size !== photos.length)) throw Error('Invalid retained photo table.');
   const destinations = new Map<number, string>(), names = new Set<string>();
   for (const [name, id] of data.bindings) {
     if (typeof name !== 'string' || !name.startsWith('ds.px.') || names.has(name)) throw Error('Invalid binding.');
@@ -51,6 +59,10 @@ export async function restore(raw: string, knownStore: any): Promise<State> {
   const part = (id: number) => { if (!parts.has(id)) throw Error('Unread Part link.'); return parts.get(id); };
   function value(item: any): any {
     if (!item || typeof item !== 'object' || Object.keys(item).length !== 1) throw Error('Invalid material.');
+    if (Object.hasOwn(item, 'photo')) {
+      if (data.version !== 2 || !Number.isSafeInteger(item.photo) || item.photo < 0 || item.photo >= photos.length) throw Error('Invalid retained photo reference.');
+      return photos[item.photo];
+    }
     if (Object.hasOwn(item, 'scalar') && (item.scalar === null || ['string', 'boolean', 'number'].includes(typeof item.scalar))) return item.scalar;
     if (Object.hasOwn(item, 'part')) return part(item.part);
     if (Array.isArray(item.array)) return Object.freeze(item.array.map(value));

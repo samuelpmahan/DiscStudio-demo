@@ -141,7 +141,7 @@ function photoDraftView(image: Depiction) {
 function nextUploadView() {
   const figure = document.createElement('figure');
   const title = document.createElement('h3'); title.textContent = 'Ready for another photo';
-  const note = document.createElement('p'); note.textContent = 'Your saved disc is in Today’s Bag. Add a photo to start the next one.';
+  const note = document.createElement('p'); note.textContent = 'Your disc is in Today’s Bag. Add a photo to start the next one.';
   figure.append(title, note); return figure;
 }
 function resetPaintSeed() { input('paint-seed').value = String(recipeFromDraft(initialDraft(), painting).seed); }
@@ -571,13 +571,19 @@ $('composer').addEventListener('submit', async event => {
   try {
     const material = draft();
     const address = await experience.save(material, depiction, { photo });
-    onSaved(address); $('status').textContent = `Saved and read back: ${address}. Add another when you’re ready.`;
+    onSaved(address);
+    const storage = experience.persistenceStatus;
+    $('status').textContent = storage.startsWith('Saved in this session archive')
+      ? 'Saved to Today’s Bag. Add another when you’re ready.'
+      : `Added to Today’s Bag. ${storage}`;
     input('nickname').value = ''; autoNickname = ''; nicknameDirty = false; input('photo').value = '';
     for (const field of flightFields) { input(`own-${field}`).checked = false; input(`disc-${field}`).value = ''; input(`disc-${field}`).disabled = true; }
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
     depiction = painting; photo = null; savedPhotoConsumed = true;
-    $('photo-status').textContent = 'Photo saved to Today’s Bag. Add another photo when you’re ready.';
+    $('photo-status').textContent = storage.startsWith('Saved in this session archive')
+      ? 'Photo saved to Today’s Bag. Add another photo when you’re ready.'
+      : 'Photo added for this session only. Add another photo when you’re ready.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();
   } catch (error) { $('status').textContent = `Not saved: ${String(error)}`; }
   finally { updateSaveState(); }

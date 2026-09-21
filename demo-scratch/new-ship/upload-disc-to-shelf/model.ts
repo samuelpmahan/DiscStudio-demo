@@ -341,9 +341,9 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
         pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
         persist(nextShelf, currentSeeds, bagsAddress, nextBag);
-        // Do not consume a retryable draft until its durable write succeeds.
-        // A quota error must leave the same photo available for correction or
-        // a second Save attempt in this current session.
+        // Do not consume a retryable draft until a save has either reached the
+        // durable archive or been explicitly accepted as this-tab-only work.
+        // Unexpected persistence failures still leave the photo retryable.
         const photoKeys = [...pxc.entries()].filter(([name]) => name.startsWith('ds.px.draft.photos.')).map(([name]) => name);
         if (photoKeys.length > 0) pxc.set(`ds.px.draft.consumedPhotos.${operationId}`, new Part(Object.freeze(photoKeys)));
         shelfAddress = nextShelf;
