@@ -1,9 +1,33 @@
 import { openExperience } from './persistent-experience.ts';
 import { startSandbox } from './experience-fixtures.ts';
 import { mountExperiencePage } from './experience-page.ts';
+import { clearLocalData } from './session-storage.ts';
 
 async function main() {
 const $ = (id: string) => document.getElementById(id)!;
+const clearDataDialog = $('clear-local-data') as HTMLDialogElement;
+const clearDataError = $('clear-local-data-error');
+const clearDataConfirm = $('clear-local-data-confirm') as HTMLButtonElement;
+$('clear-local-data-button').addEventListener('click', () => {
+  clearDataError.textContent = '';
+  clearDataDialog.showModal();
+});
+$('clear-local-data-cancel').addEventListener('click', () => clearDataDialog.close());
+clearDataConfirm.addEventListener('click', () => {
+  clearDataError.textContent = '';
+  clearDataConfirm.disabled = true;
+  try {
+    const result = clearLocalData(window.localStorage);
+    if (result.ok) location.reload();
+    else {
+      clearDataConfirm.disabled = false;
+      clearDataError.textContent = result.removed.length ? 'Some local DiscStudio data was removed, but the rest could not be cleared. Your current session remains open.' : 'Local DiscStudio data could not be cleared. Your current session remains open.';
+    }
+  } catch {
+    clearDataConfirm.disabled = false;
+    clearDataError.textContent = 'Local DiscStudio data could not be accessed. Your current session remains open.';
+  }
+});
 const requested = new URLSearchParams(location.search).get('sandbox');
 const sandbox = requested === 'upload' || requested === 'shelf' ? requested : null;
 const instrument = new URLSearchParams(location.search).get('instrument') === '1' || (window as any).__dsCaptureInstrumentation === true;

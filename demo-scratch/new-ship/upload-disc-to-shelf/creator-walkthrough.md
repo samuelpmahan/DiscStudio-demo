@@ -2,7 +2,7 @@
 
 The app renders this authored walkthrough from `creator-walkthrough.ts` and pins the same grouped rows in the Neat `tick-part-checklist` component. Each row provides creator steps, recovery, developer boundary, evidence, and checkpoint detail.
 
-The current MVP is photo-only. Its prepare flow is to choose the closest complete rim from Circle 1, Circle 2, or Circle 3; optionally use Refine choice, Find other circles, or Adjust manually; then choose Use photo. It starts a fresh empty session each load while retaining legacy and prior session archives without displaying or restoring them. Cards enter output only through the explicit **Add to output queue** action; selecting a card and style creates a preview only. Export packages only the held output queue as a ZIP.
+The current MVP is photo-only. Its prepare flow is to choose the closest complete rim from Circle 1, Circle 2, or Circle 3; optionally use Refine choice, Find other circles, or Adjust manually; then choose Use photo. It starts a fresh empty session each load while retaining legacy and prior session archives without displaying or restoring them. Use Clear local data in the header to deliberately remove DiscStudio-only saved data and restart; downloads are unaffected. Cards enter output only through the explicit **Add to output queue** action; selecting a card and style creates a preview only. Export packages only the held output queue as a ZIP.
 
 When browser storage is full or unavailable, a valid disc remains available in the current tab only. Export needed cards before refreshing or closing; a later successful Save retains the whole current bag. Other save errors do not add a disc.
 

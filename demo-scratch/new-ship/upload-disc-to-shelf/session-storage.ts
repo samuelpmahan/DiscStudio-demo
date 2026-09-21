@@ -5,6 +5,7 @@ export const legacyStorageKey = storageKey;
 export const sessionKeyPrefix = 'discstudio.pxc.session.v1.';
 
 type KeyStorage = Pick<Storage, 'getItem' | 'key'> & { readonly length: number };
+type ClearableStorage = Pick<Storage, 'key' | 'removeItem'> & { readonly length: number };
 
 export type FreshSession = Readonly<{ id: string; currentKey: string }>;
 export type FreshSessionResult = Readonly<{ ok: true; session: FreshSession }> | Readonly<{ ok: false; error: Error }>;
@@ -32,4 +33,28 @@ export function discoverSessionKeys(storage: KeyStorage): readonly string[] {
     if (key && (key === legacyStorageKey || key.startsWith(sessionKeyPrefix))) keys.push(key);
   }
   return Object.freeze(keys.sort());
+}
+
+
+export type ClearLocalDataResult = Readonly<{ ok: true; removed: readonly string[] }> | Readonly<{ ok: false; removed: readonly string[]; error: Error }>;
+
+/** Removes only DiscStudio's durable archives, never unrelated local storage. */
+export function clearLocalData(storage: ClearableStorage): ClearLocalDataResult {
+  let matching: string[];
+  try {
+    matching = [];
+    for (let index = 0; index < storage.length; index++) {
+      const key = storage.key(index);
+      if (key === legacyStorageKey || key?.startsWith(sessionKeyPrefix) || key?.startsWith('tick-part-checklist:discstudio-creator-review:')) matching.push(key);
+    }
+  } catch (error) { return { ok: false, removed: Object.freeze([]), error: errorOf(error) }; }
+
+  const removed: string[] = [];
+  try {
+    for (const key of matching) {
+      storage.removeItem(key);
+      removed.push(key);
+    }
+    return { ok: true, removed: Object.freeze(removed) };
+  } catch (error) { return { ok: false, removed: Object.freeze(removed), error: errorOf(error) }; }
 }

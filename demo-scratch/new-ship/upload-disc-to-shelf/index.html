@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DiscStudio · Tournament cards</title><link rel="stylesheet" href="./style.css"></head>
-<body><header><a href="#"><img src="./brand-mark.svg" alt="" width="26" height="26"> <b>discstudio</b></a><span>TOURNAMENT CARD MAKER</span><span class="tag">ready for overlay</span></header>
+<body><header><a href="#"><img src="./brand-mark.svg" alt="" width="26" height="26"> <b>discstudio</b></a><span>TOURNAMENT CARD MAKER</span><span class="tag">ready for overlay</span><button id="clear-local-data-button" class="clear-local-data-button" type="button">Clear local data</button></header>
 <main><section class="intro"><p class="eyebrow">YOUR DISC. ON SCREEN.</p><h1>Add the real one.</h1><p>Start with a photo, fit its rim, then add the details that make it yours.</p></section>
 <section class="workspace"><form id="composer">
 <div class="section-title"><h2>Add a disc</h2><span>01 — compose</span></div>
@@ -32,5 +32,13 @@
     </section>
     <details id="crop-manual" class="crop-manual"><summary>Adjust manually</summary><div class="crop-quick" role="group" aria-label="Manual circle correction"><button id="crop-auto" type="button">Start over</button><output id="crop-zoom-value">Circle size 80%</output><div class="crop-zoom" aria-label="Circle size corrections"><button type="button" data-zoom-delta="-10" aria-label="Make selection 10 percent smaller">−10</button><button type="button" data-zoom-delta="-5" aria-label="Make selection 5 percent smaller">−5</button><button type="button" data-zoom-delta="-3" aria-label="Make selection 3 percent smaller">−3</button><button type="button" data-zoom-delta="-1" aria-label="Make selection 1 percent smaller">−1</button><button type="button" data-zoom-delta="1" aria-label="Make selection 1 percent larger">＋1</button><button type="button" data-zoom-delta="3" aria-label="Make selection 3 percent larger">＋3</button><button type="button" data-zoom-delta="5" aria-label="Make selection 5 percent larger">＋5</button><button type="button" data-zoom-delta="10" aria-label="Make selection 10 percent larger">＋10</button></div><button id="crop-reset" type="button">Center &amp; reset</button></div></details>
     <div class="crop-actions crop-actions-single"><button id="crop-apply" class="primary" type="button">Use photo</button></div>
+  </div>
+</dialog>
+<dialog id="clear-local-data" aria-labelledby="clear-local-data-title" aria-describedby="clear-local-data-description">
+  <div class="clear-local-data-dialog">
+    <h2 id="clear-local-data-title">Clear locally saved data?</h2>
+    <p id="clear-local-data-description">This deletes locally saved DiscStudio photos, discs, sessions, current bag, queue, draft, and checklist progress. It cannot be undone. Downloaded files are unaffected.</p>
+    <p id="clear-local-data-error" role="alert" aria-live="assertive"></p>
+    <div class="clear-local-data-actions"><button id="clear-local-data-cancel" type="button" autofocus>Cancel</button><button id="clear-local-data-confirm" class="primary" type="button">Clear and restart</button></div>
   </div>
 </dialog></main><script src="./vendor/neat/tick-part-checklist.js"></script><script type="module" src="./app.ts"></script></body></html>
