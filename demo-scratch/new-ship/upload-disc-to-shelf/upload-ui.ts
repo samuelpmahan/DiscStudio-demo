@@ -251,7 +251,7 @@ function suggestPlastics() {
   // A guide is a suggestion, not a gate: tournament players can retain an
   // explicit unknown blend when the manufacturer is not in the small guide.
   const choices = unavailable ? ['', 'Unknown / not listed'] : ['', ...guide.values];
-  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || (unavailable ? 'Unknown / not listed' : 'Not specified'); return option; }));
+  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || 'Not specified'; return option; }));
   input('plastic').value = choices.includes(preferred) ? preferred : '';
   input('plastic').disabled = false;
   updateSaveState();
