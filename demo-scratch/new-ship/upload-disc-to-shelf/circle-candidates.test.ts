@@ -11,6 +11,16 @@ function circlesRaster(width: number, height: number, circles: Array<{ x: number
   return { width, height, rgba };
 }
 
+function rimmedCircleRaster(width: number, height: number, circle: { x: number; y: number; radius: number }): Raster {
+  const rgba = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const distance = Math.hypot(x - circle.x, y - circle.y), index = (y * width + x) * 4;
+    const pixel = distance <= circle.radius - 2 ? [222, 108, 47, 255] : distance <= circle.radius ? [174, 75, 31, 255] : [24, 34, 45, 255];
+    rgba.set(pixel, index);
+  }
+  return { width, height, rgba };
+}
+
 function blankRaster(width = 96, height = 96): Raster {
   return { width, height, rgba: new Uint8ClampedArray(width * height * 4) };
 }
@@ -60,6 +70,30 @@ test('refine keeps the selected anchor exact and only searches locally', () => {
   assert.deepEqual(refineCircleCandidates(raster, anchor, 3), refined);
 });
 
+test('refine reserves a supported concentric rim trim and repeats it from the selected trim', () => {
+  const raster = rimmedCircleRaster(160, 140, { x: 80, y: 70, radius: 30 });
+  const anchor: CircleCandidate = { id: 'rimmed-anchor', circle: { x: 80, y: 70, radius: 30, confidence: .1 }, score: .1 }, refined = refineCircleCandidates(raster, anchor, 3);
+  assert.strictEqual(refined[0], anchor);
+  assert.ok(refined.length >= 2, 'supported anchors expose a fine concentric trim');
+  const trim = refined[1], targetRadius = Math.min(anchor.circle.radius - 1, Math.floor(anchor.circle.radius * .988));
+  assert.equal(trim.circle.x, anchor.circle.x);
+  assert.equal(trim.circle.y, anchor.circle.y);
+  assert.equal(trim.circle.radius, targetRadius);
+  assert.ok(withinSource(trim, raster));
+
+  const repeated = refineCircleCandidates(raster, trim, 3);
+  assert.strictEqual(repeated[0], trim);
+  assert.ok(repeated.length >= 2, 'the selected trim can be refined again');
+  assert.equal(repeated[1].circle.x, trim.circle.x);
+  assert.equal(repeated[1].circle.y, trim.circle.y);
+  assert.ok(repeated[1].circle.radius < trim.circle.radius);
+
+  const limited = refineCircleCandidates(raster, anchor, 2);
+  assert.equal(limited.length, 2);
+  assert.strictEqual(limited[0], anchor);
+  assert.deepEqual(limited[1], trim);
+});
+
 test('offset anchors get a supported local correction and remain stable when selected', () => {
   const truth = { x: 67, y: 58, radius: 28 }, raster = circlesRaster(160, 140, [truth]);
   const anchor: CircleCandidate = { id: 'manual-anchor', circle: { x: 68, y: 59, radius: 30, confidence: .1 }, score: .1 };
@@ -68,6 +102,8 @@ test('offset anchors get a supported local correction and remain stable when sel
   assert.strictEqual(first[0], anchor);
   const error = (row: CircleCandidate) => Math.hypot(row.circle.x - truth.x, row.circle.y - truth.y, row.circle.radius - truth.radius);
   assert.ok(first.slice(1).some(row => error(row) < error(anchor)), 'one local option should reduce the source geometry error');
+  const centerError = (row: CircleCandidate) => Math.hypot(row.circle.x - truth.x, row.circle.y - truth.y);
+  assert.ok(first.slice(1).some(row => centerError(row) < centerError(anchor)), 'the remaining local option should still improve center recovery');
 
   const selectedImprovement = first[1], repeated = refineCircleCandidates(raster, selectedImprovement, 3);
   assert.ok(repeated.length >= 1);

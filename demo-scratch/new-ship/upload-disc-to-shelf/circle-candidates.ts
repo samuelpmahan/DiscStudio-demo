@@ -123,10 +123,27 @@ function localCircleSeeds(anchor: DiscCircle, width: number, height: number) {
   return offsets.map(([dx, dy, dr]) => boundedCircle(width, height, { ...anchor, x: anchor.x + dx, y: anchor.y + dy, radius: anchor.radius + dr })).filter((circle): circle is DiscCircle => !!circle);
 }
 
-function localAlternatives(source: Raster, anchor: CircleCandidate, limit: number) {
+function supportedConcentricShrink(source: Raster, anchor: CircleCandidate): CircleCandidate | null {
+  const targetRadius = Math.min(anchor.circle.radius - 1, Math.floor(anchor.circle.radius * .988));
+  const circle = boundedCircle(source.width, source.height, { ...anchor.circle, radius: targetRadius });
+  if (!circle || circle.x !== anchor.circle.x || circle.y !== anchor.circle.y || circle.radius >= anchor.circle.radius) return null;
+  if (!isDistinct(circle, [anchor.circle], 1, .0075)) return null;
+  const score = circleEvidence(source, circle);
+  return score >= MIN_EVIDENCE ? candidate(`${anchor.id}-local-1`, { ...circle, confidence: score }, score) : null;
+}
+
+function localAlternatives(source: Raster, anchor: CircleCandidate, limit: number, { reserveConcentricShrink = false }: { reserveConcentricShrink?: boolean } = {}) {
   if (limit <= 1) return [anchor];
   const rows = sortCircles(localCircleSeeds(anchor.circle, source.width, source.height).map(circle => ({ circle, score: circleEvidence(source, circle) })));
   const selected: CircleCandidate[] = [anchor];
+  // A Refine round must offer one stable, visibly meaningful rim trim before
+  // evidence ranking spends the remaining slot on a center-correction option.
+  // Initial candidates keep the original score-only selection behavior.
+  if (reserveConcentricShrink) {
+    const shrink = supportedConcentricShrink(source, anchor);
+    if (shrink) selected.push(shrink);
+  }
+  if (selected.length >= limit) return selected;
   for (const row of rows) {
     if (selected.some(existing => existing.circle === row.circle)) continue;
     // Local options need a finer separation than global object NMS so small
@@ -152,7 +169,7 @@ export function refineCircleCandidates(source: Raster, anchor: CircleCandidate, 
   const bounded = boundedCircle(source.width, source.height, anchor.circle);
   if (!bounded) return [];
   if (bounded.x !== anchor.circle.x || bounded.y !== anchor.circle.y || bounded.radius !== anchor.circle.radius) return [];
-  return localAlternatives(source, anchor, wanted);
+  return localAlternatives(source, anchor, wanted, { reserveConcentricShrink: true });
 }
 
 type RawCircle = { circle: DiscCircle; score: number };
