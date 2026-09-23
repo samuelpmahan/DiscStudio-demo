@@ -1,7 +1,9 @@
 import type { CircleCandidate, Raster } from '../circle-candidates.ts';
 
-type Peak = { distance: number; score: number };
-type Spoke = { angle: number; peaks: Peak[] };
+export type RimPeak = Readonly<{ distance: number; score: number }>;
+export type RimSpoke = Readonly<{ angle: number; peaks: readonly RimPeak[] }>;
+type Peak = RimPeak;
+type Spoke = RimSpoke;
 type Observation = { angle: number; distance: number; weight: number; score: number };
 type Fit = { radius: number; dx: number; dy: number };
 export type RimHypothesis = { radius: number; centerX: number; centerY: number; coverage: number; opposingPairs: number; medianResidual: number; strength: number; sectors: readonly number[] };
@@ -12,6 +14,8 @@ export type OpposingRimEvidence = {
   reason?: string;
   hypotheses: readonly RimHypothesis[];
   selected: RimHypothesis | null;
+  seed?: RimHypothesis | null;
+  rimSpokes?: readonly RimSpoke[];
 };
 
 function sample(source: Raster, x: number, y: number) {
@@ -31,7 +35,7 @@ function median(numbers: number[]) {
 }
 
 /** Only inspect a narrow annulus once. Keep inner and outer rim hits separately. */
-function scanSpokes(source: Raster, circle: CircleCandidate['circle']): Spoke[] {
+export function scanRimSpokes(source: Raster, circle: CircleCandidate['circle']): readonly RimSpoke[] {
   const { x, y, radius } = circle, gap = Math.max(2, radius * .01), step = Math.max(1, radius * .003), spokes: Spoke[] = [];
   for (let index = 0; index < 64; index++) {
     const angle = index * Math.PI / 32, ux = Math.cos(angle), uy = Math.sin(angle), values: Peak[] = [];
@@ -47,12 +51,12 @@ function scanSpokes(source: Raster, circle: CircleCandidate['circle']): Spoke[] 
     maxima.sort((a, b) => b.score - a.score);
     const peaks: Peak[] = [];
     for (const peak of maxima) {
-      if (peaks.every(previous => Math.abs(previous.distance - peak.distance) > radius * .013)) peaks.push(peak);
+      if (peaks.every(previous => Math.abs(previous.distance - peak.distance) > radius * .013)) peaks.push(Object.freeze(peak));
       if (peaks.length === 9) break;
     }
-    spokes.push({ angle, peaks });
+    spokes.push(Object.freeze({ angle, peaks: Object.freeze(peaks) }));
   }
-  return spokes;
+  return Object.freeze(spokes);
 }
 
 /** Weighted least squares for distance(theta) = radius + dx*cos(theta) + dy*sin(theta). */
@@ -80,7 +84,7 @@ function solve(observations: Observation[]): Fit | null {
   return { radius: matrix[0][3], dx: matrix[1][3], dy: matrix[2][3] };
 }
 
-function fitHypothesis(spokes: Spoke[], anchor: CircleCandidate['circle'], factor: number): RimHypothesis {
+function fitHypothesis(spokes: readonly Spoke[], anchor: CircleCandidate['circle'], factor: number): RimHypothesis {
   const { radius } = anchor;
   let fit: Fit = { radius: radius * factor, dx: 0, dy: 0 };
   for (let iteration = 0; iteration < 5; iteration++) {
@@ -124,17 +128,23 @@ export function fitOpposingRim(source: Raster, anchor: CircleCandidate): Opposin
   if (!source || !Number.isInteger(source.width) || !Number.isInteger(source.height) || source.rgba?.length < source.width * source.height * 4) return abstain('invalid-raster');
   const circle = anchor?.circle;
   if (!circle || ![circle.x, circle.y, circle.radius].every(Number.isFinite) || circle.radius < 12) return abstain('invalid-anchor');
-  const spokes = scanSpokes(source, circle);
+  const spokes = scanRimSpokes(source, circle);
   const hypotheses = [.90, .94, .98, 1.02, 1.06, 1.10, 1.14, 1.18, 1.24].map(factor => fitHypothesis(spokes, circle, factor));
   const supported = hypotheses.filter(row => row.coverage >= .82 && row.opposingPairs >= 20 && row.sectors.every(count => count >= 3) && row.medianResidual < circle.radius * .018 && row.strength >= .06
     && Math.hypot(row.centerX - circle.x, row.centerY - circle.y) <= circle.radius * .1
     && row.centerX - row.radius >= 1 && row.centerY - row.radius >= 1 && row.centerX + row.radius < source.width - 1 && row.centerY + row.radius < source.height - 1);
-  if (!supported.length) return abstain('no-closed-opposing-rim', hypotheses);
+  if (!supported.length) {
+    // An elliptical rim can defeat the circle's own sector gate. Preserve a
+    // bounded, explicitly unaccepted seed for the independent ellipse check.
+    const seed = [...hypotheses].filter(row => row.coverage >= .65 && row.opposingPairs >= 18 && row.strength >= .04 && row.medianResidual < circle.radius * .035)
+      .sort((a, b) => b.coverage - a.coverage || b.opposingPairs - a.opposingPairs)[0] ?? null;
+    return Object.freeze({ ...abstain('no-closed-opposing-rim', hypotheses), seed, rimSpokes: spokes });
+  }
   const strongest = Math.max(...supported.map(row => row.strength));
   // A concentric dark outer rim can be weaker than its bright inner edge.
   // Pick the largest well-supported ring, with a relative strength floor.
   const selected = [...supported].filter(row => row.strength >= strongest * .55).sort((a, b) => b.radius - a.radius || b.coverage - a.coverage)[0];
-  if (Math.hypot(selected.centerX - circle.x, selected.centerY - circle.y, selected.radius - circle.radius) < circle.radius * .008) return abstain('unchanged-circle', hypotheses);
+  if (Math.hypot(selected.centerX - circle.x, selected.centerY - circle.y, selected.radius - circle.radius) < circle.radius * .008) return Object.freeze({ ...abstain('unchanged-circle', hypotheses), selected, rimSpokes: spokes });
   const candidate: CircleCandidate = Object.freeze({ id: `${anchor.id}-opposing-rim`, score: selected.coverage, circle: Object.freeze({ x: selected.centerX, y: selected.centerY, radius: selected.radius, confidence: selected.coverage }) });
-  return Object.freeze({ schema: 'OpposingRimEvidence@1', status: 'accepted', candidate, hypotheses: Object.freeze(hypotheses), selected });
+  return Object.freeze({ schema: 'OpposingRimEvidence@1', status: 'accepted', candidate, hypotheses: Object.freeze(hypotheses), selected, rimSpokes: spokes });
 }
