@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createExperience, initialDraft, flightFields } from './model.ts';
+import { creatorPqlPlans } from './pql.ts';
 
 const testPhoto = { kind: 'photo' as const, src: 'data:image/png;base64,iVBORw0KGgo=', name: 'test-photo.png' };
 
@@ -38,12 +39,38 @@ test('save composes a disc and a shelf, retaining inputs and readback evidence',
   assert.equal(app.events.at(-1)?.event, 'disc.save.completed');
   assert.equal(app.events.at(-1)?.shelfContainsDisc, true);
   assert.deepEqual(app.events.at(-1)?.pql.map((entry: any) => entry.calculation), ['fn.CREATE', 'fn.READ', 'fn.READ']);
-  assert.deepEqual(app.pxc.get(`ds.px.receipt.pql.${part.value.id}`).value.map((entry: any) => entry.query), [
-    `INSERT INTO ${address} VALUES :value`, `SELECT * FROM ${address}`, `SELECT * FROM ${app.shelfAddress}`,
+  const executedPql = app.pxc.get(`ds.px.receipt.pql.${part.value.id}`).value as any[];
+  assert.deepEqual(executedPql.map(entry => entry.query), [
+    'INSERT INTO :target VALUES :value', 'SELECT * FROM :source', 'SELECT * FROM :source',
+  ]);
+  assert.deepEqual(executedPql.map(entry => entry.boundAddresses), [
+    { target: address, into: address },
+    { source: address, into: `ds.px.pql.${part.value.id}.disc` },
+    { source: app.shelfAddress, into: `ds.px.pql.${part.value.id}.shelf` },
   ]);
   draft.nickname = 'Later edit';
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
 });
+
+test('two saves execute the same frozen plans while binding distinct Disc and Shelf addresses', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const first = await app.save({ ...initialDraft(), nickname: 'First' }, depiction);
+  await app.addDraftPhoto({ ...testPhoto, name: 'second.png' });
+  const second = await app.save({ ...initialDraft(), nickname: 'Second' }, await app.selectDraftDepiction());
+  const firstPlans = app.pxc.get(`ds.px.receipt.pql.${first.split('.').at(-1)}`).value as any[];
+  const secondPlans = app.pxc.get(`ds.px.receipt.pql.${second.split('.').at(-1)}`).value as any[];
+  assert.equal(firstPlans[0].plan, creatorPqlPlans.createDisc);
+  assert.equal(secondPlans[0].plan, creatorPqlPlans.createDisc);
+  assert.equal(firstPlans[1].plan, creatorPqlPlans.readDisc);
+  assert.equal(secondPlans[1].plan, creatorPqlPlans.readDisc);
+  assert.equal(firstPlans[2].plan, creatorPqlPlans.readShelf);
+  assert.equal(secondPlans[2].plan, creatorPqlPlans.readShelf);
+  assert.notEqual(firstPlans[0].boundAddresses.target, secondPlans[0].boundAddresses.target);
+  assert.equal(firstPlans[0].boundAddresses.target, first);
+  assert.equal(secondPlans[0].boundAddresses.target, second);
+  assert.notEqual(firstPlans[2].boundAddresses.source, secondPlans[2].boundAddresses.source);
+});
+
 test('two specimens share a seed without replacing each other or prior shelf', async () => {
   const { app, depiction: image } = await appWithPhoto();
   const a = await app.save(initialDraft(), image), previous = app.shelfAddress;

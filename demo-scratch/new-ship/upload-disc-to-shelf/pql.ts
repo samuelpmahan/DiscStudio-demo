@@ -1,63 +1,85 @@
 import { Part } from '../part-first-kernel/src/pxc.mjs';
 
 export type PqlBindings = Readonly<Record<string, string | Part>>;
+type PqlOperation = 'INSERT' | 'SELECT';
+type PqlCalculation = 'fn.CREATE' | 'fn.READ';
+type SemanticAddress = string;
+
+export type PqlPlan = Readonly<{
+  /** Stable identity for one compiled query shape. */
+  id: string;
+  template: string;
+  operation: PqlOperation;
+  calculation: PqlCalculation;
+}>;
 export type PqlTestimony = Readonly<{
+  /** The already-compiled plan that was executed. */
+  plan: PqlPlan;
   query: string;
-  operation: 'INSERT' | 'SELECT';
-  calculation: 'fn.CREATE' | 'fn.READ';
+  operation: PqlOperation;
+  calculation: PqlCalculation;
   into: string;
+  /** Semantic locations supplied for this execution, separate from Part traffic. */
+  boundAddresses: Readonly<{ target?: SemanticAddress; source?: SemanticAddress; into: SemanticAddress }>;
+  /** The Part/address inputs actually supplied to PxC.compose. */
   actualInputs: readonly Readonly<{ name: string; reference: string }> [];
 }>;
 
 const address = '[A-Za-z][A-Za-z0-9_-]*(?:\\.[A-Za-z][A-Za-z0-9_-]*)+';
-const insert = new RegExp(`^INSERT INTO (${address}) VALUES :value$`);
-const select = new RegExp(`^SELECT \\* FROM (${address})$`);
+const semanticAddress = new RegExp(`^${address}$`);
 
+function requireAddress(value: unknown, name: string): SemanticAddress {
+  if (typeof value !== 'string' || !semanticAddress.test(value)) throw new Error(`PQL ${name} must be a semantic PxC address.`);
+  return value;
+}
 function traffic(bindings: PqlBindings) {
   return Object.freeze(Object.entries(bindings).sort(([left], [right]) => left.localeCompare(right)).map(([name, reference]) => Object.freeze({
     name, reference: typeof reference === 'string' ? reference : 'inline Part',
   })));
 }
-
 function requireBindings(bindings: PqlBindings) {
   if (!bindings || typeof bindings !== 'object' || Array.isArray(bindings)) {
     throw new TypeError('PQL bindings must be a named record of PxC references.');
   }
 }
+function requireExecutablePlan(plan: PqlPlan) {
+  if (!plan || typeof plan !== 'object') throw new TypeError('PQL plan must be a compiled plan object.');
+  if (plan.operation === 'INSERT' && plan.calculation === 'fn.CREATE') return;
+  if (plan.operation === 'SELECT' && plan.calculation === 'fn.READ') return;
+  throw new Error(`Invalid PQL plan ${String(plan.id ?? '(unnamed)')}: ${String(plan.operation)} must use its matching universal calculation.`);
+}
 
 /**
- * Creator-flow PQL: a deliberately small parameterized SQL-like surface.
- *
- * Supported statements:
- *   INSERT INTO <semantic-address> VALUES :value
- *   SELECT * FROM <semantic-address>
- *
- * INSERT carries `value` plus optional named CREATE fields in bindings. SELECT
- * copies the addressed Part through fn.READ into the caller-supplied output
- * address. Values remain PxC Parts/addresses; they are never interpolated into
- * query text. This facade owns no storage: it compiles directly to PxC.compose.
+ * Frozen creator plans authored as literal compiler output. The creator imports
+ * this runtime module only; neither product startup nor save imports a parser.
  */
-export async function executePql(pxc: any, query: string, {
+export const creatorPqlPlans = Object.freeze({
+  createDisc: Object.freeze({ id: 'discstudio.creator.create-disc.v1', template: 'INSERT INTO :target VALUES :value', operation: 'INSERT' as const, calculation: 'fn.CREATE' as const }),
+  readDisc: Object.freeze({ id: 'discstudio.creator.read-disc.v1', template: 'SELECT * FROM :source', operation: 'SELECT' as const, calculation: 'fn.READ' as const }),
+  readShelf: Object.freeze({ id: 'discstudio.creator.read-shelf.v1', template: 'SELECT * FROM :source', operation: 'SELECT' as const, calculation: 'fn.READ' as const }),
+});
+
+/** Execute a frozen plan. This product-runtime path never parses PQL text. */
+export async function executePqlPlan(pxc: any, plan: PqlPlan, {
+  target,
+  source,
   into,
   bindings = {},
-}: { into?: string; bindings?: PqlBindings } = {}): Promise<PqlTestimony> {
-  if (typeof query !== 'string') throw new TypeError('PQL query must be text.');
+}: { target?: string; source?: string; into?: string; bindings?: PqlBindings } = {}): Promise<PqlTestimony> {
+  requireExecutablePlan(plan);
   requireBindings(bindings);
-  const normalized = query.trim().replace(/\s+/g, ' ');
-  const inserted = insert.exec(normalized);
-  if (inserted) {
+  if (plan.operation === 'INSERT') {
+    const boundTarget = requireAddress(target, ':target');
     if (!Object.hasOwn(bindings, 'value')) throw new Error('PQL INSERT requires the :value binding.');
-    const target = inserted[1];
-    await pxc.compose({ into: target, calculation: 'fn.CREATE', inputs: bindings });
-    return Object.freeze({ query: normalized, operation: 'INSERT', calculation: 'fn.CREATE', into: target,
-      actualInputs: traffic(bindings) });
+    // target is deliberately not part of CREATE inputs; it selects PxC output location.
+    await pxc.compose({ into: boundTarget, calculation: plan.calculation, inputs: bindings });
+    return Object.freeze({ plan, query: plan.template, operation: plan.operation, calculation: plan.calculation, into: boundTarget,
+      boundAddresses: Object.freeze({ target: boundTarget, into: boundTarget }), actualInputs: traffic(bindings) });
   }
-  const selected = select.exec(normalized);
-  if (selected) {
-    if (!into || !new RegExp(`^${address}$`).test(into)) throw new Error('PQL SELECT requires a semantic PxC output address.');
-    await pxc.compose({ into, calculation: 'fn.READ', inputs: { base: selected[1], own: new Part(Object.freeze({})) } });
-    return Object.freeze({ query: normalized, operation: 'SELECT', calculation: 'fn.READ', into,
-      actualInputs: Object.freeze([{ name: 'base', reference: selected[1] }, { name: 'own', reference: 'inline Part' }]) });
-  }
-  throw new Error(`Unsupported PQL statement: ${normalized || '(empty)'}. Supported: INSERT INTO <semantic address> VALUES :value; SELECT * FROM <semantic address>.`);
+  const boundSource = requireAddress(source, ':source');
+  const boundInto = requireAddress(into, 'SELECT output');
+  await pxc.compose({ into: boundInto, calculation: plan.calculation, inputs: { base: boundSource, own: new Part(Object.freeze({})) } });
+  return Object.freeze({ plan, query: plan.template, operation: plan.operation, calculation: plan.calculation, into: boundInto,
+    boundAddresses: Object.freeze({ source: boundSource, into: boundInto }),
+    actualInputs: Object.freeze([{ name: 'base', reference: boundSource }, { name: 'own', reference: 'inline Part' }]) });
 }

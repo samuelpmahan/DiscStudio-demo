@@ -6,7 +6,7 @@ import { createBag } from './bags.ts';
 import { plasticGuides } from './plastics.ts';
 import { catalogLite, searchMolds, getMoldDetails } from './mold-library.ts';
 import { create, read, update, destroy, runStage, type Stage } from './operations.ts';
-import { executePql, type PqlTestimony } from './pql.ts';
+import { creatorPqlPlans, executePqlPlan, type PqlTestimony } from './pql.ts';
 import { find } from './devtools-data.mjs';
 import type { State } from './persistence.ts';
 import { queueCards, type QueuedCard } from './export-queue-core.ts';
@@ -330,7 +330,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         };
         const resolvedAddress = `ds.px.resolved.${operationId}`;
         const resolvedInputs = { base: draft.mold, own: discAddress };
-        pql.push(await executePql(pxc, `INSERT INTO ${discAddress} VALUES :value`, { bindings: createBindings }));
+        pql.push(await executePqlPlan(pxc, creatorPqlPlans.createDisc, { target: discAddress, bindings: createBindings }));
         await pxc.compose({ into: resolvedAddress, calculation: 'fn.READ', inputs: resolvedInputs });
         // CREATE and the inherited Disc projection already executed above. The
         // Tick boundary consumes their actual outputs and does not rerun either.
@@ -352,8 +352,8 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         for await (const _boundary of runStage(pxc, stage.slice(1))) { /* Boundary Parts are inspectable in DevTools. */ }
         const discReadback = `ds.px.pql.${operationId}.disc`;
         const shelfReadback = `ds.px.pql.${operationId}.shelf`;
-        pql.push(await executePql(pxc, `SELECT * FROM ${discAddress}`, { into: discReadback }));
-        pql.push(await executePql(pxc, `SELECT * FROM ${nextShelf}`, { into: shelfReadback }));
+        pql.push(await executePqlPlan(pxc, creatorPqlPlans.readDisc, { source: discAddress, into: discReadback }));
+        pql.push(await executePqlPlan(pxc, creatorPqlPlans.readShelf, { source: nextShelf, into: shelfReadback }));
         pxc.set(`ds.px.receipt.pql.${operationId}`, new Part(Object.freeze(pql)));
         const disc = pxc.get(discAddress).value as Disc;
         const shelf = pxc.get(shelfReadback).value as string[];

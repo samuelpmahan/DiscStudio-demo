@@ -55,11 +55,13 @@ That mode is useful where local URL navigation is unavailable. It does not prove
 
 ## Creator PQL seam
 
-The creator uses a small parameterized PQL facade over the existing PxC Parts:
+The creator imports three already-compiled, frozen query plans; no query text is parsed at startup or during a save:
 
 ```sql
-INSERT INTO ds.px.disc.save-1 VALUES :value
-SELECT * FROM ds.px.disc.save-1
+INSERT INTO :target VALUES :value
+SELECT * FROM :source
 ```
 
-`INSERT` compiles to `fn.CREATE`; `SELECT *` compiles to `fn.READ`. Bound values are PxC Part references or addresses, never text interpolation. Every creator save retains its three executed statements (create, Disc readback, shelf readback) at `ds.px.receipt.pql.<save-id>`. `UPDATE`, `DELETE`, projections other than `*`, and filters are rejected until a creator path needs them; `fn.UPDATE` and `fn.DELETE` remain registered universal calculations for later compilation.
+The creator owns three frozen plans with stable identities: `createDisc`, `readDisc`, and `readShelf`. A save never reparses PQL. It binds the actual Disc or Shelf semantic address and existing PxC Part inputs, then executes the resulting `fn.CREATE` or `fn.READ` composition. The target address selects the CREATE output location; it is not merged into the Disc value.
+
+Every creator save retains its three executions at `ds.px.receipt.pql.<save-id>`. Each entry records the frozen plan/template, the actual bound addresses, and the actual Part traffic separately. The ad-hoc `executePql` text API lives in `pql-compiler.ts` for workbench callers outside the creator flow; that compiler module is absent from the creator import graph. `UPDATE`, `DELETE`, projections other than `*`, and filters are rejected until a creator path needs them; `fn.UPDATE` and `fn.DELETE` remain registered universal calculations for later compilation.
