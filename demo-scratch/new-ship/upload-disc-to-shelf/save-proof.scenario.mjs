@@ -29,9 +29,6 @@ function recordEvidence() {
   window.__dsVisualProof = { fixture: { file: 'deterministic-test-disc-fixture.svg', label: 'TEST FIXTURE ONLY — not a user disc photo' }, savedDiscAddress: discAddress, receiptAddress, pqlReceiptAddress: pqlAddress, bagAddress: receipt.bagAddress, verified };
 }
 export async function action(page) {
-  await page.evaluate(() => localStorage.clear());
-  await page.reload({ waitUntil: 'networkidle0' });
-  await page.waitForFunction(() => window.__dsScreenshotReady === true);
   const fixturePath = path.resolve('visual-proof', 'deterministic-test-disc-fixture.svg');
   fs.mkdirSync(path.dirname(fixturePath), { recursive: true }); fs.writeFileSync(fixturePath, svg);
   const photo = await page.$('#photo'); if (!photo) throw Error('Photo input was not mounted.');
