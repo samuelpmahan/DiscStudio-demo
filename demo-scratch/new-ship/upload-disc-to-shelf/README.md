@@ -35,6 +35,8 @@ This runs the supported tournament gate: photo-first save/readback, CircleFit-to
 
 CircleFit is the creator default. It runs its edge-ring search on a bounded working raster, maps the proposal to source pixels, and refines that same foreground component at full source resolution. The crop remains one editable circle; manual use stays available when CircleFit abstains. The former RimFit v3 ellipse experiment remains deferred source and is not imported by the creator.
 
+For a bounded center-fit experiment, append `?centerFit=1` to the local creator URL. After selecting a circle, **Refine choice** executes the normal candidate Calculation and a separate `oc.studio.centerCircleFit` Calculation over the same photo Part. The latter solves center before radius, stores its own `ds.px.CircleCenterFit.circlefit.*` evidence Part, and, if the perimeter improves sufficiently, appears as **Circle 3 · Center fit**. The original choice remains Circle 1; without the URL switch the experiment does not execute or change any offered crop. This experiment does not assert that a circle can perfectly follow every photographed rim.
+
 ## Optional paired capture
 
 After `npm run build`, the optional local capture CLI needs a Chrome executable plus `puppeteer-core` (install it locally without changing the demo dependencies with `npm install --no-save puppeteer-core`). Normal demo builds and tests do not need either. Capture a settled creator screen and the mounted **actual PxC DevTools** screen with the ready-to-run initial-screen scenario:
