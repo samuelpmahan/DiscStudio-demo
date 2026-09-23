@@ -95,9 +95,15 @@ export async function beforeScreenshot(page, view) {
       const detail = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
       if (!detail) throw Error('Save receipt discAddress vanished before drawer capture.');
       detail.open = true; detail.scrollIntoView({ block: 'nearest' });
-      if (!detail.open || !detail.textContent.includes(proof.savedDiscAddress)) throw Error('Drawer does not visibly reveal saved disc address.');
     }
   }, view);
+  if (view === 'inspector') {
+    const address = await page.evaluate(() => window.__dsVisualProof.savedDiscAddress);
+    await page.waitForFunction(address => {
+      const detail = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
+      return Boolean(detail?.open && detail.textContent.includes(address));
+    }, {}, address);
+  }
 }
 export async function manifest(page) {
   return page.evaluate(() => {
