@@ -77,12 +77,12 @@ export async function settle(page) {
   await page.waitForFunction(address => [...document.querySelectorAll('.pxdt [data-view="list"] button')].some(button => button.textContent.includes(address)), {}, receiptAddress);
   await page.evaluate(address => [...document.querySelectorAll('.pxdt [data-view="list"] button')].find(button => button.textContent.includes(address))?.click(), receiptAddress);
   await page.waitForFunction(address => document.querySelector('.pxdt [data-view="title"]')?.textContent === address, {}, receiptAddress);
-  await page.evaluate(() => {
-    const row = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
-    if (!row) throw Error('Save receipt discAddress is not inspectable in drawer.');
-    row.open = true;
+  await page.waitForFunction(() => {
+    const summary = document.querySelector('.pxdt-save-summary');
+    return summary?.textContent?.includes('Saved Axiom Crave') && summary.textContent.includes('Today’s Bag') &&
+      summary.textContent.includes('Technical trace address') && summary.textContent.includes('added technical Part reference') && [...summary.querySelectorAll('button')].some(button => button.textContent.includes('fn.CREATE')) &&
+      [...summary.querySelectorAll('button')].some(button => button.textContent.includes('PQL receipt'));
   });
-  await page.waitForFunction(() => [...document.querySelectorAll('.pxdt [data-view="detail"] details')].some(details => details.open && details.querySelector('summary')?.textContent?.startsWith('discAddress')));
   await page.evaluate(() => document.querySelector('#todays-bag')?.scrollIntoView({ block: 'start' }));
 }
 export async function beforeScreenshot(page, view) {
@@ -92,18 +92,10 @@ export async function beforeScreenshot(page, view) {
     const box = row.getBoundingClientRect();
     if (box.top < 0 || box.bottom > innerHeight) throw Error('Saved Today’s Bag row is outside the ' + view + ' screenshot.');
     if (view === 'inspector') {
-      const detail = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
-      if (!detail) throw Error('Save receipt discAddress vanished before drawer capture.');
-      detail.open = true;
+      const summary = document.querySelector('.pxdt-save-summary');
+      if (!summary?.textContent?.includes('Saved Axiom Crave') || !summary.textContent.includes('Today’s Bag')) throw Error('Semantic Save summary vanished before drawer capture.');
     }
   }, view);
-  if (view === 'inspector') {
-    const address = await page.evaluate(() => window.__dsVisualProof.savedDiscAddress);
-    await page.waitForFunction(address => {
-      const detail = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
-      return Boolean(detail?.open && detail.textContent.includes(address));
-    }, {}, address);
-  }
   // This is deliberately last: the PNG is taken only while the saved Bag row
   // is still inside the viewport after all drawer material has rendered.
   await page.waitForFunction(() => {
