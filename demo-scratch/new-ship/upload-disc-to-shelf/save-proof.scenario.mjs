@@ -113,6 +113,20 @@ export async function beforeScreenshot(page, view) {
     return box.top >= 0 && box.bottom <= innerHeight && document.elementFromPoint(box.left + 8, box.top + 8)?.closest('.bag-export-disc') === row;
   });
 }
+export async function verifyCaptureFiles({ creatorPath, inspectorPath }) {
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+  const [creator, inspector] = await Promise.all([loadImage(creatorPath), loadImage(inspectorPath)]);
+  const rect = { x: 120, y: 150, width: 280, height: 90 };
+  const pixels = image => {
+    const canvas = createCanvas(rect.width, rect.height), context = canvas.getContext('2d');
+    context.drawImage(image, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
+    return context.getImageData(0, 0, rect.width, rect.height).data;
+  };
+  const [closed, open] = [pixels(creator), pixels(inspector)];
+  let total = 0; for (let index = 0; index < closed.length; index++) total += Math.abs(closed[index] - open[index]);
+  const meanDifference = total / closed.length;
+  if (meanDifference > 1) throw Error('Saved Bag row pixels differ between closed and open captures (mean RGB delta ' + meanDifference.toFixed(2) + ').');
+}
 export async function manifest(page) {
   return page.evaluate(() => {
     const { depictionSrc, ...evidence } = window.__dsVisualProof;
