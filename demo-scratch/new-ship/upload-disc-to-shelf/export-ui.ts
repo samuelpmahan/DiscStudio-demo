@@ -30,7 +30,7 @@ export function mountExport(experience: Experience, { root = document }: { root?
       <div id="card-preview" class="card-preview"><p class="subtle">Select a ready disc to preview a card.</p></div><p id="card-export-status" class="subtle" role="status"></p>
       <div class="card-export-actions"><button id="card-enqueue" type="button">Add card</button><button id="card-zip" class="primary" type="button">Download ZIP</button></div>
       <p class="subtle">Two portrait and two landscape designs. Download before leaving this tab.</p></div></div>`;
-  (priorShelf?.parentElement ?? root.querySelector('main')!).insertBefore(section, priorShelf ?? null);
+  (priorShelf?.parentElement ?? root.querySelector('main') ?? root).insertBefore(section, priorShelf ?? null);
   const $ = (id: string) => section.querySelector<HTMLElement>(`#${id}`)!;
   const orientation = $('card-orientation') as HTMLSelectElement, preset = $('card-preset') as HTMLSelectElement;
   const selected = new Set<string>(); let previewUrl = '', previewSerial = 0, busy = false, previewSnapshot: Snapshot | null = null;

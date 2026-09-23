@@ -26,7 +26,10 @@ const browserArgs = ['--window-size=1280,900'];
 if (process.env.PUPPETEER_NO_SANDBOX === '1') browserArgs.push('--no-sandbox', '--disable-setuid-sandbox');
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: browserArgs });
 try {
-  const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
+  const page = await browser.newPage();
+  page.on('pageerror', error => console.error('Browser page error:', error));
+  page.on('console', message => { if (message.type() === 'error') console.error('Browser console error:', message.text()); });
+  await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
   if (urlFree) await bootUrlFree(page); else { const target = new URL(url); target.searchParams.set('instrument', '1'); await page.goto(target.href, { waitUntil: 'networkidle0' }); }
   await page.waitForFunction(() => window.__dsScreenshotReady === true && document.querySelector('.pxdt-nav'));
   let captureView = 'creator';
