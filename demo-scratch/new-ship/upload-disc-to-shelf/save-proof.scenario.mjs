@@ -35,8 +35,6 @@ function verifyVisibleBagAndFrame() {
   const matching = rows.find(row => row.textContent.includes('Crave') && row.querySelector('img')?.src === proof.depictionSrc);
   proof.verified.uiBagMatchesSavedDisc = Boolean(matching);
   if (!matching) throw Error('Visible Today’s Bag row does not match the saved Disc Part.');
-  // The image value is used only for this in-page equality check, never emitted.
-  delete proof.depictionSrc;
   bag?.scrollIntoView({ block: 'start' });
 }
 export async function action(page) {
@@ -66,7 +64,7 @@ export async function action(page) {
 export async function settle(page) {
   await page.waitForFunction(() => window.__dsVisualProof?.verified?.createProducedSavedDisc === true);
   const receiptAddress = await page.evaluate(() => window.__dsVisualProof.receiptAddress);
-  await page.click('.pxdt-nav button:last-child'); await page.waitForSelector('.pxdt:not([hidden])');
+  await page.evaluate(() => document.querySelector('.pxdt-nav button:last-child')?.click()); await page.waitForSelector('.pxdt:not([hidden])');
   await page.click('.pxdt [data-field="query"]'); await page.type('.pxdt [data-field="query"]', receiptAddress);
   await page.waitForFunction(address => [...document.querySelectorAll('.pxdt [data-view="list"] button')].some(button => button.textContent.includes(address)), {}, receiptAddress);
   await page.evaluate(address => [...document.querySelectorAll('.pxdt [data-view="list"] button')].find(button => button.textContent.includes(address))?.click(), receiptAddress);
@@ -77,5 +75,11 @@ export async function settle(page) {
     if (!row.open) row.querySelector('summary')?.click();
   });
   await page.waitForFunction(() => [...document.querySelectorAll('.pxdt [data-view="detail"] details')].some(details => details.open && details.querySelector('summary')?.textContent?.startsWith('discAddress')));
+  await page.evaluate(() => document.querySelector('#todays-bag')?.scrollIntoView({ block: 'start' }));
 }
-export async function manifest(page) { return page.evaluate(() => window.__dsVisualProof); }
+export async function manifest(page) {
+  return page.evaluate(() => {
+    const { depictionSrc, ...evidence } = window.__dsVisualProof;
+    return evidence;
+  });
+}
