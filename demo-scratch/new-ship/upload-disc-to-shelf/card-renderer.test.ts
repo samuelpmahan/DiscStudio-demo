@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderCard, renderCardDataUrl, CARD_SIZE } from './card-renderer.ts';
 import { resolveCardDisc } from './card-renderer-core.ts';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import type { Disc } from './model.ts';
 
 // 1x1 red PNG data URL: exercises the photo load path without fixtures.
@@ -73,12 +74,27 @@ test('own flight numbers win over the mold', async () => {
 
 test('held renderer facts win over a later catalog lookup', async () => {
   const held: any = testDisc({
-    renderer: { moldName: 'Held Buzzz', flights: [5, 4, -1, 1] },
+    renderer: { manufacturer: 'Held Discraft', moldName: 'Held Buzzz', flights: [5, 4, -1, 1] },
   } as any);
   for (const field of ['speed', 'glide', 'turn', 'fade']) delete held[field];
-  const resolved = await resolveCardDisc({ loadImage: async () => null, getMoldDetails: async () => ({ mold: 'Changed catalog name', flight: [99, 98, 97, 96] }) }, held);
+  const resolved = await resolveCardDisc({ loadImage: async () => null, getMoldDetails: async () => ({ manufacturer: 'Changed catalog maker', mold: 'Changed catalog name', flight: [99, 98, 97, 96] }) }, held);
+  assert.equal(resolved.manufacturer, 'Held Discraft');
   assert.equal(resolved.moldName, 'Held Buzzz');
   assert.deepEqual(resolved.flights, [5, 4, -1, 1]);
+});
+
+test('U02 retains visible manufacturer and opaque flight cells on a transparent frame', async () => {
+  const base = testDisc({ depiction: { kind: 'photo', src: '', name: '' } });
+  const first = await renderCard({ ...base, renderer: { manufacturer: 'Discraft', moldName: 'Buzzz', flights: [5, 4, -1, 1] } }, 'vertical', 'u02');
+  const second = await renderCard({ ...base, renderer: { manufacturer: 'MVP', moldName: 'Buzzz', flights: [5, 4, -1, 1] } }, 'vertical', 'u02');
+  const pixels = async (png: Buffer) => { const canvas = createCanvas(1080, 1920), ctx = canvas.getContext('2d'); ctx.drawImage(await loadImage(png), 0, 0); return ctx; };
+  const a = await pixels(first), b = await pixels(second);
+  assert.notDeepEqual(a.getImageData(82, 920, 350, 45).data, b.getImageData(82, 920, 350, 45).data, 'changing held manufacturer must change visible ink');
+  for (const x of [82, 251, 420, 589]) {
+    const [red, green, blue, alpha] = a.getImageData(x + 2, 1213, 1, 1).data;
+    assert.equal(alpha, 255, 'flight cell protects type against light footage');
+    assert.ok(Math.max(red, green, blue) < 90, 'flight cell has a dark reading surface');
+  }
 });
 
 test('unknown mold id falls back to the id as name', async () => {

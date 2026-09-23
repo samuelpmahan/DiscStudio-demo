@@ -4,7 +4,7 @@ import { exportBrowserZip, downloadBlob } from './browser-export.ts';
 import type { createExperience } from './model.ts';
 
 const PRESETS: { id: CardPreset; orientation: CardOrientation; name: string }[] = [
-  { id: 'u01', orientation: 'vertical', name: 'U01 · Compact scorebug' }, { id: 'u02', orientation: 'vertical', name: 'U02 · Stacked poster' },
+  { id: 'u01', orientation: 'vertical', name: 'U01 · Compact scorebug' }, { id: 'u02', orientation: 'vertical', name: 'U02 · Editorial disc card' },
   { id: 'b01', orientation: 'horizontal', name: 'B01 · Hero rail' }, { id: 'b02', orientation: 'horizontal', name: 'B02 · Split nameplate' },
 ];
 
@@ -14,7 +14,7 @@ type Snapshot = Readonly<{ cards: readonly QueuedCard[]; preset: CardPreset; ori
 
 function cloneCard(row: BagRow, orientation: CardOrientation, preset: CardPreset): QueuedCard {
   const seed = row.seed;
-  return { disc: { ...row.disc, depiction: { ...row.disc.depiction }, renderer: { moldName: seed.name, flights: [seed.speed ?? null, seed.glide ?? null, seed.turn ?? null, seed.fade ?? null] } } as any, orientation, cardDesign: preset };
+  return { disc: { ...row.disc, depiction: { ...row.disc.depiction }, renderer: { manufacturer: seed.manufacturer, moldName: seed.name, flights: [seed.speed ?? null, seed.glide ?? null, seed.turn ?? null, seed.fade ?? null] } } as any, orientation, cardDesign: preset };
 }
 
 /** The current choice is disposable; only enqueueOutput creates held PxC output. */

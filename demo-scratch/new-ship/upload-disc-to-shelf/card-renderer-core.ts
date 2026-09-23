@@ -10,7 +10,7 @@ export type CardRenderEnvironment = {
   getMoldDetails?: (id: string) => Promise<any>;
   strictPhoto?: boolean;
 };
-export type RendererDisc = Disc & { renderer?: { moldName?: string; flights?: (number | null)[] } };
+export type RendererDisc = Disc & { renderer?: { manufacturer?: string; moldName?: string; flights?: (number | null)[] } };
 
 export type CardOrientation = 'horizontal' | 'vertical';
 
@@ -25,6 +25,7 @@ const MINT = '#8fe3ae';
 const FONT_STACK = '"DejaVu Sans", "Nimbus Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
 
 type ResolvedDisc = {
+  manufacturer: string;
   moldName: string;      // e.g. "Buzzz"
   plastic: string;
   weight: number | null;
@@ -40,6 +41,7 @@ function moldIdFromAddress(address: string): string {
 export async function resolveCardDisc(environment: CardRenderEnvironment, disc: RendererDisc): Promise<ResolvedDisc> {
   const id = moldIdFromAddress(disc.mold);
   const supplied = disc.renderer ?? {};
+  let manufacturer = supplied.manufacturer ?? '';
   let moldName = supplied.moldName ?? id;
   let flights: (number | null)[] | null = Array.isArray(supplied.flights) ? supplied.flights : null;
   try {
@@ -48,6 +50,7 @@ export async function resolveCardDisc(environment: CardRenderEnvironment, disc: 
       // A queued card holds renderer facts at enqueue time. Catalog lookup can
       // fill a missing value, never replace the held card's provenance.
       if (supplied.moldName === undefined) moldName = details.mold ?? details.name ?? moldName;
+      if (supplied.manufacturer === undefined) manufacturer = details.manufacturer ?? manufacturer;
       if (!Array.isArray(supplied.flights) && Array.isArray(details.flight)) flights = details.flight;
     }
   } catch {
@@ -61,6 +64,7 @@ export async function resolveCardDisc(environment: CardRenderEnvironment, disc: 
     flights = base.map((value, index) => Object.hasOwn(disc, fields[index]) && disc[fields[index]] !== undefined ? (disc[fields[index]] ?? null) : value);
   }
   return {
+    manufacturer,
     moldName,
     plastic: disc.plastic || '',
     weight: disc.weight ?? null,
@@ -321,38 +325,50 @@ async function renderU01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
 }
 presetRenderers.u01 = renderU01;
 
-/** U02 Stacked Poster (VALORANT Game Changers, corner card).
- * Card footprint: x 48-508, y ~480-1210. Hero owns the top of the card,
- * name band with coral top rule in the middle, stats resolve beneath it.
- * Nothing leaves the corner footprint. */
+/** U02: an editorial vertical disc card with protected, readable flight values. */
 async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  const cardX = 48, cardW = 460;
+  const left = 48, top = 770, width = 740, height = 610, inset = 34;
+  ctx.fillStyle = NIGHT94;
+  ctx.fillRect(left, top, width, height);
+  ctx.fillStyle = MINT;
+  ctx.fillRect(left, top, 6, height);
+  // The photograph breaks the top boundary but all text stays inside the slab.
+  await drawHeroDisc(environment, ctx, rd.photoSrc, 305, 675, 430, { rim: '#16392e', rimWidth: 9 });
 
-  // Hero: top of the card, full card width.
-  const d = 400;
-  await drawPhotoCircle(environment, ctx, rd.photoSrc, cardX + cardW / 2, 680, d);
-
-  // Name band: dark, coral top rule is the one motif.
-  const bandY = 830, bandH = 170;
-  ctx.fillStyle = NIGHT92;
-  ctx.fillRect(cardX, bandY, cardW, bandH);
-  ctx.fillStyle = CORAL;
-  ctx.fillRect(cardX, bandY, cardW, 4);
-
-  const nameX = cardX + 28;
-  drawPresetName(ctx, rd.moldName, nameX, bandY + 120, cardW - 56, 100);
-
-  // Stats below the band, no box behind them.
-  const nums = flightTiles(rd);
-  const pw = plasticWeightLine(rd);
-  let y = 1052;
-  if (pw) {
+  const x = left + inset, available = width - inset * 2;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  if (rd.manufacturer) {
     ctx.fillStyle = MINT;
-    ctx.font = `500 30px ${FONT_STACK}`;
-    ctx.fillText(pw, nameX, y);
-    y += 44;
+    fitFont(ctx, rd.manufacturer.toUpperCase(), available, 700, 38, DISPLAY);
+    ctx.fillText(rd.manufacturer.toUpperCase(), x, 956);
   }
-  drawTilesRow(ctx, nums, nameX, y, 68, 12, 40);
+  const words = rd.moldName.toUpperCase().split(/\s+/).filter(Boolean), lines: string[] = [];
+  ctx.font = `800 98px ${DISPLAY}`;
+  if (ctx.measureText(words.join(' ')).width <= available || words.length === 1) lines.push(words.join(' '));
+  else {
+    let first = words[0], split = 1;
+    while (split < words.length - 1 && ctx.measureText(`${first} ${words[split]}`).width <= available) first += ` ${words[split++]}`;
+    lines.push(first, words.slice(split).join(' '));
+  }
+  ctx.fillStyle = INK;
+  lines.slice(0, 2).forEach((line, index) => {
+    fitFont(ctx, line, available, 800, 98, DISPLAY);
+    ctx.fillText(line, x, 1057 + index * 78, available);
+  });
+  const pw = plasticWeightLine(rd);
+  if (pw) { ctx.fillStyle = '#d6ded7'; fitFont(ctx, pw, available, 500, 34); ctx.fillText(pw, x, 1182); }
+
+  const values = flightTiles(rd), labels = ['SPEED', 'GLIDE', 'TURN', 'FADE'];
+  const column = 154, columnGap = 15, start = x;
+  values.forEach((value, index) => {
+    const bx = start + index * (column + columnGap);
+    ctx.fillStyle = '#273a31'; ctx.fillRect(bx, 1210, column, 122);
+    ctx.fillStyle = '#b7d6bf'; ctx.font = `700 25px ${FONT_STACK}`;
+    ctx.fillText(labels[index], bx + 8, 1242);
+    ctx.fillStyle = INK;
+    fitFont(ctx, value, column - 16, 800, 72);
+    ctx.fillText(value, bx + 8, 1315);
+  });
 }
 presetRenderers.u02 = renderU02;
 
