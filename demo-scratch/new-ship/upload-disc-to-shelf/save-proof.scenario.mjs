@@ -15,7 +15,7 @@ function recordEvidence() {
   const [receiptAddress, receiptPart] = [...entries].filter(([address]) => /^ds\.px\.receipt\.save-/.test(address)).at(-1) || [];
   const receipt = receiptPart?.value, discAddress = receipt?.discAddress, pqlAddress = discAddress ? 'ds.px.receipt.pql.' + receipt.operationId : '';
   const pql = entries.get(pqlAddress)?.value, bag = entries.get(receipt?.bagAddress)?.value;
-  const producer = experience.pxc.receipts().find(row => row.into === discAddress && row.status === 'succeeded' && (row.composition.calculation?.value === 'fn.CREATE' || row.composition.calculation === 'fn.CREATE'));
+  const producer = experience.pxc.receipts().find(row => row.into === discAddress && row.status === 'produced' && (row.composition.calculation?.value === 'fn.CREATE' || row.composition.calculation === 'fn.CREATE'));
   const verified = {
     receiptIdentity: typeof receiptAddress === 'string' && receipt?.operationId === 'save-1',
     savedDiscAddress: typeof discAddress === 'string' && /^ds\.px\.disc\.save-1$/.test(discAddress),
