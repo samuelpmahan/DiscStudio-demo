@@ -16,7 +16,7 @@ test('save composes a disc and a shelf, retaining inputs and readback evidence',
   const draft = { ...initialDraft(), nickname: 'Minty', plastic: 'ESP', weight: 177 };
   const address = await app.save(draft, depiction);
   const part = app.pxc.get(address);
-  assert.equal(part.composition.calculation, app.pxc.get('oc.create'));
+  assert.equal(part.composition.calculation, app.pxc.get('fn.CREATE'));
   assert.equal(app.pxc.get(`ds.px.resolved.${part.value.id}`).composition.inputs.base, app.pxc.get(draft.mold));
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
   assert.equal(app.shelf()[0].disc.depiction.src, depiction.src);
@@ -24,9 +24,23 @@ test('save composes a disc and a shelf, retaining inputs and readback evidence',
   const hydrated = await app.hydrateSeed(draft.mold);
   assert.deepEqual(flightFields.map(field => hydrated.seed[field]), [5, 4, -1, 1]);
   assert.equal(app.pxc.get(app.shelfAddress).composition.inputs.disc, part);
+  const specialize = app.pxc.get(`ds.px.tick.${part.value.id}.specialize`);
+  assert.equal(specialize.composition.inputs[address], part, 'specialize Tick acknowledges the actual PQL CREATE output');
+  const declared = app.pxc.get(`ds.px.stage.${part.value.id}`).value[0];
+  assert.equal(declared.calculations[0].inputs.id, part.composition.inputs.id, 'Stage retains the actual PQL CREATE binding Part');
+  assert.equal(app.pxc.get(declared.calculations[0].inputs.value).value, part.composition.inputs.value.value, 'address binding resolves to the actual CREATE input Part');
+  const resolved = app.pxc.get(`ds.px.resolved.${part.value.id}`);
+  assert.equal(declared.calculations[1].calculation, 'fn.READ');
+  assert.equal(app.pxc.get(declared.calculations[1].inputs.base), resolved.composition.inputs.base);
+  assert.equal(app.pxc.get(declared.calculations[1].inputs.own), resolved.composition.inputs.own);
+  assert.equal(specialize.composition.inputs[`ds.px.resolved.${part.value.id}`], resolved, 'specialize Tick acknowledges the resolved Disc output');
   assert.equal(app.pxc.get(part.value.paintRecipe).value, null); // photo-only save does not stage a duplicate recipe write
   assert.equal(app.events.at(-1)?.event, 'disc.save.completed');
   assert.equal(app.events.at(-1)?.shelfContainsDisc, true);
+  assert.deepEqual(app.events.at(-1)?.pql.map((entry: any) => entry.calculation), ['fn.CREATE', 'fn.READ', 'fn.READ']);
+  assert.deepEqual(app.pxc.get(`ds.px.receipt.pql.${part.value.id}`).value.map((entry: any) => entry.query), [
+    `INSERT INTO ${address} VALUES :value`, `SELECT * FROM ${address}`, `SELECT * FROM ${app.shelfAddress}`,
+  ]);
   draft.nickname = 'Later edit';
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
 });

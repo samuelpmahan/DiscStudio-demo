@@ -6,6 +6,7 @@ import { createBag } from './bags.ts';
 import { plasticGuides } from './plastics.ts';
 import { catalogLite, searchMolds, getMoldDetails } from './mold-library.ts';
 import { create, read, update, destroy, runStage, type Stage } from './operations.ts';
+import { executePql, type PqlTestimony } from './pql.ts';
 import { find } from './devtools-data.mjs';
 import type { State } from './persistence.ts';
 import { queueCards, type QueuedCard } from './export-queue-core.ts';
@@ -39,7 +40,10 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   // Lite install: id, manufacturer, name only. Flight numbers lazy on selection.
   seeds.forEach(({ mold, ...seed }) => pxc.set(seedAddress(seed.id), new Part(Object.freeze({ ...seed, name: mold }))));
   pxc.set('ds.px.plasticGuides', new Part(plasticGuides));
-  for (const [address, implementation] of Object.entries({ 'fn.read': read, 'fn.find': find, 'oc.create': create, 'oc.update': update, 'oc.destroy': destroy,
+  for (const [address, implementation] of Object.entries({ 'fn.READ': read, 'fn.CREATE': create, 'fn.UPDATE': update, 'fn.DELETE': destroy,
+    // Legacy archives and unported live edit flows still use oc.update. Creator
+    // save PQL compiles only to the universal fn.CREATE and fn.READ Parts above.
+    'oc.create': create, 'oc.update': update, 'oc.destroy': destroy, 'fn.read': read, 'fn.find': find,
     'fn.tick': (outputs: any) => Object.freeze({ outputs: Object.freeze(Object.keys(outputs)) }),
     'fn.renderPainting': renderDiscPainting,
     'fn.paintRecipe': ({ recipe }: any) => validatePaintRecipe(recipe), 'fn.renderDepiction': renderDepiction,
@@ -318,12 +322,26 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         else pxc.set(recipeAddress, new Part(null));
         pxc.set(photoAddress, new Part(photo ? Object.freeze({ ...photo }) : null));
         pxc.set(choiceAddress, new Part(depiction.kind));
+        const pql: PqlTestimony[] = [];
+        const createBindings = {
+          value: draftAddress, id: new Part(operationId), depiction: depictionAddress,
+          paintRecipe: new Part(recipeAddress), photo: new Part(photoAddress),
+          choice: new Part(choiceAddress), art: new Part(artAddress),
+        };
+        const resolvedAddress = `ds.px.resolved.${operationId}`;
+        const resolvedInputs = { base: draft.mold, own: discAddress };
+        pql.push(await executePql(pxc, `INSERT INTO ${discAddress} VALUES :value`, { bindings: createBindings }));
+        await pxc.compose({ into: resolvedAddress, calculation: 'fn.READ', inputs: resolvedInputs });
+        // CREATE and the inherited Disc projection already executed above. The
+        // Tick boundary consumes their actual outputs and does not rerun either.
+        const specializeTick = `ds.px.tick.${operationId}.specialize`;
+        await pxc.compose({ into: specializeTick, calculation: 'fn.tick', inputs: { [discAddress]: discAddress, [resolvedAddress]: resolvedAddress } });
         const stage: Stage = [
-          { into: `ds.px.tick.${operationId}.specialize`, calculations: [
-            ...(recipe ? [{ into: recipeAddress, calculation: 'fn.paintRecipe', inputs: { recipe: new Part(recipe) } }] : []),
-            { into: discAddress, calculation: 'oc.create', inputs: { value: draftAddress, id: new Part(operationId), depiction: depictionAddress, paintRecipe: new Part(recipeAddress), photo: new Part(photoAddress), choice: new Part(choiceAddress), art: new Part(artAddress) } },
-            { into: `ds.px.resolved.${operationId}`, calculation: 'fn.read', inputs: { base: draft.mold, own: discAddress } },
+          { into: specializeTick, calculations: [
+            { into: discAddress, calculation: 'fn.CREATE', inputs: createBindings },
+            { into: resolvedAddress, calculation: 'fn.READ', inputs: resolvedInputs },
           ] },
+          ...(recipe ? [{ into: `ds.px.tick.${operationId}.recipe`, calculations: [{ into: recipeAddress, calculation: 'fn.paintRecipe', inputs: { recipe: new Part(recipe) } }] }] : []),
           { into: `ds.px.tick.${operationId}.depict`, calculations: [{ into: artAddress, calculation: 'fn.renderDepiction', inputs: { recipe: recipeAddress, photo: photoAddress, choice: choiceAddress, seed: draft.mold } }] },
           { into: `ds.px.tick.${operationId}.retain`, calculations: [
             { into: nextShelf, calculation: 'fn.addToShelf', inputs: { shelf: shelfAddress, reference: new Part(discAddress), disc: discAddress } },
@@ -331,14 +349,19 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
           ] },
         ];
         pxc.set(`ds.px.stage.${operationId}`, new Part(Object.freeze(stage)));
-        for await (const _boundary of runStage(pxc, stage)) { /* Boundary Parts are inspectable in DevTools. */ }
+        for await (const _boundary of runStage(pxc, stage.slice(1))) { /* Boundary Parts are inspectable in DevTools. */ }
+        const discReadback = `ds.px.pql.${operationId}.disc`;
+        const shelfReadback = `ds.px.pql.${operationId}.shelf`;
+        pql.push(await executePql(pxc, `SELECT * FROM ${discAddress}`, { into: discReadback }));
+        pql.push(await executePql(pxc, `SELECT * FROM ${nextShelf}`, { into: shelfReadback }));
+        pxc.set(`ds.px.receipt.pql.${operationId}`, new Part(Object.freeze(pql)));
         const disc = pxc.get(discAddress).value as Disc;
-        const shelf = pxc.get(nextShelf).value as string[];
+        const shelf = pxc.get(shelfReadback).value as string[];
         const bag = pxc.get(nextBag).value as string[];
         const expected = { ...draft, id: operationId, depiction, paintRecipe: recipeAddress, photo: photoAddress, choice: choiceAddress, art: artAddress };
-        if (JSON.stringify(disc) !== JSON.stringify(expected) || !shelf.includes(discAddress)) throw new Error('Save readback failed.');
+        if (JSON.stringify(pxc.get(discReadback).value) !== JSON.stringify(expected) || !shelf.includes(discAddress)) throw new Error('Save readback failed.');
         if (!bag.includes(discAddress)) throw new Error('Bag readback failed.');
-        const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
+        const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), pql: pql.map(entry => ({ operation: entry.operation, calculation: entry.calculation, into: entry.into })), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
         pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
         persist(nextShelf, currentSeeds, bagsAddress, nextBag);
         // Do not consume a retryable draft until a save has either reached the

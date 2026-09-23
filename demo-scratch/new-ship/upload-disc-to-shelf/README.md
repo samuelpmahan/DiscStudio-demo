@@ -52,3 +52,14 @@ node drive-real-ui.mjs --url-free --chrome /path/to/chrome --scenario ./capture-
 ```
 
 That mode is useful where local URL navigation is unavailable. It does not prove HTTP delivery or persistence across reloads. Screenshots are intentionally not run by this repository's automated tests.
+
+## Creator PQL seam
+
+The creator uses a small parameterized PQL facade over the existing PxC Parts:
+
+```sql
+INSERT INTO ds.px.disc.save-1 VALUES :value
+SELECT * FROM ds.px.disc.save-1
+```
+
+`INSERT` compiles to `fn.CREATE`; `SELECT *` compiles to `fn.READ`. Bound values are PxC Part references or addresses, never text interpolation. Every creator save retains its three executed statements (create, Disc readback, shelf readback) at `ds.px.receipt.pql.<save-id>`. `UPDATE`, `DELETE`, projections other than `*`, and filters are rejected until a creator path needs them; `fn.UPDATE` and `fn.DELETE` remain registered universal calculations for later compilation.

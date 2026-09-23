@@ -3,6 +3,9 @@ export function create({ value = {}, ...fields }: { value?: any; [field: string]
   return Object.freeze({ ...value, ...fields });
 }
 export function read({ base = {}, own }: { base?: any; own: any }) {
+  // SELECT * carries an empty overlay. Preserve the addressed Part value
+  // exactly, including scalars, typed arrays, and collection identity.
+  if (own && !Array.isArray(own) && Object.keys(own).length === 0) return base;
   return Object.freeze({ ...base, ...own });
 }
 export function update({ value, patch = {}, remove = [] }: { value: any; patch?: any; remove?: string[] }) {
