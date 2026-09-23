@@ -3,7 +3,7 @@ import { cropForSourceSamples } from './crop-geometry.ts';
 
 export type DiscCircle = { x: number; y: number; radius: number; confidence: number };
 type Raster = { width: number; height: number; rgba: Uint8ClampedArray };
-export type CircleCandidate = { id: string; circle: DiscCircle; score: number };
+export type CircleCandidate = { id: string; circle: DiscCircle; score: number; ellipse?: { x: number; y: number; radiusX: number; radiusY: number; rotation: number } };
 export type CircleCandidateRequest = { operation: 'initial' | 'refine' | 'other'; selected?: CircleCandidate; excluded?: readonly CircleCandidate[]; rimFit?: boolean };
 export type CircleCandidateSession = { photoIntake: string; serial: number };
 
@@ -129,7 +129,11 @@ export function ensureCircleCandidateCalculations(pxc: any, helpers: CircleCropH
     const { fitOpposingRim } = await import('./exp/opposing-rim-fit.ts');
     return fitOpposingRim(photo.source, evidence.candidates?.[0]);
   }));
-  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence, rimFit }: any) => {
+  if (!names.has('oc.studio.ellipseRimFit')) pxc.set('oc.studio.ellipseRimFit', new Part(async ({ photo, evidence, rimFit }: any) => {
+    const { fitEllipseRim } = await import('./exp/ellipse-rim-fit.ts');
+    return fitEllipseRim(photo.source, evidence.candidates?.[0], rimFit);
+  }));
+  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence, rimFit, ellipseFit }: any) => {
     if (evidence.status !== 'accepted') return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'abstained', candidates: [], reason: evidence.reason });
     const rows = [...evidence.candidates];
     // This is a sibling derivation of the selected semantic circle. Keep the
@@ -140,8 +144,12 @@ export function ensureCircleCandidateCalculations(pxc: any, helpers: CircleCropH
       if (rows.length < 3) rows.push(rimFit.candidate);
       else rows[2] = rimFit.candidate;
     }
-    const candidates = rows.map((entry: CircleCandidate) => Object.freeze({ ...entry, crop: helpers.clampCropSelection(photo.source.width, photo.source.height, cropForSourceSamples(photo.source.width, photo.source.height, entry.circle)) }));
-    return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'accepted', candidates, ...(rimFit ? { rimFit: { status: rimFit.status, reason: rimFit.reason ?? null, selected: rimFit.selected ?? null } } : {}) });
+    if (evidence.operation === 'refine' && ellipseFit?.status === 'accepted' && ellipseFit.candidate) {
+      if (rows.length < 3) rows.push(ellipseFit.candidate);
+      else rows[2] = ellipseFit.candidate;
+    }
+    const candidates = rows.map((entry: CircleCandidate) => Object.freeze({ ...entry, crop: helpers.clampCropSelection(photo.source.width, photo.source.height, cropForSourceSamples(photo.source.width, photo.source.height, entry.ellipse ?? entry.circle)) }));
+    return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'accepted', candidates, ...(rimFit ? { rimFit: { status: rimFit.status, reason: rimFit.reason ?? null, selected: rimFit.selected ?? null } } : {}), ...(ellipseFit ? { ellipseFit: { status: ellipseFit.status, reason: ellipseFit.reason ?? null, ellipse: ellipseFit.ellipse ?? null } } : {}) });
   }));
 }
 
@@ -167,8 +175,10 @@ export async function composeCircleCandidateChoices(pxc: any, session: CircleCan
   const rimFit = request.operation === 'refine' && request.rimFit && pxc.get(candidates).value.status === 'accepted'
     ? `ds.px.OpposingRimFit.circlefit.${session.serial}.${serial}` : null;
   if (rimFit) await pxc.compose({ into: rimFit, calculation: 'oc.studio.opposingRimFit', inputs: { photo: session.photoIntake, evidence: candidates } });
-  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates, ...(rimFit ? { rimFit } : {}) } });
-  return { requestPart, candidates, rimFit, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
+  const ellipseFit = rimFit ? `ds.px.EllipseRimFit.circlefit.${session.serial}.${serial}` : null;
+  if (ellipseFit) await pxc.compose({ into: ellipseFit, calculation: 'oc.studio.ellipseRimFit', inputs: { photo: session.photoIntake, evidence: candidates, rimFit } });
+  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates, ...(rimFit ? { rimFit } : {}), ...(ellipseFit ? { ellipseFit } : {}) } });
+  return { requestPart, candidates, rimFit, ellipseFit, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
 }
 
 export async function composeCircleFitCrop(pxc: any, source: CanvasImageSource, sourceWidth: number, sourceHeight: number, working: HTMLCanvasElement, serial: number, helpers: CircleCropHelpers) {
