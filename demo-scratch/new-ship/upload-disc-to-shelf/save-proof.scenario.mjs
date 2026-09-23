@@ -72,8 +72,10 @@ export async function action(page) {
   await page.evaluate(verifyVisibleIntakeAndFrame);
   const outputDirectory = path.resolve('visual-proof', 'downloads'); fs.mkdirSync(outputDirectory, { recursive: true });
   const session = await page.target().createCDPSession();
-  await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: outputDirectory });
-  await session.detach();
+  const downloads = [];
+  session.on('Browser.downloadWillBegin', event => downloads.push({ event: 'begin', filename: event.suggestedFilename }));
+  session.on('Browser.downloadProgress', event => downloads.push({ event: event.state, bytes: event.receivedBytes }));
+  await session.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: outputDirectory, eventsEnabled: true });
   await page.click('#bag-export-list .bag-export-disc');
   const designs = [['vertical', 'u01'], ['vertical', 'u02'], ['horizontal', 'b01'], ['horizontal', 'b02']];
   for (const [index, [direction, design]] of designs.entries()) {
@@ -91,8 +93,9 @@ export async function action(page) {
   await waitText(page, '#card-export-status', 'ZIP download requested for 4 queued cards');
   const zipPath = path.join(outputDirectory, 'discstudio-output-queue.zip');
   await page.waitForFunction(() => document.querySelector('#card-zip')?.disabled === false);
-  for (let count = 0; count < 50 && !fs.existsSync(zipPath); count++) await new Promise(resolve => setTimeout(resolve, 100));
-  if (!fs.existsSync(zipPath)) throw Error('Browser did not download the four-card ZIP.');
+  for (let count = 0; count < 100 && !fs.existsSync(zipPath); count++) await new Promise(resolve => setTimeout(resolve, 100));
+  if (!fs.existsSync(zipPath)) throw Error('Browser did not download the four-card ZIP. Files=' + JSON.stringify(fs.readdirSync(outputDirectory)) + ' events=' + JSON.stringify(downloads));
+  await session.detach();
   const { default: JSZip } = await import('jszip');
   const zipped = await JSZip.loadAsync(fs.readFileSync(zipPath));
   const manifest = JSON.parse(await zipped.file('manifest.json').async('string'));
