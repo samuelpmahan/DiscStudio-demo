@@ -35,6 +35,8 @@ function verifyVisibleBagAndFrame() {
   const matching = rows.find(row => row.textContent.includes('Crave') && row.querySelector('img')?.src === proof.depictionSrc);
   proof.verified.uiBagMatchesSavedDisc = Boolean(matching);
   if (!matching) throw Error('Visible Today’s Bag row does not match the saved Disc Part.');
+  // The image value is used only for this in-page equality check, never emitted.
+  delete proof.depictionSrc;
   bag?.scrollIntoView({ block: 'start' });
 }
 export async function action(page) {
