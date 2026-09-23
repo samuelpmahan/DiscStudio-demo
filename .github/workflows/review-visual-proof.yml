@@ -1,0 +1,70 @@
+name: Review visual proof
+
+on:
+  push:
+    branches: [review/discstudio-pql-creator]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  creator-save-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch this exact commit without checkout
+        env:
+          GH_TOKEN: \${{ github.token }}
+          SHA: \${{ github.sha }}
+          REPOSITORY: \${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir source
+          curl --fail --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$REPOSITORY/tarball/$SHA" \
+            --output source.tar.gz
+          tar -xzf source.tar.gz -C source --strip-components=1
+          test -f source/demo-scratch/new-ship/upload-disc-to-shelf/package.json
+      - name: Install, test, and build
+        working-directory: source/demo-scratch/new-ship/upload-disc-to-shelf
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          npm run build
+      - name: Provide headless browser
+        run: |
+          set -euo pipefail
+          if command -v chromium >/dev/null; then exit 0; fi
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+      - name: Capture real creator Save proof
+        working-directory: source/demo-scratch/new-ship/upload-disc-to-shelf
+        run: |
+          set -euo pipefail
+          npm install --no-save puppeteer-core
+          CHROME="$(command -v chromium || command -v chromium-browser)"
+          node serve.mjs > visual-proof-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4173/ >/dev/null
+          node drive-real-ui.mjs \
+            --url http://127.0.0.1:4173/ \
+            --chrome "$CHROME" \
+            --scenario save-proof.scenario.mjs \
+            --out visual-proof
+      - name: Upload visual proof and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creator-save-visual-proof-\${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            source/demo-scratch/new-ship/upload-disc-to-shelf/visual-proof/**
+            source/demo-scratch/new-ship/upload-disc-to-shelf/visual-proof-server.log
