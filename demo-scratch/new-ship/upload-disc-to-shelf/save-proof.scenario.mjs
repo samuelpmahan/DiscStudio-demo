@@ -64,8 +64,9 @@ export async function action(page) {
   const moldText = await page.$eval('#mold-option-0', node => node.textContent || '');
   if (!/Crave/.test(moldText)) throw Error('Visible catalog option was not Crave: ' + moldText);
   await page.click('#mold-option-0'); await page.waitForFunction(() => Boolean(document.querySelector('#seed')?.value));
-  const plastic = await page.$eval('#plastic', select => [...select.options].find(option => option.value)?.value || '');
-  if (!plastic) throw Error('The selected mold has no visible plastic choice.'); await page.select('#plastic', plastic);
+  const plastic = await page.$eval('#plastic-suggestions', list => [...list.options].find(option => option.value === 'Neutron')?.value || '');
+  if (!plastic) throw Error('Axiom has no visible Neutron plastic suggestion.');
+  await page.type('#plastic', plastic);
   await page.click('#save'); await waitText(page, '#status', '1 of 4 discs ready');
   await page.evaluate(recordEvidence);
   await page.waitForFunction(() => document.querySelectorAll('#bag-export-list .bag-export-disc').length > 0);
