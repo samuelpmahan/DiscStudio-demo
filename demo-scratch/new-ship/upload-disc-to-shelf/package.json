@@ -10,7 +10,7 @@
     "build": "node build.mjs",
     "serve": "node serve.mjs",
     "test": "npm run test:tournament",
-    "test:tournament": "node --experimental-strip-types --test card-renderer.test.ts export-queue.test.ts model.test.ts pql.test.ts photo-crop.test.ts circle-candidates.test.ts exp/center-circle-fit.test.ts experiences.test.ts persistence.test.ts session-storage.test.ts rimfit-persistence.test.ts devtools-save-summary.test.mjs intake-demo.test.ts",
+    "test:tournament": "node --experimental-strip-types --test card-renderer.test.ts export-queue.test.ts model.test.ts pql.test.ts photo-crop.test.ts circle-candidates.test.ts exp/opposing-rim-fit.test.ts experiences.test.ts persistence.test.ts session-storage.test.ts rimfit-persistence.test.ts devtools-save-summary.test.mjs intake-demo.test.ts",
     "test:all-history": "node --experimental-strip-types --test *.test.ts",
     "test:capture": "node --test paired-capture.test.mjs url-free-materializer.test.mjs"
   },
