@@ -237,13 +237,13 @@ function preview() {
  } catch (error) { $('status').textContent = String(error); }
 }
 $('composer').addEventListener('input', event => { const id=(event.target as HTMLElement).id; if (event.target !== $('depiction-choice') && !finishIds.includes(id)) preview(); });
-let suggestedPlasticManufacturer: string | null = null;
+let suggestedPlasticMold: string | null = null;
 function suggestPlastics() {
   if (!input('seed').value) {
    $('plastic-suggestions').replaceChildren();
    input('plastic').value = '';
    input('plastic').disabled = true;
-   suggestedPlasticManufacturer = null;
+   suggestedPlasticMold = null;
    input('save').disabled = true;
    ($('plastic-source') as HTMLAnchorElement).hidden = true;
    return;
@@ -252,8 +252,8 @@ function suggestPlastics() {
   const guide = plasticGuides[seed.manufacturer] ?? { values: [], source: '' };
   // A mold or manufacturer change must not silently carry the previous
   // disc's plastic. Suggestions never constrain the exact typed blend.
-  if (suggestedPlasticManufacturer !== seed.manufacturer) input('plastic').value = '';
-  suggestedPlasticManufacturer = seed.manufacturer;
+  if (suggestedPlasticMold !== input('seed').value) input('plastic').value = '';
+  suggestedPlasticMold = input('seed').value;
   $('plastic-suggestions').replaceChildren(...guide.values.map(value => new Option(value, value)));
   input('plastic').disabled = false;
   updateSaveState();
