@@ -58,10 +58,10 @@ export async function action(page) {
   await page.click('#crop-apply'); await page.waitForFunction(() => !document.querySelector('#photo-crop')?.open);
   await waitText(page, '#photo-status', 'Photo ready');
   await page.click('#mold-search'); await page.type('#mold-search', 'Crave');
-  await page.waitForSelector('[id^="mold-option-"]:not([hidden])');
-  const moldOptionId = await page.$eval('[id^="mold-option-"]', nodes => nodes.find(node => !node.hidden && /Axiom.*Crave/i.test(node.textContent || ''))?.id || '');
-  if (!moldOptionId) throw Error('Visible catalog results did not include Axiom Crave.');
-  await page.click('#' + moldOptionId); await page.waitForFunction(() => Boolean(document.querySelector('#seed')?.value));
+  await page.waitForSelector('#mold-option-0:not([hidden])');
+  const moldText = await page.$eval('#mold-option-0', node => node.textContent || '');
+  if (!/Crave/.test(moldText)) throw Error('Visible catalog option was not Crave: ' + moldText);
+  await page.click('#mold-option-0'); await page.waitForFunction(() => Boolean(document.querySelector('#seed')?.value));
   const plastic = await page.$eval('#plastic', select => [...select.options].find(option => option.value)?.value || '');
   if (!plastic) throw Error('The selected mold has no visible plastic choice.'); await page.select('#plastic', plastic);
   await page.click('#save'); await waitText(page, '#status', 'Saved to Today’s Bag|Added to Today’s Bag');
@@ -79,9 +79,11 @@ export async function settle(page) {
   await page.waitForFunction(address => document.querySelector('.pxdt [data-view="title"]')?.textContent === address, {}, receiptAddress);
   await page.waitForFunction(() => {
     const summary = document.querySelector('.pxdt-save-summary');
-    return summary?.textContent?.includes('Saved Axiom Crave') && summary.textContent.includes('Today’s Bag') &&
-      summary.textContent.includes('added') && [...summary.querySelectorAll('button')].some(button => button.textContent.includes('fn.CREATE')) &&
-      [...summary.querySelectorAll('button')].some(button => button.textContent.includes('PQL receipt'));
+    return summary?.textContent?.includes('Saved Axiom Crave') && summary.textContent.includes('Disc Part:') &&
+      summary.textContent.includes('ds.px.disc.crave-1') && summary.textContent.includes('Save execution: save-') &&
+      summary.textContent.includes('Today’s Bag') && summary.textContent.includes('added Part reference') &&
+      summary.textContent.includes('Readback:') && [...summary.querySelectorAll('button')].some(button => button.textContent.includes('fn.CREATE')) &&
+      [...summary.querySelectorAll('button')].some(button => button.textContent === 'PQL ↗');
   });
   await page.evaluate(() => document.querySelector('#todays-bag')?.scrollIntoView({ block: 'start' }));
 }
