@@ -85,6 +85,20 @@ export async function settle(page) {
   await page.waitForFunction(() => [...document.querySelectorAll('.pxdt [data-view="detail"] details')].some(details => details.open && details.querySelector('summary')?.textContent?.startsWith('discAddress')));
   await page.evaluate(() => document.querySelector('#todays-bag')?.scrollIntoView({ block: 'start' }));
 }
+export async function beforeScreenshot(page, view) {
+  await page.evaluate(view => {
+    const proof = window.__dsVisualProof, row = [...document.querySelectorAll('#bag-export-list .bag-export-disc')].find(row => row.textContent.includes('Crave') && row.querySelector('img')?.src === proof.depictionSrc);
+    if (!row) throw Error('Saved Today’s Bag row disappeared before ' + view + ' capture.');
+    const box = row.getBoundingClientRect();
+    if (box.top < 0 || box.bottom > innerHeight) throw Error('Saved Today’s Bag row is outside the ' + view + ' screenshot.');
+    if (view === 'inspector') {
+      const detail = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
+      if (!detail) throw Error('Save receipt discAddress vanished before drawer capture.');
+      detail.open = true; detail.scrollIntoView({ block: 'nearest' });
+      if (!detail.open || !detail.textContent.includes(proof.savedDiscAddress)) throw Error('Drawer does not visibly reveal saved disc address.');
+    }
+  }, view);
+}
 export async function manifest(page) {
   return page.evaluate(() => {
     const { depictionSrc, ...evidence } = window.__dsVisualProof;
