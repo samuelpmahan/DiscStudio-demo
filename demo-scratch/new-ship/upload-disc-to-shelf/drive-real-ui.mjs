@@ -20,7 +20,11 @@ if (Boolean(url) === urlFree) throw new Error('supply exactly one of --url or --
 const scenario = await import(pathToFileURL(path.resolve(scenarioPath)).href); if (typeof scenario.action !== 'function' || typeof scenario.settle !== 'function') throw new TypeError('scenario must export action(page) and settle(page)');
 const label = value('--label', scenario.label || 'checkpoint'), out = path.resolve(value('--out', 'renders-real')); fs.mkdirSync(out, { recursive: true });
 const { creatorPath, inspectorPath, manifestPath } = captureFiles(out, label); clearCaptureFiles({ creatorPath, inspectorPath, manifestPath });
-const puppeteer = (await import('puppeteer-core')).default; const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--window-size=1280,900'] });
+const puppeteer = (await import('puppeteer-core')).default;
+const browserArgs = ['--window-size=1280,900'];
+// GitHub-hosted Ubuntu runners can prohibit Chromium's user-namespace sandbox.
+if (process.env.PUPPETEER_NO_SANDBOX === '1') browserArgs.push('--no-sandbox', '--disable-setuid-sandbox');
+const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: browserArgs });
 try {
   const page = await browser.newPage(); await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
   if (urlFree) await bootUrlFree(page); else { const target = new URL(url); target.searchParams.set('instrument', '1'); await page.goto(target.href, { waitUntil: 'networkidle0' }); }
