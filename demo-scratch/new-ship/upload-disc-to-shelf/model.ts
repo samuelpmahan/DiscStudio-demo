@@ -109,7 +109,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   function allocateDiscIdentity(moldAddress: string) {
     const seed = pxc.get(moldAddress).value as Mold;
     const slug = String(seed.id).split('--').at(-1);
-    if (!slug || !/^[\\w.-]+$/.test(slug)) throw Error('Selected seed has no canonical Disc identity slug.');
+    if (!slug || !/^[A-Za-z0-9_.-]+$/.test(slug)) throw Error('Selected seed has no canonical Disc identity slug.');
     let ordinal = 1, address = '';
     do { address = `ds.px.disc.${slug}-${ordinal++}`; }
     while (pxc.entries().some(([occupied]) => occupied === address));
