@@ -104,6 +104,17 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   };
   const persist = (nextShelf = shelfAddress, molds = currentSeeds, nextBags = bagsAddress, nextBag = bagAddress) => options.persist?.({ pxc, serial, shelfAddress: nextShelf, currentSeeds: [...molds], bagsAddress: nextBags, bagAddress: nextBag });
   const candidates = new Map<string, string>();
+  // A Disc address is a physical-domain identity. Save operation IDs remain
+  // execution trace names for stages, ticks, PQL and receipts.
+  function allocateDiscIdentity(moldAddress: string) {
+    const seed = pxc.get(moldAddress).value as Mold;
+    const slug = String(seed.id).split('--').at(-1);
+    if (!slug || !/^[\\w.-]+$/.test(slug)) throw Error('Selected seed has no canonical Disc identity slug.');
+    let ordinal = 1, address = '';
+    do { address = `ds.px.disc.${slug}-${ordinal++}`; }
+    while (pxc.entries().some(([occupied]) => occupied === address));
+    return { id: address.slice('ds.px.disc.'.length), address };
+  }
   const artAt = (disc: Disc) => disc.art ?? `ds.px.art.${disc.id}`;
   async function projectRows(operationId: string) {
     const inputs: Record<string, any> = { references: shelfAddress };
@@ -301,13 +312,15 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       if (saving) throw new Error('A save is already in progress.');
       saving = true;
       const operationId = `save-${++serial}`;
-      const discAddress = `ds.px.disc.${operationId}`, nextShelf = `ds.px.shelf.${operationId}`, nextBag = `ds.px.bag.${operationId}`;
+      let discAddress = '', discId = '';
+      const nextShelf = `ds.px.shelf.${operationId}`, nextBag = `ds.px.bag.${operationId}`;
       try {
         checkDraft(draft);
         if (depiction.kind !== 'photo') throw new Error('Demo is photo-only. Upload a photo.');
         if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(depiction.src)) throw new Error('Invalid prepared photo.');
         const draftAddress = `ds.px.draft.${operationId}`, depictionAddress = `ds.px.depiction.${operationId}`;
         pxc.get(draft.mold);
+        ({ address: discAddress, id: discId } = allocateDiscIdentity(draft.mold));
         pxc.set(draftAddress, new Part(Object.freeze({ ...draft })));
         const selectedAddress = selected.get(depiction);
         pxc.set(depictionAddress, selectedAddress ? pxc.get(selectedAddress) : new Part(Object.freeze({ ...depiction })));
@@ -324,7 +337,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         pxc.set(choiceAddress, new Part(depiction.kind));
         const pql: PqlTestimony[] = [];
         const createBindings = {
-          value: draftAddress, id: new Part(operationId), depiction: depictionAddress,
+          value: draftAddress, id: new Part(discId), depiction: depictionAddress,
           paintRecipe: new Part(recipeAddress), photo: new Part(photoAddress),
           choice: new Part(choiceAddress), art: new Part(artAddress),
         };
@@ -358,10 +371,10 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         const disc = pxc.get(discAddress).value as Disc;
         const shelf = pxc.get(shelfReadback).value as string[];
         const bag = pxc.get(nextBag).value as string[];
-        const expected = { ...draft, id: operationId, depiction, paintRecipe: recipeAddress, photo: photoAddress, choice: choiceAddress, art: artAddress };
+        const expected = { ...draft, id: discId, depiction, paintRecipe: recipeAddress, photo: photoAddress, choice: choiceAddress, art: artAddress };
         if (JSON.stringify(pxc.get(discReadback).value) !== JSON.stringify(expected) || !shelf.includes(discAddress)) throw new Error('Save readback failed.');
         if (!bag.includes(discAddress)) throw new Error('Bag readback failed.');
-        const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), pql: pql.map(entry => ({ operation: entry.operation, calculation: entry.calculation, into: entry.into })), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
+        const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discId, discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), pql: pql.map(entry => ({ operation: entry.operation, calculation: entry.calculation, into: entry.into })), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
         pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
         persist(nextShelf, currentSeeds, bagsAddress, nextBag);
         // Do not consume a retryable draft until a save has either reached the
