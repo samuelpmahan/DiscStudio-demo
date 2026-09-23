@@ -224,3 +224,17 @@ test('tampered produced output is rejected by direct restore', async () => {
   node.material.object.find(([key]: any) => key === 'nickname')[1] = { scalar: 'Tampered output' };
   await assert.rejects(restore(JSON.stringify(saved), createExperience(() => {}).pxc), /Restored Calculation output differs/);
 });
+
+
+test('explicitly restored archive allocates the next physical Disc identity for the same mold', async () => {
+  const storage = memory(), first = await openExperience(storage, () => {});
+  await first.save(initialDraft(), image);
+  const raw = storage.getItem(sessionKeys(storage)[0])!;
+  const state = await restore(raw, createExperience(() => {}).pxc);
+  const restored = createExperience(() => {}, { state });
+  await restored.addDraftPhoto({ ...image, name: 'after-restore' });
+  const second = await restored.save(initialDraft(), await restored.selectDraftDepiction());
+  assert.equal(first.bag()[0].address, 'ds.px.disc.buzzz-1');
+  assert.equal(second, 'ds.px.disc.buzzz-2');
+  assert.deepEqual(restored.bag().map(row => row.disc.id), ['buzzz-1', 'buzzz-2']);
+});
