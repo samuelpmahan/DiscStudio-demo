@@ -35,7 +35,15 @@ function verifyVisibleBagAndFrame() {
   const matching = rows.find(row => row.textContent.includes('Crave') && row.querySelector('img')?.src === proof.depictionSrc);
   proof.verified.uiBagMatchesSavedDisc = Boolean(matching);
   if (!matching) throw Error('Visible Today’s Bag row does not match the saved Disc Part.');
-  bag?.scrollIntoView({ block: 'start' });
+  const frameBag = () => bag?.scrollIntoView({ block: 'start' });
+  // The paired runner opens the drawer after the closed capture. Preserve the
+  // same underlying Bag framing when that real navigation control is clicked.
+  const drawerButton = document.querySelector('.pxdt-nav button:last-child');
+  if (drawerButton && !drawerButton.dataset.captureFrame) {
+    drawerButton.dataset.captureFrame = 'bag';
+    drawerButton.addEventListener('click', frameBag);
+  }
+  frameBag();
 }
 export async function action(page) {
   const fixturePath = path.resolve('visual-proof', 'deterministic-test-disc-fixture.svg');
@@ -72,7 +80,7 @@ export async function settle(page) {
   await page.evaluate(() => {
     const row = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
     if (!row) throw Error('Save receipt discAddress is not inspectable in drawer.');
-    if (!row.open) row.querySelector('summary')?.click();
+    row.open = true;
   });
   await page.waitForFunction(() => [...document.querySelectorAll('.pxdt [data-view="detail"] details')].some(details => details.open && details.querySelector('summary')?.textContent?.startsWith('discAddress')));
   await page.evaluate(() => document.querySelector('#todays-bag')?.scrollIntoView({ block: 'start' }));
