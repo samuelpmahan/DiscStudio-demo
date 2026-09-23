@@ -18,7 +18,7 @@ function recordEvidence() {
   const producer = experience.pxc.receipts().find(row => row.into === discAddress && row.status === 'produced' && row.composition.calculation === experience.pxc.get('fn.CREATE'));
   const verified = {
     receiptIdentity: typeof receiptAddress === 'string' && receiptAddress === 'ds.px.receipt.' + receipt?.operationId && /^save-/.test(receipt?.operationId || ''),
-    savedDiscAddress: typeof discAddress === 'string' && discAddress === 'ds.px.disc.' + receipt?.operationId,
+    savedDiscAddress: discAddress === 'ds.px.disc.crave-1' && entries.get(discAddress)?.value?.id === 'crave-1',
     pqlReceiptPresent: Array.isArray(pql),
     pqlCreateAndRead: Array.isArray(pql) && pql.some(row => row.calculation === 'fn.CREATE') && pql.some(row => row.calculation === 'fn.READ'),
     bagContainsSavedDisc: Array.isArray(bag) && bag.includes(discAddress),
@@ -80,7 +80,7 @@ export async function settle(page) {
   await page.waitForFunction(() => {
     const summary = document.querySelector('.pxdt-save-summary');
     return summary?.textContent?.includes('Saved Axiom Crave') && summary.textContent.includes('Today’s Bag') &&
-      summary.textContent.includes('Technical trace address') && summary.textContent.includes('added technical Part reference') && [...summary.querySelectorAll('button')].some(button => button.textContent.includes('fn.CREATE')) &&
+      summary.textContent.includes('added') && [...summary.querySelectorAll('button')].some(button => button.textContent.includes('fn.CREATE')) &&
       [...summary.querySelectorAll('button')].some(button => button.textContent.includes('PQL receipt'));
   });
   await page.evaluate(() => document.querySelector('#todays-bag')?.scrollIntoView({ block: 'start' }));
@@ -93,7 +93,7 @@ export async function beforeScreenshot(page, view) {
     if (box.top < 0 || box.bottom > innerHeight) throw Error('Saved Today’s Bag row is outside the ' + view + ' screenshot.');
     if (view === 'inspector') {
       const summary = document.querySelector('.pxdt-save-summary');
-      if (!summary?.textContent?.includes('Saved Axiom Crave') || !summary.textContent.includes('Today’s Bag')) throw Error('Semantic Save summary vanished before drawer capture.');
+      if (!summary?.textContent?.includes('Saved Axiom Crave') || !summary.textContent.includes('ds.px.disc.crave-1') || !summary.textContent.includes('Readback:')) throw Error('Semantic Save summary vanished before drawer capture.');
     }
   }, view);
   // This is deliberately last: the PNG is taken only while the saved Bag row
