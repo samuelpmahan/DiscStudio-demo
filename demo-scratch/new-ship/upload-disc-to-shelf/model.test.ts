@@ -204,6 +204,6 @@ test('Disc Parts use mold identity ordinals while save executions retain their o
   ]);
   assert.equal(buzzz, 'ds.px.disc.buzzz-1');
   const saves = app.events.filter(event => event.event === 'disc.save.completed') as any[];
-  assert.ok(saves.every(receipt => /^save-\\d+$/.test(receipt.operationId)));
+  assert.ok(saves.every(receipt => /^save-[0-9]+$/.test(receipt.operationId)));
   assert.ok(saves.every(receipt => receipt.discAddress.endsWith(receipt.discId)));
 });
