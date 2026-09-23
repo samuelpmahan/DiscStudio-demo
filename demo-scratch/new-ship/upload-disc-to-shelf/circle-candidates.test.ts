@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { findInitialCircleCandidates, findOtherCircleCandidates, refineCircleCandidates, type CircleCandidate, type Raster } from './circle-candidates.ts';
+import { Part, PxC } from '../part-first-kernel/src/pxc.mjs';
+import { ensureCircleCandidateCalculations } from './circle-fit.ts';
 
 function circlesRaster(width: number, height: number, circles: Array<{ x: number; y: number; radius: number }>): Raster {
   const rgba = new Uint8ClampedArray(width * height * 4);
@@ -130,4 +132,32 @@ test('blank evidence abstains without manufacturing proposals', () => {
   assert.equal(refined.length, 1);
   assert.strictEqual(refined[0], anchor);
   assert.deepEqual(refineCircleCandidates(blank, { id: 'invalid', circle: { x: Number.NaN, y: 48, radius: 24, confidence: 0 }, score: 0 }, 3), []);
+});
+
+test('initial choice Part offers one physical disc as recommended rim, ellipse, and tighter edge', async () => {
+  const pxc = new PxC(); ensureCircleCandidateCalculations(pxc, { clampCropSelection: (_width, _height, crop) => crop });
+  const original: CircleCandidate = { id:'original', circle:{ x:100, y:100, radius:70, confidence:.2 }, score:.2 };
+  const other: CircleCandidate = { id:'unrelated-object', circle:{ x:30, y:30, radius:15, confidence:.2 }, score:.2 };
+  const rim: CircleCandidate = { id:'rim', circle:{ x:101, y:100, radius:75, confidence:.9 }, score:.9 };
+  const trim: CircleCandidate = { id:'trim', circle:{ x:101, y:100, radius:73, confidence:.8 }, score:.8 };
+  const ellipse: CircleCandidate = { id:'ellipse', circle:{ x:101, y:100, radius:71, confidence:.9 }, ellipse:{ x:101, y:100, radiusX:75, radiusY:67, rotation:.2 }, score:.9 };
+  pxc.set('photo', new Part({ source:{ width:240, height:240 } }));
+  pxc.set('evidence', new Part({ status:'accepted', operation:'initial', candidates:[original, other] }));
+  pxc.set('rim', new Part({ status:'accepted', candidate:rim }));
+  pxc.set('ellipse', new Part({ status:'accepted', candidate:ellipse }));
+  pxc.set('local', new Part({ status:'accepted', candidates:[rim, trim] }));
+  const result = await pxc.compose({ into:'choices', calculation:'fn.studio.circleCandidateCrops', inputs:{photo:'photo',evidence:'evidence',rimFit:'rim',ellipseFit:'ellipse',local:'local'} });
+  assert.deepEqual(result.value.candidates.map((candidate: CircleCandidate) => [candidate.id, candidate.role]), [['rim','recommended'],['ellipse','tilt-repair'],['trim','edge-trim']]);
+  assert.equal(result.composition.inputs.local, pxc.get('local'));
+  assert.equal(result.composition.inputs.rimFit, pxc.get('rim'));
+  assert.ok(!result.value.candidates.some((candidate: CircleCandidate) => candidate.id === other.id));
+
+  const pxcWithoutEllipse = new PxC(); ensureCircleCandidateCalculations(pxcWithoutEllipse, { clampCropSelection: (_width, _height, crop) => crop });
+  pxcWithoutEllipse.set('photo', new Part({ source:{ width:240, height:240 } }));
+  pxcWithoutEllipse.set('evidence', new Part({ status:'accepted', operation:'initial', candidates:[original, other] }));
+  pxcWithoutEllipse.set('rim', new Part({ status:'accepted', candidate:rim }));
+  pxcWithoutEllipse.set('ellipse', new Part({ status:'abstained', candidate:null }));
+  pxcWithoutEllipse.set('local', new Part({ status:'accepted', candidates:[rim, trim] }));
+  const withoutEllipse = await pxcWithoutEllipse.compose({ into:'choices', calculation:'fn.studio.circleCandidateCrops', inputs:{photo:'photo',evidence:'evidence',rimFit:'rim',ellipseFit:'ellipse',local:'local'} });
+  assert.deepEqual(withoutEllipse.value.candidates.map((candidate: CircleCandidate) => [candidate.id, candidate.role]), [['rim','recommended'],['trim','edge-trim'],['original','original-fit']]);
 });

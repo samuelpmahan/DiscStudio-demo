@@ -393,31 +393,26 @@ function syncManualMode() {
 function candidateCrop(candidate: CircleCandidate) {
   return cropBitmap ? clampCropSelection(cropBitmap.width, cropBitmap.height, cropForSourceSamples(cropBitmap.width, cropBitmap.height, candidate.ellipse ?? candidate.circle)) : null;
 }
-function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCandidate, selected: boolean) {
-  if (!cropWorking || !cropBitmap) return;
+function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCandidate) {
+  if (!cropBitmap) return;
   const crop = candidateCrop(candidate); if (!crop) return;
-  if (candidate.ellipse) {
-    drawTransparentGutter(canvas.getContext('2d')!, canvas.width);
-    const context = canvas.getContext('2d')!, gutter = 6, size = canvas.width - 2 * gutter;
-    context.save(); context.beginPath(); context.arc(canvas.width / 2, canvas.height / 2, size / 2, 0, Math.PI * 2); context.clip();
-    context.translate(gutter, gutter); drawRotatedCrop(context, cropBitmap.image, edgeSafeCrop(cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop), true)); context.restore();
-    return;
-  }
-  const context = canvas.getContext('2d')!, view = fixedCirclePreviewGeometry(cropBitmap.width, cropBitmap.height, crop, canvas.width);
-  context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#dfe5db'; context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(cropWorking, view.imageX, view.imageY, view.imageWidth, view.imageHeight);
-  context.save(); context.fillStyle = 'rgba(18,39,31,.58)'; context.beginPath(); context.rect(0, 0, canvas.width, canvas.height); context.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2, true); context.fill('evenodd'); context.beginPath(); context.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2); context.strokeStyle = selected ? '#168a87' : '#fff'; context.lineWidth = 2; context.stroke(); context.restore();
+  const context = canvas.getContext('2d')!, gutter = 6, size = canvas.width - 2 * gutter;
+  drawTransparentGutter(context, canvas.width);
+  const mapping = candidate.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, crop);
+  context.save(); context.beginPath(); context.arc(canvas.width / 2, canvas.height / 2, size / 2, 0, Math.PI * 2); context.clip();
+  context.translate(gutter, gutter); drawRotatedCrop(context, cropBitmap.image, edgeSafeCrop(mapping, !!candidate.ellipse)); context.restore();
 }
 function renderCandidateChoices() {
   candidateList.replaceChildren();
   candidatePicker.hidden = candidateChoices.length === 0;
-  candidateHeading.textContent = candidateChoices.length ? 'Pick the closest circle' : 'No circle choices yet';
+  candidateHeading.textContent = candidateChoices.length ? 'Choose a crop' : 'No crop choices yet';
   const fragment = document.createDocumentFragment();
   candidateChoices.forEach((candidate, index) => {
     const selected = selectedCandidate?.id === candidate.id;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'circle-candidate'; button.setAttribute('aria-pressed', String(selected)); button.setAttribute('aria-label', `Circle ${index + 1}${selected ? ', selected' : ''}`);
-    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate, selected);
-    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${candidate.ellipse ? ' · Tilt repair' : candidate.id.endsWith('-opposing-rim') ? ' · Rim fit' : ''}`;
+    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate);
+    const detail = candidate.role === 'recommended' ? ' · Recommended' : candidate.role === 'edge-trim' ? ' · Tighter edge' : candidate.role === 'original-fit' ? ' · Original fit' : candidate.role === 'circle-alternative' ? ' · Center adjustment' : candidate.ellipse ? ' · Tilt repair' : candidate.id.endsWith('-opposing-rim') ? ' · Rim fit' : '';
+    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${detail}`;
     button.append(canvas, label); button.addEventListener('click', () => chooseCandidate(candidate)); fragment.append(button);
   });
   candidateList.append(fragment); refineButton.disabled = candidateBusy || !selectedCandidate; otherButton.disabled = candidateBusy || candidateChoices.length === 0; syncCandidateApply(); requestAnimationFrame(sizeCropStage);
@@ -462,9 +457,10 @@ async function loadCircleCandidates(operation: 'initial' | 'refine' | 'other') {
       selectedCandidate = rows[0];
     }
     candidateChoices = rows;
+    if (operation === 'initial') { selectedCandidate = rows[0]; const crop = candidateCrop(rows[0]); if (crop) setCrop(crop, { invalidate: false, allowEllipse: !!rows[0].ellipse }); }
     if (operation === 'initial' || operation === 'other') { seenCandidates = [...seenCandidates, ...rows]; if (operation === 'other') selectedCandidate = null; }
     renderCandidateChoices();
-    $('photo-crop-help').textContent = operation === 'refine' ? 'Your circle is kept first. Choose a nearby alternative only if it looks better.' : 'Pick the closest circle, then refine it if needed.';
+    $('photo-crop-help').textContent = operation === 'refine' ? 'Your circle is kept first. Choose a nearby alternative only if it looks better.' : operation === 'initial' ? 'Recommended crop selected. Compare the other cuts or refine this circle.' : 'Choose a crop, then refine it if needed.';
   } catch {
     if (request !== candidateRequest || session !== candidateSession) return;
     candidateBusy = false; candidateChoices = previousChoices; selectedCandidate = previousSelection; renderCandidateChoices(); manualCrop.open = true; syncManualMode();

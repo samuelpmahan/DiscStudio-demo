@@ -3,7 +3,7 @@ import { cropForSourceSamples } from './crop-geometry.ts';
 
 export type DiscCircle = { x: number; y: number; radius: number; confidence: number };
 type Raster = { width: number; height: number; rgba: Uint8ClampedArray };
-export type CircleCandidate = { id: string; circle: DiscCircle; score: number; ellipse?: { x: number; y: number; radiusX: number; radiusY: number; rotation: number } };
+export type CircleCandidate = { id: string; circle: DiscCircle; score: number; ellipse?: { x: number; y: number; radiusX: number; radiusY: number; rotation: number }; role?: 'recommended' | 'tilt-repair' | 'edge-trim' | 'original-fit' | 'circle-alternative' };
 export type CircleCandidateRequest = { operation: 'initial' | 'refine' | 'other'; selected?: CircleCandidate; excluded?: readonly CircleCandidate[]; rimFit?: boolean };
 export type CircleCandidateSession = { photoIntake: string; serial: number };
 
@@ -121,7 +121,7 @@ export function ensureCircleCandidateCalculations(pxc: any, helpers: CircleCropH
       : operation === 'other'
         ? candidates.findOtherCircleCandidates(photo.working, photo.source, request.excluded ?? [])
         : operation === 'initial'
-          ? candidates.findInitialCircleCandidates(photo.working, photo.source)
+          ? candidates.findInitialCircleCandidates(photo.working, photo.source, 1)
           : [];
     return Object.freeze({ schema: 'CircleCandidates@1', status: rows.length ? 'accepted' : 'abstained', operation, candidates: rows, reason: rows.length ? null : 'no-distinct-supported-circles' });
   }));
@@ -133,13 +133,35 @@ export function ensureCircleCandidateCalculations(pxc: any, helpers: CircleCropH
     const { fitEllipseRim } = await import('./exp/ellipse-rim-fit.ts');
     return fitEllipseRim(photo.source, evidence.candidates?.[0], rimFit);
   }));
-  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence, rimFit, ellipseFit }: any) => {
+  if (!names.has('oc.studio.localCircleAlternatives')) pxc.set('oc.studio.localCircleAlternatives', new Part(async ({ photo, evidence, rimFit }: any) => {
+    const { refineCircleCandidates } = await import('./circle-candidates.ts');
+    const anchor: CircleCandidate | undefined = rimFit?.candidate ?? evidence.candidates?.[0];
+    const candidates = anchor ? refineCircleCandidates(photo.source, anchor) : [];
+    return Object.freeze({ schema: 'LocalCircleAlternatives@1', status: candidates.length ? 'accepted' : 'abstained', candidates });
+  }));
+  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence, rimFit, ellipseFit, local }: any) => {
     if (evidence.status !== 'accepted') return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'abstained', candidates: [], reason: evidence.reason });
-    const rows = [...evidence.candidates];
-    // This is a sibling derivation of the selected semantic circle. Keep the
-    // selected choice and supported small trim; spend the remaining slot on
-    // the independently fitted outer rim only when the geometric evidence is
-    // supported around the entire circumference.
+    const rows: CircleCandidate[] = [...evidence.candidates];
+    if (evidence.operation === 'initial') {
+      const recommended: CircleCandidate = rimFit?.status === 'accepted' && rimFit.candidate ? rimFit.candidate : rows[0];
+      rows.splice(0, rows.length, Object.freeze({ ...recommended, role: 'recommended' }));
+      // Different derivations of this disc compete for the two remaining
+      // slots; never show another spatial object as a crop of the same disc.
+      if (ellipseFit?.status === 'accepted' && ellipseFit.candidate) rows.push(Object.freeze({ ...ellipseFit.candidate, role: 'tilt-repair' }));
+      const alternatives: CircleCandidate[] = local?.candidates?.slice(1) ?? [];
+      const trim = alternatives.find(candidate => candidate.circle.x === recommended.circle.x && candidate.circle.y === recommended.circle.y && candidate.circle.radius < recommended.circle.radius);
+      if (trim) rows.push(Object.freeze({ ...trim, role: 'edge-trim' }));
+      const original = evidence.candidates[0];
+      const separation = Math.hypot(recommended.circle.x - original.circle.x, recommended.circle.y - original.circle.y, recommended.circle.radius - original.circle.radius);
+      if (rows.length < 3 && recommended.id !== original.id && separation >= Math.max(2, recommended.circle.radius * .025)) rows.push(Object.freeze({ ...original, role: 'original-fit' }));
+      for (const candidate of alternatives) {
+        if (rows.length >= 3) break;
+        if (rows.some(row => row.id === candidate.id)) continue;
+        rows.push(Object.freeze({ ...candidate, role: 'circle-alternative' }));
+      }
+    }
+    // A subsequent Refine round keeps the user's exact selection and offers
+    // sibling derivations. It cannot silently replace what they chose.
     if (evidence.operation === 'refine' && rimFit?.status === 'accepted' && rimFit.candidate) {
       if (rows.length < 3) rows.push(rimFit.candidate);
       else rows[2] = rimFit.candidate;
@@ -172,13 +194,15 @@ export async function composeCircleCandidateChoices(pxc: any, session: CircleCan
   const requestPart = `ds.px.CircleCandidateRequest.circlefit.${session.serial}.${serial}`, candidates = `ds.px.CircleCandidates.circlefit.${session.serial}.${serial}`, cropChoices = `ds.px.CircleCandidateCrops.circlefit.${session.serial}.${serial}`;
   pxc.set(requestPart, new Part(Object.freeze({ operation: request.operation, ...(request.selected ? { selected: request.selected } : {}), ...(request.excluded?.length ? { excluded: [...request.excluded] } : {}), ...(request.rimFit ? { rimFit: true } : {}) })));
   await pxc.compose({ into: candidates, calculation: 'oc.studio.circleCandidates', inputs: { photo: session.photoIntake, request: requestPart } });
-  const rimFit = request.operation === 'refine' && request.rimFit && pxc.get(candidates).value.status === 'accepted'
+  const rimFit = (request.operation === 'initial' || request.operation === 'refine' && request.rimFit) && pxc.get(candidates).value.status === 'accepted'
     ? `ds.px.OpposingRimFit.circlefit.${session.serial}.${serial}` : null;
   if (rimFit) await pxc.compose({ into: rimFit, calculation: 'oc.studio.opposingRimFit', inputs: { photo: session.photoIntake, evidence: candidates } });
   const ellipseFit = rimFit ? `ds.px.EllipseRimFit.circlefit.${session.serial}.${serial}` : null;
   if (ellipseFit) await pxc.compose({ into: ellipseFit, calculation: 'oc.studio.ellipseRimFit', inputs: { photo: session.photoIntake, evidence: candidates, rimFit } });
-  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates, ...(rimFit ? { rimFit } : {}), ...(ellipseFit ? { ellipseFit } : {}) } });
-  return { requestPart, candidates, rimFit, ellipseFit, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
+  const local = request.operation === 'initial' && rimFit ? `ds.px.LocalCircleAlternatives.circlefit.${session.serial}.${serial}` : null;
+  if (local) await pxc.compose({ into: local, calculation: 'oc.studio.localCircleAlternatives', inputs: { photo: session.photoIntake, evidence: candidates, rimFit } });
+  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates, ...(rimFit ? { rimFit } : {}), ...(ellipseFit ? { ellipseFit } : {}), ...(local ? { local } : {}) } });
+  return { requestPart, candidates, rimFit, ellipseFit, local, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
 }
 
 export async function composeCircleFitCrop(pxc: any, source: CanvasImageSource, sourceWidth: number, sourceHeight: number, working: HTMLCanvasElement, serial: number, helpers: CircleCropHelpers) {

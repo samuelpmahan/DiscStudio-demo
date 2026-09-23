@@ -14,6 +14,7 @@ export type CircleCandidate = {
   circle: DiscCircle;
   score: number;
   ellipse?: RimEllipse;
+  role?: 'recommended' | 'tilt-repair' | 'edge-trim' | 'original-fit' | 'circle-alternative';
 };
 
 const MAX_INITIAL = 3;
