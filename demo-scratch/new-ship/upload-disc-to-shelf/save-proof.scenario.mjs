@@ -94,7 +94,7 @@ export async function beforeScreenshot(page, view) {
     if (view === 'inspector') {
       const detail = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
       if (!detail) throw Error('Save receipt discAddress vanished before drawer capture.');
-      detail.open = true; detail.scrollIntoView({ block: 'nearest' });
+      detail.open = true;
     }
   }, view);
   if (view === 'inspector') {
@@ -104,6 +104,14 @@ export async function beforeScreenshot(page, view) {
       return Boolean(detail?.open && detail.textContent.includes(address));
     }, {}, address);
   }
+  // This is deliberately last: the PNG is taken only while the saved Bag row
+  // is still inside the viewport after all drawer material has rendered.
+  await page.waitForFunction(() => {
+    const proof = window.__dsVisualProof, row = [...document.querySelectorAll('#bag-export-list .bag-export-disc')].find(row => row.textContent.includes('Crave') && row.querySelector('img')?.src === proof.depictionSrc);
+    if (!row) return false;
+    const box = row.getBoundingClientRect();
+    return box.top >= 0 && box.bottom <= innerHeight && document.elementFromPoint(box.left + 8, box.top + 8)?.closest('.bag-export-disc') === row;
+  });
 }
 export async function manifest(page) {
   return page.evaluate(() => {
