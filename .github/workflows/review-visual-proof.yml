@@ -54,7 +54,7 @@ jobs:
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:4173/ >/dev/null
-          node drive-real-ui.mjs \
+          PUPPETEER_NO_SANDBOX=1 node drive-real-ui.mjs \
             --url http://127.0.0.1:4173/ \
             --chrome "$CHROME" \
             --scenario save-proof.scenario.mjs \
