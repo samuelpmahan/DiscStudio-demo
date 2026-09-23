@@ -10,9 +10,9 @@ test('Save receipt summary follows the live CREATE, Bag delta, and READ outputs'
   const app = createExperience(() => {});
   await app.addDraftPhoto(photo);
   const discAddress = await app.save(initialDraft(), await app.selectDraftDepiction());
-  const operationId = discAddress.split('.').at(-1);
-  const receiptAddress = 'ds.px.receipt.' + operationId;
-  const summary = summarizeSaveReceipt(app.pxc, receiptAddress);
+  const receiptAddress = app.events.at(-1).operationId;
+  const receiptPartAddress = 'ds.px.receipt.' + receiptAddress;
+  const summary = summarizeSaveReceipt(app.pxc, receiptPartAddress);
 
   assert.equal(summary.title, 'Saved Discraft Buzzz');
   assert.equal(summary.discAddress, discAddress);
@@ -30,7 +30,7 @@ test('Save receipt summary refuses a receipt whose retained Bag cannot prove its
   const app = createExperience(() => {});
   await app.addDraftPhoto(photo);
   const discAddress = await app.save(initialDraft(), await app.selectDraftDepiction());
-  const operationId = discAddress.split('.').at(-1);
+  const operationId = app.events.at(-1).operationId;
   const original = app.pxc.get('ds.px.receipt.' + operationId).value;
   const tamperedBag = 'ds.px.bag.tampered';
   app.pxc.set(tamperedBag, new Part([discAddress, 'ds.px.disc.unrelated']));
