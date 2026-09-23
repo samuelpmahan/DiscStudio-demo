@@ -6,7 +6,7 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   const nav = document.createElement('nav'); nav.className = 'pxdt-nav'; nav.setAttribute('aria-label', 'Workspace');
   const panel = document.createElement('section'); panel.className = 'pxdt'; panel.hidden = true;
   // Static template only. All material, addresses and code below are textContent.
-  panel.innerHTML = `<div class="pxdt-heading"><div><h1>PxC DevTools</h1><p>Live Parts. Actual links. No schema homework.</p></div><button data-action="refresh">Refresh live store</button></div>
+  panel.innerHTML = `<div class="pxdt-heading"><div><h1>PxC DevTools</h1><p>Live Parts. Actual links. No schema homework.</p></div><div class="pxdt-actions"><button data-action="refresh">Refresh live store</button><button data-action="close" aria-label="Close PxC DevTools">Close</button></div></div>
     <p class="pxdt-notice">Actual PxC of this mounted Experience. The host selects persistence or disposable state. Values are borrowed, not historical snapshots. Scratch results do not change application selections.</p>
     <div class="pxdt-toolbar"><label>Find Parts<input data-field="query" placeholder="Address, field, value…"></label><label>Address prefix<select data-field="prefix"><option value="">All addresses</option></select></label><label>Kind<select data-field="kind"><option value="">All kinds</option><option>Supplied</option><option>Produced</option><option>Calculation</option></select></label></div>
     <p data-view="stats" role="status"></p><div class="pxdt-grid"><section aria-label="Parts"><div data-view="list"></div><button data-action="more">Show 100 more</button></section><section class="pxdt-detail" aria-label="Part inspector"><h2 data-view="title">Select a Part</h2><div data-view="detail"></div></section></div>
@@ -17,12 +17,13 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   const text = (tag, value) => { const el = document.createElement(tag); el.textContent = value; return el; };
   let selected = null, selectedLabel = '', limit = 100;
   function show(open) {
-    panel.hidden = !open; app.hidden = open;
+    panel.hidden = !open;
     nav.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', String(i === (open ? 1 : 0))));
     if (open) refresh();
   }
   nav.append(button(label, () => show(false)), button('PxC DevTools', () => show(true)));
   app.before(nav); app.after(panel);
+  panel.querySelector('[data-action="close"]').onclick = () => show(false);
   panel.querySelector('.pxdt-heading').append(button('Create object playground',()=>{
     const address=createObjectPlayground(pxc); refresh(); select(pxc.get(address),address);
   }));
@@ -202,5 +203,5 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   $('[data-action="create"]').onclick = () => scratch(false);
   $('[data-action="revise"]').onclick = () => scratch(true);
   show(false);
-  return { open(address) { show(true); if (address) select(pxc.get(address), address); panel.scrollIntoView({ block: 'start' }); }, refresh };
+  return { open(address) { show(true); if (address) select(pxc.get(address), address); panel.querySelector('[data-view="detail"]').scrollIntoView({ block: 'nearest' }); }, refresh };
 }
