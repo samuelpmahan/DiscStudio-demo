@@ -382,7 +382,6 @@ function updateCropPreview() {
   ($('crop-zoom-value') as HTMLOutputElement).value = `Circle size ${circleSize}%`;
 }
 const candidatePicker = $('circle-candidate-picker'), candidateList = $('circle-candidates'), candidateHeading = $('circle-candidate-heading'), refineButton = $('crop-refine') as HTMLButtonElement, otherButton = $('crop-other') as HTMLButtonElement, cropApply = $('crop-apply') as HTMLButtonElement;
-const rimFitParams = new URLSearchParams(location.search), experimentalRimFit = rimFitParams.has('rimFit') || rimFitParams.has('centerFit');
 const manualCrop = $('crop-manual') as HTMLDetailsElement;
 function syncCandidateApply() { cropApply.disabled = candidateBusy || !cropBitmap || !cropFile || (!selectedCandidate && !manualCrop.open); }
 function syncManualMode() {
@@ -437,7 +436,7 @@ async function loadCircleCandidates(operation: 'initial' | 'refine' | 'other') {
   candidateBusy = true; renderCandidateChoices(); refineButton.disabled = true; otherButton.disabled = true;
   $('photo-crop-help').textContent = operation === 'refine' ? 'Refining around your selected circle…' : operation === 'other' ? 'Finding other circles…' : 'Finding circle choices…';
   try {
-    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor } : {}), ...(operation === 'refine' && experimentalRimFit ? { rimFit: true } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
+    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor, rimFit: true } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
     if (request !== candidateRequest || session !== candidateSession || bitmap !== cropBitmap || working !== cropWorking) return;
     candidateBusy = false;
     const rows = result.proposal.status === 'accepted' ? result.proposal.candidates as CircleCandidate[] : [];
