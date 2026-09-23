@@ -97,7 +97,7 @@ export function mountExport(experience: Experience, { root = document }: { root?
       const button = document.createElement('button'); button.type = 'button'; button.className = 'bag-export-disc'; button.setAttribute('aria-pressed', String(selected.has(row.address)));
       const image = document.createElement('img'); image.src = row.disc.depiction.src; image.alt = '';
       const copy = document.createElement('span'), name = document.createElement('strong'), detail = document.createElement('small');
-      name.textContent = row.disc.nickname || row.seed.name; detail.textContent = `${row.seed.manufacturer} · ${row.disc.plastic || 'plastic unknown'}${row.disc.weight == null ? '' : ` · ${row.disc.weight} g`}`;
+      name.textContent = row.disc.nickname || row.seed.name; detail.textContent = [row.seed.manufacturer, row.disc.plastic].filter(Boolean).join(' · ');
       copy.append(name, detail); button.append(image, copy);
       button.onclick = () => { selected.has(row.address) ? selected.delete(row.address) : selected.add(row.address); renderBag(); void preview(); };
       return button;

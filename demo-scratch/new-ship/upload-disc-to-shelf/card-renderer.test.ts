@@ -97,6 +97,17 @@ test('U02 retains visible manufacturer and opaque flight cells on a transparent 
   }
 });
 
+test('offered designs show the exact plastic blend and ignore weight', async () => {
+  for (const [preset, orientation] of [['u01', 'vertical'], ['u02', 'vertical'], ['b01', 'horizontal'], ['b02', 'horizontal']] as const) {
+    const base = testDisc({ renderer: { manufacturer: 'Discraft', moldName: 'Buzzz', flights: [5, 4, -1, 1] } } as any);
+    const esp = await renderCard(base, orientation, preset);
+    const complex = await renderCard({ ...base, plastic: 'ESP FLX Swirl Special Blend' }, orientation, preset);
+    const differentWeight = await renderCard({ ...base, weight: 152 }, orientation, preset);
+    assert.notDeepEqual(esp, complex, `${preset}: plastic must change the exported image`);
+    assert.deepEqual(esp, differentWeight, `${preset}: weight must not change the exported image`);
+  }
+});
+
 test('B01 and B02 retain a white disc edge; B02 name never paints across its photo', async () => {
   const source = createCanvas(128, 128), sourceCtx = source.getContext('2d');
   sourceCtx.fillStyle = '#fff'; sourceCtx.fillRect(0, 0, 128, 128);

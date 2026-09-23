@@ -120,6 +120,8 @@ test('exportZip packs PNGs plus a manifest with matching metadata', async () => 
   }
   assert.equal(manifest.cards[0].discId, 'disc-1');
   assert.equal(manifest.cards[0].nickname, 'Minty');
+  assert.equal(manifest.cards[0].plastic, 'ESP');
+  assert.equal(Object.hasOwn(manifest.cards[0], 'weight'), false, 'the demo export omits weight');
   assert.equal(manifest.cards[0].flight.speed, 5);
   assert.deepEqual(manifest.cards[1], { ...manifest.cards[1], width: 1080, height: 1920 });
 });

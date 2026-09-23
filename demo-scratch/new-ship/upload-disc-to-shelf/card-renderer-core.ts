@@ -28,7 +28,6 @@ type ResolvedDisc = {
   manufacturer: string;
   moldName: string;      // e.g. "Buzzz"
   plastic: string;
-  weight: number | null;
   flights: (number | null)[] | null; // [speed, glide, turn, fade]
   photoSrc: string | null;
 };
@@ -67,7 +66,6 @@ export async function resolveCardDisc(environment: CardRenderEnvironment, disc: 
     manufacturer,
     moldName,
     plastic: disc.plastic || '',
-    weight: disc.weight ?? null,
     flights,
     photoSrc: disc.depiction?.kind === 'photo' ? disc.depiction.src ?? null : null,
   };
@@ -134,11 +132,30 @@ async function drawPhotoCircle(environment: CardRenderEnvironment, ctx: any, src
   ctx.stroke();
 }
 
-function plasticWeightLine(rd: ResolvedDisc): string {
-  const parts: string[] = [];
-  if (rd.plastic) parts.push(rd.plastic);
-  if (rd.weight !== null && rd.weight !== undefined) parts.push(`${rd.weight}g`);
-  return parts.join(' · ');
+/** Draw manufacturer + the exact retained blend on a defended reading surface. */
+function drawMakerPlastic(ctx: any, rd: ResolvedDisc, x: number, baseline: number, width: number, px: number, lineHeight = 42): number {
+  const maker = rd.manufacturer.trim(), plastic = rd.plastic.trim();
+  const text = [maker, plastic].filter(Boolean).join(' • ');
+  if (!text) return 0;
+  ctx.fillStyle = MINT;
+  ctx.font = `700 ${px}px ${FONT_STACK}`;
+  const words = maker && plastic ? [`${maker} •`, ...plastic.split(/\s+/)] : text.split(/\s+/);
+  let lines = [text];
+  if (words.length > 1 && ctx.measureText(text).width > width) {
+    let bestWidth = Infinity;
+    for (let split = 1; split < words.length; split++) {
+      const candidate = [words.slice(0, split).join(' '), words.slice(split).join(' ')];
+      const widest = Math.max(...candidate.map(line => ctx.measureText(line).width));
+      if (widest < bestWidth) { bestWidth = widest; lines = candidate; }
+    }
+  }
+  lines.forEach((line, index) => {
+    fitFont(ctx, line, width, 700, px);
+    // Preserve every character of long custom blends without painting into
+    // the adjacent disc, even after reaching the minimum useful font size.
+    ctx.fillText(line, x, baseline + index * lineHeight, width);
+  });
+  return lines.length;
 }
 
 function flightsLine(rd: ResolvedDisc): string | null {
@@ -169,18 +186,13 @@ async function drawHorizontal(environment: CardRenderEnvironment, ctx: any, rd: 
   fitFont(ctx, name, maxW, 800, 124);
   ctx.fillText(name, tx, cardY + 196);
 
-  const pw = plasticWeightLine(rd);
-  if (pw) {
-    ctx.fillStyle = MINT;
-    ctx.font = `500 42px ${FONT_STACK}`;
-    ctx.fillText(pw, tx, cardY + 272);
-  }
+  drawMakerPlastic(ctx, rd, tx, cardY + 272, maxW, 48, 42);
 
   const fl = flightsLine(rd);
   if (fl) {
     ctx.fillStyle = MINT;
     ctx.font = `600 54px ${FONT_STACK}`;
-    ctx.fillText(fl, tx, cardY + 356);
+    ctx.fillText(fl, tx, cardY + 386);
   }
 }
 
@@ -207,20 +219,13 @@ async function drawVertical(environment: CardRenderEnvironment, ctx: any, rd: Re
   fitFont(ctx, name, cardW - 96, 800, 104);
   ctx.fillText(name, midX, photoBottom + 122);
 
-  const pw = plasticWeightLine(rd);
-  let y = photoBottom + 122;
-  if (pw) {
-    ctx.fillStyle = MINT;
-    ctx.font = `500 40px ${FONT_STACK}`;
-    ctx.fillText(pw, midX, y + 64);
-    y += 64;
-  }
+  const lines = drawMakerPlastic(ctx, rd, midX, photoBottom + 192, cardW - 96, 52, 42);
 
   const fl = flightsLine(rd);
   if (fl) {
     ctx.fillStyle = MINT;
     ctx.font = `600 52px ${FONT_STACK}`;
-    ctx.fillText(fl, midX, y + 78);
+    ctx.fillText(fl, midX, photoBottom + 244 + (lines > 1 ? 42 : 0));
   }
   ctx.textAlign = 'left';
 }
@@ -312,16 +317,8 @@ async function renderU01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const nameX = cardX + 28;
   drawPresetName(ctx, rd.moldName, nameX, cardY + 120, cardW - 56, 96);
 
-  const nums = flightTiles(rd);
-  const pw = plasticWeightLine(rd);
-  let y = cardY + 190;
-  if (pw) {
-    ctx.fillStyle = MINT;
-    ctx.font = `500 30px ${FONT_STACK}`;
-    ctx.fillText(pw, nameX, y);
-    y += 44;
-  }
-  drawTilesRow(ctx, nums, nameX, y, 64, 10, 38);
+  drawMakerPlastic(ctx, rd, nameX, cardY + 170, cardW - 56, 42, 38);
+  drawTilesRow(ctx, flightTiles(rd), nameX, cardY + 234, 64, 10, 38);
 }
 presetRenderers.u01 = renderU01;
 
@@ -337,11 +334,7 @@ async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
 
   const x = left + inset, available = width - inset * 2;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  if (rd.manufacturer) {
-    ctx.fillStyle = MINT;
-    fitFont(ctx, rd.manufacturer.toUpperCase(), available, 700, 38, DISPLAY);
-    ctx.fillText(rd.manufacturer.toUpperCase(), x, 956);
-  }
+  const makerLines = drawMakerPlastic(ctx, rd, x, 950, available, 52, 42);
   const words = rd.moldName.toUpperCase().split(/\s+/).filter(Boolean), lines: string[] = [];
   ctx.font = `800 98px ${DISPLAY}`;
   if (ctx.measureText(words.join(' ')).width <= available || words.length === 1) lines.push(words.join(' '));
@@ -353,11 +346,8 @@ async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   ctx.fillStyle = INK;
   lines.slice(0, 2).forEach((line, index) => {
     fitFont(ctx, line, available, 800, 98, DISPLAY);
-    ctx.fillText(line, x, 1057 + index * 78, available);
+    ctx.fillText(line, x, 1057 + (makerLines > 1 ? 40 : 0) + index * 78, available);
   });
-  const pw = plasticWeightLine(rd);
-  if (pw) { ctx.fillStyle = '#d6ded7'; fitFont(ctx, pw, available, 500, 34); ctx.fillText(pw, x, 1182); }
-
   const values = flightTiles(rd), labels = ['SPEED', 'GLIDE', 'TURN', 'FADE'];
   const column = 154, columnGap = 15, start = x;
   values.forEach((value, index) => {
@@ -398,17 +388,9 @@ async function renderU03(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
 
   // Stats column below the name, inside the spine.
   const nums = flightTiles(rd);
-  const pw = plasticWeightLine(rd);
   const tile = 46, gap = 8;
-  let y = 970;
-  if (pw) {
-    ctx.fillStyle = MINT;
-    ctx.font = `500 26px ${FONT_STACK}`;
-    ctx.textAlign = 'center';
-    ctx.fillText(pw, midX, y);
-    ctx.textAlign = 'left';
-    y += 40;
-  }
+  const y = 1010;
+  drawMakerPlastic(ctx, rd, spX + 12, 970, spW - 24, 26, 30);
   ctx.font = `600 30px ${FONT_STACK}`;
   for (let i = 0; i < nums.length; i++) {
     const by = y + i * (tile + gap);
@@ -447,17 +429,8 @@ async function renderU04(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   drawPresetName(ctx, rd.moldName, midX, 760, 400, 150, 'center');
 
   const nums = flightTiles(rd);
-  const pw = plasticWeightLine(rd);
-  let y = 830;
-  if (pw) {
-    ctx.fillStyle = MINT;
-    ctx.font = `500 30px ${FONT_STACK}`;
-    ctx.textAlign = 'center';
-    ctx.fillText(pw, midX, y);
-    ctx.textAlign = 'left';
-    y += 18;
-  }
-  drawTilesRow(ctx, nums, midX, y + 26, 62, 10, 36, 'center');
+  drawMakerPlastic(ctx, rd, 78, 830, 400, 35, 30);
+  drawTilesRow(ctx, nums, midX, 874, 62, 10, 36, 'center');
 
   // Disc stays quieter: below the stats, breaking out of the scrim.
   const d = 340;
@@ -491,16 +464,8 @@ async function renderU05(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const nameX = gx + 36;
   drawPresetName(ctx, rd.moldName, nameX, gy + 108, gw - 72, 92);
 
-  const nums = flightTiles(rd);
-  const pw = plasticWeightLine(rd);
-  let y = gy + 200;
-  if (pw) {
-    ctx.fillStyle = MINT;
-    ctx.font = `500 30px ${FONT_STACK}`;
-    ctx.fillText(pw, nameX, y);
-    y += 46;
-  }
-  drawTilesRow(ctx, nums, nameX, y, 64, 10, 38);
+  drawMakerPlastic(ctx, rd, nameX, gy + 190, gw - 72, 38, 35);
+  drawTilesRow(ctx, flightTiles(rd), nameX, gy + 246, 64, 10, 38);
 }
 presetRenderers.u05 = renderU05;
 
@@ -589,15 +554,6 @@ function scrimV(ctx: any, x: number, y: number, w: number, h: number) {
   ctx.fillRect(x, y, w, h);
 }
 
-/** Quiet plastic/weight line under the name. */
-function drawQuietLine(ctx: any, text: string, x: number, y: number, px = 40) {
-  ctx.font = `500 ${px}px ${FONT_STACK}`;
-  ctx.fillStyle = 'rgba(255,255,255,0.78)';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText(text, x, y);
-}
-
 /** B01: compact breakout hero rail. The tilted disc sits beyond the text. */
 async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
   const cx0 = 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
@@ -610,15 +566,9 @@ async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   await drawHeroDisc(environment, ctx, rd.photoSrc, cx0 + cw + 157, cy0 - 60, 420,
     { tiltDeg: 12, rim: '#19382f', rimWidth: 10 });
   const nx = cx0 + 36;
-  if (rd.manufacturer) {
-    ctx.fillStyle = MINT;
-    fitFont(ctx, rd.manufacturer.toUpperCase(), cw - 72, 700, 30, DISPLAY);
-    ctx.fillText(rd.manufacturer.toUpperCase(), nx, cy0 + 80);
-  }
   drawPresetName(ctx, rd.moldName, nx, cy0 + 168, cw - 72, 104);
-  const pw = plasticWeightLine(rd);
-  if (pw) drawQuietLine(ctx, pw, nx, cy0 + 228, 34);
-  drawTilesRow(ctx, flightTiles(rd), nx, cy0 + 260, 62, 14, 36);
+  drawMakerPlastic(ctx, rd, nx, cy0 + 226, cw - 72, 52, 38);
+  drawTilesRow(ctx, flightTiles(rd), nx, cy0 + 292, 62, 14, 36);
 }
 presetRenderers.b01 = renderB01;
 
@@ -633,24 +583,18 @@ async function renderB02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   ctx.fillRect(left + 410, top + 36, 4, height - 72);
 
   const nx = left + 450, available = width - 492;
-  if (rd.manufacturer) {
-    ctx.fillStyle = MINT;
-    fitFont(ctx, rd.manufacturer.toUpperCase(), available, 700, 32, DISPLAY);
-    ctx.fillText(rd.manufacturer.toUpperCase(), nx, top + 82);
-  }
-  drawPresetName(ctx, rd.moldName, nx, top + 176, available, 100);
-  const pw = plasticWeightLine(rd);
-  if (pw) drawQuietLine(ctx, pw, nx, top + 236, 34);
+  drawPresetName(ctx, rd.moldName, nx, top + 155, available, 100);
+  drawMakerPlastic(ctx, rd, nx, top + 225, available, 54, 38);
   const labels = ['SPEED', 'GLIDE', 'TURN', 'FADE'];
   flightTiles(rd).forEach((value, index) => {
     const bx = nx + index * 131;
     ctx.fillStyle = '#263c32';
-    ctx.fillRect(bx, top + 266, 118, 88);
+    ctx.fillRect(bx, top + 298, 118, 72);
     ctx.fillStyle = '#b7d6bf'; ctx.font = `700 20px ${FONT_STACK}`;
-    ctx.fillText(labels[index], bx + 10, top + 291);
+    ctx.fillText(labels[index], bx + 10, top + 320);
     ctx.fillStyle = INK;
     fitFont(ctx, value, 100, 800, 48);
-    ctx.fillText(value, bx + 10, top + 341);
+    ctx.fillText(value, bx + 10, top + 357);
   });
 }
 presetRenderers.b02 = renderB02;
@@ -681,8 +625,7 @@ async function renderB03(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   // Type stays disciplined inside the plate, clear of the disc.
   const nx = px + 36;
   drawPresetName(ctx, rd.moldName, nx, py + 128, pw - 220, 100);
-  const q = plasticWeightLine(rd);
-  if (q) drawQuietLine(ctx, q, nx, py + 178, 34);
+  drawMakerPlastic(ctx, rd, nx, py + 178, pw - 220, 34);
   drawTilesRow(ctx, flightTiles(rd), nx, py + 208, 62, 14, 36);
 }
 presetRenderers.b03 = renderB03;
@@ -743,8 +686,7 @@ async function renderB05(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
     { rim: ACID, rimWidth: 5, macro: { zoom: 2.6, fx: 0.62, fy: 0.38 } });
   // Stats: bottom, clear of the coin.
   const sx = cx0 + 210;
-  const q = plasticWeightLine(rd);
-  if (q) drawQuietLine(ctx, q, sx, cy0 + ch - 118, 32);
+  drawMakerPlastic(ctx, rd, sx, cy0 + ch - 118, cw - 240, 32);
   drawTilesRow(ctx, flightTiles(rd), sx, cy0 + ch - 88, 58, 12, 34);
 }
 presetRenderers.b05 = renderB05;

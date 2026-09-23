@@ -199,7 +199,7 @@ $('flight').after(overrides);
 for (const field of flightFields) input(`own-${field}`).addEventListener('change', () => { input(`disc-${field}`).disabled = !input(`own-${field}`).checked; });
 function draft(): Draft {
   const mold = input('seed').value;
-  return { mold, nickname: mold ? experience.seedAt(mold).name : '', plastic: input('plastic').value.trim(), weight: input('weight').value === '' ? null : Number(input('weight').value), Color1: input('Color1').value, Color2: input('Color2').value, paintMode: input('paint-mode').value as Draft['paintMode'], colorPainting: input('color-painting').checked,
+  return { mold, nickname: mold ? experience.seedAt(mold).name : '', plastic: input('plastic').value.trim(), weight: null, Color1: input('Color1').value, Color2: input('Color2').value, paintMode: input('paint-mode').value as Draft['paintMode'], colorPainting: input('color-painting').checked,
     ...Object.fromEntries(flightFields.filter(field => input(`own-${field}`).checked).map(field => [field, input(`disc-${field}`).value === '' ? null : Number(input(`disc-${field}`).value)])) };
 }
 function preview() {
@@ -237,24 +237,24 @@ function preview() {
  } catch (error) { $('status').textContent = String(error); }
 }
 $('composer').addEventListener('input', event => { const id=(event.target as HTMLElement).id; if (event.target !== $('depiction-choice') && !finishIds.includes(id)) preview(); });
+let suggestedPlasticManufacturer: string | null = null;
 function suggestPlastics() {
   if (!input('seed').value) {
-   input('plastic').replaceChildren(new Option('Choose a mold first', ''));
+   $('plastic-suggestions').replaceChildren();
    input('plastic').value = '';
    input('plastic').disabled = true;
+   suggestedPlasticManufacturer = null;
    input('save').disabled = true;
    ($('plastic-source') as HTMLAnchorElement).hidden = true;
    return;
   }
   const seed = experience.seedAt(input('seed').value);
   const guide = plasticGuides[seed.manufacturer] ?? { values: [], source: '' };
-  const preferred = input('plastic').value;
-  const unavailable = guide.values.length === 0;
-  // A guide is a suggestion, not a gate: tournament players can retain an
-  // explicit unknown blend when the manufacturer is not in the small guide.
-  const choices = unavailable ? ['', 'Unknown / not listed'] : ['', ...guide.values];
-  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || 'Not specified'; return option; }));
-  input('plastic').value = choices.includes(preferred) ? preferred : '';
+  // A mold or manufacturer change must not silently carry the previous
+  // disc's plastic. Suggestions never constrain the exact typed blend.
+  if (suggestedPlasticManufacturer !== seed.manufacturer) input('plastic').value = '';
+  suggestedPlasticManufacturer = seed.manufacturer;
+  $('plastic-suggestions').replaceChildren(...guide.values.map(value => new Option(value, value)));
   input('plastic').disabled = false;
   updateSaveState();
   const link = $('plastic-source') as HTMLAnchorElement; link.href = guide.source; link.textContent = `${seed.manufacturer} plastic guide`; link.hidden = !guide.source;

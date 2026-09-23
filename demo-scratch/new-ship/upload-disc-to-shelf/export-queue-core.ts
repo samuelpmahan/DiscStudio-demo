@@ -34,7 +34,7 @@ export function queueCards(items: readonly QueuedCard[]): readonly QueuedCard[] 
   items.forEach(checkCard); return Object.freeze(items.map(card => snapshot(card)));
 }
 export interface ManifestCard {
-  filename: string; discId: string; nickname: string; mold: string; plastic: string; weight: number | null;
+  filename: string; discId: string; nickname: string; mold: string; plastic: string;
   flight: { speed: number | null; glide: number | null; turn: number | null; fade: number | null };
   orientation: CardOrientation; cardDesign: string; width: number; height: number; byteLength: number; sha256: string;
   flightSource: { speed: 'own' | 'mold' | 'unknown'; glide: 'own' | 'mold' | 'unknown'; turn: 'own' | 'mold' | 'unknown'; fade: 'own' | 'mold' | 'unknown' };
@@ -55,7 +55,7 @@ export async function prepareExport(queue: readonly QueuedCard[], renderCard: Ca
       if (Object.hasOwn(card.disc, field) && card.disc[field] !== undefined) return [field, { value: card.disc[field] ?? null, source: card.disc[field] === null ? 'unknown' : 'own' }];
       const inherited = rendererFlights?.[index]; return [field, { value: inherited ?? null, source: inherited == null ? 'unknown' : 'mold' }];
     })) as Record<typeof fields[number], { value: number | null; source: 'own' | 'mold' | 'unknown' }>;
-    manifestCards.push({ filename, discId: card.disc.id, nickname: card.disc.nickname, mold: card.disc.mold, plastic: card.disc.plastic, weight: card.disc.weight,
+    manifestCards.push({ filename, discId: card.disc.id, nickname: card.disc.nickname, mold: card.disc.mold, plastic: card.disc.plastic,
       flight: { speed: values.speed.value, glide: values.glide.value, turn: values.turn.value, fade: values.fade.value }, flightSource: { speed: values.speed.source, glide: values.glide.source, turn: values.turn.source, fade: values.fade.source }, orientation: card.orientation, cardDesign: card.cardDesign,
       width, height, byteLength: png.length, sha256: await sha256(png) });
   }
