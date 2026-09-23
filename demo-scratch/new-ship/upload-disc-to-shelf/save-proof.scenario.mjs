@@ -125,6 +125,16 @@ export async function verifyCaptureFiles({ creatorPath, inspectorPath }) {
   const [closed, open] = [pixels(creator), pixels(inspector)];
   let total = 0; for (let index = 0; index < closed.length; index++) total += Math.abs(closed[index] - open[index]);
   const meanDifference = total / closed.length;
+  const inkPixels = data => {
+    let count = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const [red, green, blue] = [data[index], data[index + 1], data[index + 2]];
+      if (Math.max(red, green, blue) - Math.min(red, green, blue) > 25 || Math.max(red, green, blue) < 180) count++;
+    }
+    return count;
+  };
+  const [closedInk, openInk] = [inkPixels(closed), inkPixels(open)];
+  if (closedInk < 500 || openInk < 500) throw Error('Saved Bag crop is visually blank (closed/open ink pixels ' + closedInk + '/' + openInk + ').');
   if (meanDifference > 1) throw Error('Saved Bag row pixels differ between closed and open captures (mean RGB delta ' + meanDifference.toFixed(2) + ').');
 }
 export async function manifest(page) {
