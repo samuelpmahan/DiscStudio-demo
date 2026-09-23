@@ -382,6 +382,7 @@ function updateCropPreview() {
   ($('crop-zoom-value') as HTMLOutputElement).value = `Circle size ${circleSize}%`;
 }
 const candidatePicker = $('circle-candidate-picker'), candidateList = $('circle-candidates'), candidateHeading = $('circle-candidate-heading'), refineButton = $('crop-refine') as HTMLButtonElement, otherButton = $('crop-other') as HTMLButtonElement, cropApply = $('crop-apply') as HTMLButtonElement;
+const rimFitParams = new URLSearchParams(location.search), experimentalRimFit = rimFitParams.has('rimFit') || rimFitParams.has('centerFit');
 const manualCrop = $('crop-manual') as HTMLDetailsElement;
 function syncCandidateApply() { cropApply.disabled = candidateBusy || !cropBitmap || !cropFile || (!selectedCandidate && !manualCrop.open); }
 function syncManualMode() {
@@ -410,7 +411,7 @@ function renderCandidateChoices() {
     const selected = selectedCandidate?.id === candidate.id;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'circle-candidate'; button.setAttribute('aria-pressed', String(selected)); button.setAttribute('aria-label', `Circle ${index + 1}${selected ? ', selected' : ''}`);
     const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate, selected);
-    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${candidate.id.endsWith('-center') ? ' · Center fit' : ''}`;
+    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${candidate.id.endsWith('-opposing-rim') ? ' · Rim fit' : ''}`;
     button.append(canvas, label); button.addEventListener('click', () => chooseCandidate(candidate)); fragment.append(button);
   });
   candidateList.append(fragment); refineButton.disabled = candidateBusy || !selectedCandidate; otherButton.disabled = candidateBusy || candidateChoices.length === 0; syncCandidateApply(); requestAnimationFrame(sizeCropStage);
@@ -436,7 +437,7 @@ async function loadCircleCandidates(operation: 'initial' | 'refine' | 'other') {
   candidateBusy = true; renderCandidateChoices(); refineButton.disabled = true; otherButton.disabled = true;
   $('photo-crop-help').textContent = operation === 'refine' ? 'Refining around your selected circle…' : operation === 'other' ? 'Finding other circles…' : 'Finding circle choices…';
   try {
-    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor } : {}), ...(operation === 'refine' && new URLSearchParams(location.search).has('centerFit') ? { centerFit: true } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
+    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor } : {}), ...(operation === 'refine' && experimentalRimFit ? { rimFit: true } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
     if (request !== candidateRequest || session !== candidateSession || bitmap !== cropBitmap || working !== cropWorking) return;
     candidateBusy = false;
     const rows = result.proposal.status === 'accepted' ? result.proposal.candidates as CircleCandidate[] : [];
