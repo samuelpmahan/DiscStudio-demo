@@ -26,7 +26,16 @@ function recordEvidence() {
     receiptReadback: receipt?.readbackMatched === true && receipt?.bagContainsDisc === true,
   };
   if (Object.values(verified).some(value => !value)) throw Error('Saved PxC proof failed: ' + JSON.stringify(verified));
-  window.__dsVisualProof = { fixture: { file: 'deterministic-test-disc-fixture.svg', label: 'TEST FIXTURE ONLY — not a user disc photo' }, savedDiscAddress: discAddress, receiptAddress, pqlReceiptAddress: pqlAddress, bagAddress: receipt.bagAddress, verified };
+  window.__dsVisualProof = { fixture: { file: 'deterministic-test-disc-fixture.svg', label: 'TEST FIXTURE ONLY — not a user disc photo' }, savedDiscAddress: discAddress, receiptAddress, pqlReceiptAddress: pqlAddress, bagAddress: receipt.bagAddress, depictionSrc: entries.get(discAddress)?.value?.depiction?.src, verified };
+}
+function verifyVisibleBagAndFrame() {
+  const proof = window.__dsVisualProof;
+  const bag = document.querySelector('#todays-bag');
+  const rows = [...document.querySelectorAll('#bag-export-list .bag-export-disc')];
+  const matching = rows.find(row => row.textContent.includes('Crave') && row.querySelector('img')?.src === proof.depictionSrc);
+  proof.verified.uiBagMatchesSavedDisc = Boolean(matching);
+  if (!matching) throw Error('Visible Today’s Bag row does not match the saved Disc Part.');
+  bag?.scrollIntoView({ block: 'start' });
 }
 export async function action(page) {
   const fixturePath = path.resolve('visual-proof', 'deterministic-test-disc-fixture.svg');
@@ -49,6 +58,8 @@ export async function action(page) {
   if (!plastic) throw Error('The selected mold has no visible plastic choice.'); await page.select('#plastic', plastic);
   await page.click('#save'); await waitText(page, '#status', 'Saved to Today’s Bag|Added to Today’s Bag');
   await page.evaluate(recordEvidence);
+  await page.waitForFunction(() => document.querySelectorAll('#bag-export-list .bag-export-disc').length > 0);
+  await page.evaluate(verifyVisibleBagAndFrame);
 }
 export async function settle(page) {
   await page.waitForFunction(() => window.__dsVisualProof?.verified?.createProducedSavedDisc === true);
@@ -58,5 +69,11 @@ export async function settle(page) {
   await page.waitForFunction(address => [...document.querySelectorAll('.pxdt [data-view="list"] button')].some(button => button.textContent.includes(address)), {}, receiptAddress);
   await page.evaluate(address => [...document.querySelectorAll('.pxdt [data-view="list"] button')].find(button => button.textContent.includes(address))?.click(), receiptAddress);
   await page.waitForFunction(address => document.querySelector('.pxdt [data-view="title"]')?.textContent === address, {}, receiptAddress);
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.pxdt [data-view="detail"] details')].find(details => details.querySelector('summary')?.textContent?.startsWith('discAddress'));
+    if (!row) throw Error('Save receipt discAddress is not inspectable in drawer.');
+    if (!row.open) row.querySelector('summary')?.click();
+  });
+  await page.waitForFunction(() => [...document.querySelectorAll('.pxdt [data-view="detail"] details')].some(details => details.open && details.querySelector('summary')?.textContent?.startsWith('discAddress')));
 }
 export async function manifest(page) { return page.evaluate(() => window.__dsVisualProof); }
