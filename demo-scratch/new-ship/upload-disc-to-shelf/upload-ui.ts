@@ -321,12 +321,12 @@ let cropRotation = 0;
 let circleFitRequest = 0, circleFitSerial = 0, candidateRequest = 0;
 function invalidateCircleFit() { circleFitRequest++; candidateRequest++; candidateBusy = false; syncCandidateApply(); }
 function cropState(): PhotoCrop { return { centerX: Number(input('crop-center-x').value), centerY: Number(input('crop-center-y').value), radiusX: Number(input('crop-radius-x').value), radiusY: Number(input('crop-radius-y').value), rotation: cropRotation }; }
-function setCrop(next: PhotoCrop, { invalidate = true }: { invalidate?: boolean } = {}) {
+function setCrop(next: PhotoCrop, { invalidate = true, allowEllipse = false }: { invalidate?: boolean; allowEllipse?: boolean } = {}) {
   if (!cropWorking || !cropBitmap) return;
   if (invalidate) invalidateCircleFit();
-  const crop = clampCircleCropSelection(cropBitmap.width, cropBitmap.height, next);
+  const crop = allowEllipse ? clampCropSelection(cropBitmap.width, cropBitmap.height, next) : clampCircleCropSelection(cropBitmap.width, cropBitmap.height, next);
   input('crop-center-x').value = String(crop.centerX); input('crop-center-y').value = String(crop.centerY);
-  cropRotation = 0;
+  cropRotation = crop.rotation;
   input('crop-radius-x').value = String(crop.radiusX); input('crop-radius-y').value = String(crop.radiusY);
   scheduleCropPreview();
 }
@@ -360,7 +360,7 @@ function drawCandidateCutoutPreview(canvas: HTMLCanvasElement, ctx: CanvasRender
   if (!cropBitmap) return;
   const gutter = Math.max(12, Math.round(canvas.width * .05)), size = canvas.width - gutter * 2;
   drawTransparentGutter(ctx, canvas.width);
-  const mapping = circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
+  const mapping = selectedCandidate?.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState()) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
   ctx.save(); ctx.beginPath(); ctx.ellipse(canvas.width / 2, canvas.height / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip();
   ctx.translate(gutter, gutter); drawRotatedCrop(ctx, cropBitmap.image, mapping); ctx.restore();
 }
@@ -391,11 +391,18 @@ function syncManualMode() {
   syncCandidateApply(); requestAnimationFrame(sizeCropStage);
 }
 function candidateCrop(candidate: CircleCandidate) {
-  return cropBitmap ? cropForDetectedCircle(cropBitmap.width, cropBitmap.height, candidate.circle) : null;
+  return cropBitmap ? clampCropSelection(cropBitmap.width, cropBitmap.height, cropForSourceSamples(cropBitmap.width, cropBitmap.height, candidate.ellipse ?? candidate.circle)) : null;
 }
 function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCandidate, selected: boolean) {
   if (!cropWorking || !cropBitmap) return;
   const crop = candidateCrop(candidate); if (!crop) return;
+  if (candidate.ellipse) {
+    drawTransparentGutter(canvas.getContext('2d')!, canvas.width);
+    const context = canvas.getContext('2d')!, gutter = 6, size = canvas.width - 2 * gutter;
+    context.save(); context.beginPath(); context.arc(canvas.width / 2, canvas.height / 2, size / 2, 0, Math.PI * 2); context.clip();
+    context.translate(gutter, gutter); drawRotatedCrop(context, cropBitmap.image, cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop)); context.restore();
+    return;
+  }
   const context = canvas.getContext('2d')!, view = fixedCirclePreviewGeometry(cropBitmap.width, cropBitmap.height, crop, canvas.width);
   context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#dfe5db'; context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(cropWorking, view.imageX, view.imageY, view.imageWidth, view.imageHeight);
@@ -410,7 +417,7 @@ function renderCandidateChoices() {
     const selected = selectedCandidate?.id === candidate.id;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'circle-candidate'; button.setAttribute('aria-pressed', String(selected)); button.setAttribute('aria-label', `Circle ${index + 1}${selected ? ', selected' : ''}`);
     const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate, selected);
-    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${candidate.id.endsWith('-opposing-rim') ? ' · Rim fit' : ''}`;
+    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${candidate.ellipse ? ' · Tilt repair' : candidate.id.endsWith('-opposing-rim') ? ' · Rim fit' : ''}`;
     button.append(canvas, label); button.addEventListener('click', () => chooseCandidate(candidate)); fragment.append(button);
   });
   candidateList.append(fragment); refineButton.disabled = candidateBusy || !selectedCandidate; otherButton.disabled = candidateBusy || candidateChoices.length === 0; syncCandidateApply(); requestAnimationFrame(sizeCropStage);
@@ -418,7 +425,7 @@ function renderCandidateChoices() {
 function clearCandidateSelection() { if (!selectedCandidate) return; selectedCandidate = null; renderCandidateChoices(); }
 function chooseCandidate(candidate: CircleCandidate) {
   const crop = candidateCrop(candidate); if (!crop) return;
-  invalidateCircleFit(); manualCrop.open = false; syncManualMode(); selectedCandidate = candidate; setCrop(crop, { invalidate: false }); renderCandidateChoices();
+  invalidateCircleFit(); manualCrop.open = false; selectedCandidate = candidate; syncManualMode(); setCrop(crop, { invalidate: false, allowEllipse: !!candidate.ellipse }); renderCandidateChoices();
   $('photo-crop-help').textContent = 'Circle selected. Refine choice stays near it, or use this circle as-is.';
 }
 function resetCandidateChoices() {
@@ -508,7 +515,7 @@ function startOverCircleChoices() {
 $('crop-auto').addEventListener('click', startOverCircleChoices);
 refineButton.addEventListener('click', () => loadCircleCandidates('refine'));
 otherButton.addEventListener('click', () => loadCircleCandidates('other'));
-manualCrop.addEventListener('toggle', () => { if (manualCrop.open) invalidateCircleFit(); syncManualMode(); }); syncManualMode();
+manualCrop.addEventListener('toggle', () => { if (manualCrop.open) { invalidateCircleFit(); if (selectedCandidate?.ellipse) { clearCandidateSelection(); setCrop(cropState(), { invalidate: false }); } } syncManualMode(); }); syncManualMode();
 function discardPendingPhoto() {
   endCropGesture(); invalidateCircleFit(); candidateSession = null; resetCandidateChoices(); manualCrop.open = false; syncManualMode();
   if (cropBitmap) cropBitmap.dispose(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
@@ -558,7 +565,7 @@ $('crop-apply').addEventListener('click', async () => {
     const bitmap = cropBitmap, fileName = cropFile.name, size = Math.min(1024, Math.max(256, Math.min(bitmap.width, bitmap.height)));
     const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
     invalidateCircleFit();
-    const ctx = canvas.getContext('2d')!, mapping = circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
+    const ctx = canvas.getContext('2d')!, mapping = selectedCandidate?.ellipse && !manualCrop.open ? cropExportMapping(bitmap.width, bitmap.height, size, cropState()) : circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
     ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, mapping); ctx.restore();
     const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
     await experience.addDraftPhoto(photoDepiction);
