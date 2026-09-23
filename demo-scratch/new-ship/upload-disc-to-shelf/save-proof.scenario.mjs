@@ -34,6 +34,9 @@ export async function action(page) {
   const photo = await page.$('#photo'); if (!photo) throw Error('Photo input was not mounted.');
   await photo.uploadFile(fixturePath);
   await page.waitForSelector('#photo-crop[open]');
+  // A test fixture does not claim to be a detected real disc. Use the visible
+  // manual-crop disclosure, then the same Apply control a creator uses.
+  await page.click('#crop-manual summary');
   await page.waitForFunction(() => !document.querySelector('#crop-apply')?.disabled, { timeout: 15000 });
   await page.click('#crop-apply'); await page.waitForFunction(() => !document.querySelector('#photo-crop')?.open);
   await waitText(page, '#photo-status', 'Photo ready');
