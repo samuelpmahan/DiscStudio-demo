@@ -4,7 +4,7 @@ import { cropForSourceSamples } from './crop-geometry.ts';
 export type DiscCircle = { x: number; y: number; radius: number; confidence: number };
 type Raster = { width: number; height: number; rgba: Uint8ClampedArray };
 export type CircleCandidate = { id: string; circle: DiscCircle; score: number };
-export type CircleCandidateRequest = { operation: 'initial' | 'refine' | 'other'; selected?: CircleCandidate; excluded?: readonly CircleCandidate[] };
+export type CircleCandidateRequest = { operation: 'initial' | 'refine' | 'other'; selected?: CircleCandidate; excluded?: readonly CircleCandidate[]; centerFit?: boolean };
 export type CircleCandidateSession = { photoIntake: string; serial: number };
 
 type CircleCropHelpers = {
@@ -125,10 +125,22 @@ export function ensureCircleCandidateCalculations(pxc: any, helpers: CircleCropH
           : [];
     return Object.freeze({ schema: 'CircleCandidates@1', status: rows.length ? 'accepted' : 'abstained', operation, candidates: rows, reason: rows.length ? null : 'no-distinct-supported-circles' });
   }));
-  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence }: any) => {
+  if (!names.has('oc.studio.centerCircleFit')) pxc.set('oc.studio.centerCircleFit', new Part(async ({ photo, evidence }: any) => {
+    const { fitCircleCenter } = await import('./exp/center-circle-fit.ts');
+    return fitCircleCenter(photo.source, evidence.candidates?.[0]);
+  }));
+  if (!names.has('fn.studio.circleCandidateCrops')) pxc.set('fn.studio.circleCandidateCrops', new Part(({ photo, evidence, centerFit }: any) => {
     if (evidence.status !== 'accepted') return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'abstained', candidates: [], reason: evidence.reason });
-    const candidates = evidence.candidates.map((entry: CircleCandidate) => Object.freeze({ ...entry, crop: helpers.clampCropSelection(photo.source.width, photo.source.height, cropForSourceSamples(photo.source.width, photo.source.height, entry.circle)) }));
-    return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'accepted', candidates });
+    const rows = [...evidence.candidates];
+    // This is a sibling derivation of the selected semantic circle. Keep the
+    // selected choice and supported small trim; spend the remaining slot on
+    // the experimental centre correction only when that Calculation accepts.
+    if (evidence.operation === 'refine' && centerFit?.status === 'accepted' && centerFit.candidate) {
+      if (rows.length < 3) rows.push(centerFit.candidate);
+      else rows[2] = centerFit.candidate;
+    }
+    const candidates = rows.map((entry: CircleCandidate) => Object.freeze({ ...entry, crop: helpers.clampCropSelection(photo.source.width, photo.source.height, cropForSourceSamples(photo.source.width, photo.source.height, entry.circle)) }));
+    return Object.freeze({ schema: 'CircleCandidateCrops@1', status: 'accepted', candidates, ...(centerFit ? { centerFit: { status: centerFit.status, reason: centerFit.reason ?? null, originalSupport: centerFit.originalSupport, proposedSupport: centerFit.proposedSupport } } : {}) });
   }));
 }
 
@@ -149,10 +161,13 @@ export function createCircleCandidateSession(pxc: any, source: CanvasImageSource
 /** Compose a small round request against the upload's retained transient raster. */
 export async function composeCircleCandidateChoices(pxc: any, session: CircleCandidateSession, serial: number, request: CircleCandidateRequest) {
   const requestPart = `ds.px.CircleCandidateRequest.circlefit.${session.serial}.${serial}`, candidates = `ds.px.CircleCandidates.circlefit.${session.serial}.${serial}`, cropChoices = `ds.px.CircleCandidateCrops.circlefit.${session.serial}.${serial}`;
-  pxc.set(requestPart, new Part(Object.freeze({ operation: request.operation, ...(request.selected ? { selected: request.selected } : {}), ...(request.excluded?.length ? { excluded: [...request.excluded] } : {}) })));
+  pxc.set(requestPart, new Part(Object.freeze({ operation: request.operation, ...(request.selected ? { selected: request.selected } : {}), ...(request.excluded?.length ? { excluded: [...request.excluded] } : {}), ...(request.centerFit ? { centerFit: true } : {}) })));
   await pxc.compose({ into: candidates, calculation: 'oc.studio.circleCandidates', inputs: { photo: session.photoIntake, request: requestPart } });
-  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates } });
-  return { requestPart, candidates, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
+  const centerFit = request.operation === 'refine' && request.centerFit && pxc.get(candidates).value.status === 'accepted'
+    ? `ds.px.CircleCenterFit.circlefit.${session.serial}.${serial}` : null;
+  if (centerFit) await pxc.compose({ into: centerFit, calculation: 'oc.studio.centerCircleFit', inputs: { photo: session.photoIntake, evidence: candidates } });
+  await pxc.compose({ into: cropChoices, calculation: 'fn.studio.circleCandidateCrops', inputs: { photo: session.photoIntake, evidence: candidates, ...(centerFit ? { centerFit } : {}) } });
+  return { requestPart, candidates, centerFit, cropChoices, evidence: pxc.get(candidates).value, proposal: pxc.get(cropChoices).value };
 }
 
 export async function composeCircleFitCrop(pxc: any, source: CanvasImageSource, sourceWidth: number, sourceHeight: number, working: HTMLCanvasElement, serial: number, helpers: CircleCropHelpers) {
