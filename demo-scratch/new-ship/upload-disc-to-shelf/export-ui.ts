@@ -5,7 +5,7 @@ import type { createExperience } from './model.ts';
 
 const PRESETS: { id: CardPreset; orientation: CardOrientation; name: string }[] = [
   { id: 'u01', orientation: 'vertical', name: 'U01 · Compact scorebug' }, { id: 'u02', orientation: 'vertical', name: 'U02 · Editorial disc card' },
-  { id: 'b01', orientation: 'horizontal', name: 'B01 · Hero rail' }, { id: 'b02', orientation: 'horizontal', name: 'B02 · Split nameplate' },
+  { id: 'b01', orientation: 'horizontal', name: 'B01 · Breakout hero' }, { id: 'b02', orientation: 'horizontal', name: 'B02 · Studio two-column' },
 ];
 
 type Experience = ReturnType<typeof createExperience>;

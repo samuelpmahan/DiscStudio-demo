@@ -598,52 +598,60 @@ function drawQuietLine(ctx: any, text: string, x: number, y: number, px = 40) {
   ctx.fillText(text, x, y);
 }
 
-/** B01 Pop Color Eject (VALORANT Game Changers) — CORNER CARD.
- * Small rail in the bottom-left corner. The disc breaks out: tilted 12 deg,
- * crossing the rail's top and right edges. One loud color (acid), used once
- * as the rail's left edge. ASYMMETRY · MAXIMAL HERO · ONE LOUD COLOR */
+/** B01: compact breakout hero rail. The tilted disc sits beyond the text. */
 async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  // Card footprint: bottom-left, 620x380.
   const cx0 = 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
-  // Defended type zone: scrim behind the card only, fading right.
-  scrimH(ctx, cx0, cy0, cw + 140, ch);
+  ctx.fillStyle = NIGHT94;
+  ctx.fillRect(cx0, cy0, cw, ch);
   ctx.fillStyle = ACID;
   ctx.fillRect(cx0, cy0, 6, ch);
-  // Hero breaks out: 12-degree tilt, crossing the card's top-right corner.
-  await drawHeroDisc(environment, ctx, rd.photoSrc, cx0 + cw + 40, cy0 - 60, 420,
-    { tiltDeg: 12, rim: 'rgba(255,255,255,0.9)', rimWidth: 8 });
-  // Type stays inside the card.
+  // The dark perimeter survives pale discs on white video. Keep the circle
+  // beyond the name's reserved area, including long manufacturer/mold names.
+  await drawHeroDisc(environment, ctx, rd.photoSrc, cx0 + cw + 157, cy0 - 60, 420,
+    { tiltDeg: 12, rim: '#19382f', rimWidth: 10 });
   const nx = cx0 + 36;
-  drawPresetName(ctx, rd.moldName, nx, cy0 + 132, cw - 72, 104);
+  if (rd.manufacturer) {
+    ctx.fillStyle = MINT;
+    fitFont(ctx, rd.manufacturer.toUpperCase(), cw - 72, 700, 30, DISPLAY);
+    ctx.fillText(rd.manufacturer.toUpperCase(), nx, cy0 + 80);
+  }
+  drawPresetName(ctx, rd.moldName, nx, cy0 + 168, cw - 72, 104);
   const pw = plasticWeightLine(rd);
-  if (pw) drawQuietLine(ctx, pw, nx, cy0 + 182, 34);
-  drawTilesRow(ctx, flightTiles(rd), nx, cy0 + 212, 62, 14, 36);
+  if (pw) drawQuietLine(ctx, pw, nx, cy0 + 228, 34);
+  drawTilesRow(ctx, flightTiles(rd), nx, cy0 + 260, 62, 14, 36);
 }
 presetRenderers.b01 = renderB01;
 
-/** B02 Smoky Fade Slab (2024 Topps) — CORNER CARD.
- * Compact slab in the bottom-left. The disc's rim tucks under the name's
- * trailing letter: three depth layers (scrim, disc, name over rim).
- * DISCLEGIBILITY · THREE DEPTH LAYERS · GRADIENT NOT BOX */
+/** B02: a contained two-column card; the disc and text have separate homes. */
 async function renderB02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  // Card footprint: bottom-left, 600x360.
-  const cx0 = 48, cy0 = HH - 48 - 360, cw = 600, ch = 360;
-  // Layer 1: smoky gradient slab, card-sized, fading up and right.
-  scrimV(ctx, cx0 - 20, cy0 - 60, cw + 160, ch + 60);
-  const nx = cx0 + 36;
-  // Layer 2: hero at the card's top-right; its left rim tucks under the
-  // name's trailing letter (name drawn after = on top).
-  ctx.font = `800 120px ${DISPLAY}`;
-  const nameW = Math.min(ctx.measureText(rd.moldName.toUpperCase()).width, cw - 200);
-  const d = 380;
-  const dcx = nx + nameW + 130; // left rim lands ~60px under the name's end
-  await drawHeroDisc(environment, ctx, rd.photoSrc, dcx, cy0 + 30, d,
-    { rim: 'rgba(255,255,255,0.9)', rimWidth: 8 });
-  // Layer 3: name rides over the rim; stats stay defended below.
-  drawPresetName(ctx, rd.moldName, nx, cy0 + 118, cw - 72, 120);
+  const left = 48, top = HH - 48 - 384, width = 1130, height = 384;
+  ctx.fillStyle = NIGHT94;
+  ctx.fillRect(left, top, width, height);
+  await drawHeroDisc(environment, ctx, rd.photoSrc, left + 206, top + height / 2, 330,
+    { rim: '#19382f', rimWidth: 10 });
+  ctx.fillStyle = MINT;
+  ctx.fillRect(left + 410, top + 36, 4, height - 72);
+
+  const nx = left + 450, available = width - 492;
+  if (rd.manufacturer) {
+    ctx.fillStyle = MINT;
+    fitFont(ctx, rd.manufacturer.toUpperCase(), available, 700, 32, DISPLAY);
+    ctx.fillText(rd.manufacturer.toUpperCase(), nx, top + 82);
+  }
+  drawPresetName(ctx, rd.moldName, nx, top + 176, available, 100);
   const pw = plasticWeightLine(rd);
-  if (pw) drawQuietLine(ctx, pw, nx, cy0 + 168, 34);
-  drawTilesRow(ctx, flightTiles(rd), nx, cy0 + 198, 62, 14, 36);
+  if (pw) drawQuietLine(ctx, pw, nx, top + 236, 34);
+  const labels = ['SPEED', 'GLIDE', 'TURN', 'FADE'];
+  flightTiles(rd).forEach((value, index) => {
+    const bx = nx + index * 131;
+    ctx.fillStyle = '#263c32';
+    ctx.fillRect(bx, top + 266, 118, 88);
+    ctx.fillStyle = '#b7d6bf'; ctx.font = `700 20px ${FONT_STACK}`;
+    ctx.fillText(labels[index], bx + 10, top + 291);
+    ctx.fillStyle = INK;
+    fitFont(ctx, value, 100, 800, 48);
+    ctx.fillText(value, bx + 10, top + 341);
+  });
 }
 presetRenderers.b02 = renderB02;
 
