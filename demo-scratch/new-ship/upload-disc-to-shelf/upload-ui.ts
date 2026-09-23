@@ -124,6 +124,7 @@ export async function mountUpload({ root, experience, onSaved = (_address: strin
 const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
 const input = (id: string) => $(id) as HTMLInputElement;
 const discView = createDiscView(experience);
+const intakeFull = () => Boolean(experience.intakeAddress && experience.intake().length >= 4);
 // A fresh photo-first experience has no draft photo. Keep a valid painter
 // fallback only for the local preview; saving remains disabled until a photo
 // has been cropped and retained.
@@ -140,8 +141,8 @@ function photoDraftView(image: Depiction) {
 }
 function nextUploadView() {
   const figure = document.createElement('figure');
-  const title = document.createElement('h3'); title.textContent = 'Add another disc';
-  const note = document.createElement('p'); note.textContent = 'Added to Today’s Bag.';
+  const title = document.createElement('h3'); title.textContent = intakeFull() ? 'Four discs ready' : 'Add another disc';
+  const note = document.createElement('p'); note.textContent = intakeFull() ? 'Choose up to four cards and download the ZIP.' : 'Disc ready for card design.';
   figure.append(title, note); return figure;
 }
 function resetPaintSeed() { input('paint-seed').value = String(recipeFromDraft(initialDraft(), painting).seed); }
@@ -208,7 +209,7 @@ function preview() {
   if (savedPhotoConsumed && !photo) {
    $('flight').textContent = ''; $('depiction-name').textContent = '';
    $('preview').replaceChildren(nextUploadView());
-   input('photo').disabled = photoBusy; input('save').disabled = true;
+   input('photo').disabled = photoBusy || intakeFull(); input('save').disabled = true;
    return;
   }
   if (!material.mold) {
@@ -216,12 +217,12 @@ function preview() {
    $('depiction-name').textContent = photo ? photo.name : '';
    $('preview').replaceChildren(...(photo ? [photoDraftView(photo)] : savedPhotoConsumed ? [nextUploadView()] : []));
    input('plastic').disabled = true;
-   input('photo').disabled = photoBusy;
+   input('photo').disabled = photoBusy || intakeFull();
    input('save').disabled = true;
    return;
   }
   const resolved = experience.resolve(material);
-  input('photo').disabled = photoBusy;
+  input('photo').disabled = photoBusy || intakeFull();
   $('flight').textContent = `FLIGHT  ${flightFields.map(field => resolved[field] ?? '?').join(' / ')}`;
   for (const field of flightFields) input(`disc-${field}`).placeholder = String(experience.seedAt(material.mold)[field] ?? 'Unknown');
   $('depiction-name').textContent = depiction.name.replaceAll('-', ' ');
@@ -259,7 +260,8 @@ function suggestPlastics() {
   const link = $('plastic-source') as HTMLAnchorElement; link.href = guide.source; link.textContent = `${seed.manufacturer} plastic guide`; link.hidden = !guide.source;
 }
 function updateSaveState() {
- input('save').disabled = photoBusy || !photo || input('plastic').disabled || !input('seed').value;
+ input('save').disabled = photoBusy || intakeFull() || !photo || input('plastic').disabled || !input('seed').value;
+ input('photo').disabled = photoBusy || intakeFull();
 }
 ['change', 'input'].forEach(event => input('plastic').addEventListener(event, updateSaveState));
 input('mold-search').addEventListener('focus', () => renderSeedChoices(''));
@@ -573,20 +575,15 @@ $('composer').addEventListener('submit', async event => {
     const material = draft();
     const address = await experience.save(material, depiction, { photo });
     onSaved(address);
-    const storage = experience.persistenceStatus;
-    $('status').textContent = storage.startsWith('Saved in this session archive')
-      ? 'Saved to Today’s Bag.'
-      : `Added to Today’s Bag. ${storage}`;
+    $('status').textContent = experience.intakeAddress ? `${experience.intake().length} of 4 discs ready for cards.` : 'Saved to Today’s Bag.';
     input('photo').value = '';
     for (const field of flightFields) { input(`own-${field}`).checked = false; input(`disc-${field}`).value = ''; input(`disc-${field}`).disabled = true; }
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
     depiction = painting; photo = null; savedPhotoConsumed = true;
-    $('photo-status').textContent = storage.startsWith('Saved in this session archive')
-      ? 'Photo saved to Today’s Bag.'
-      : 'Photo added for this session only.';
+    $('photo-status').textContent = experience.intakeAddress ? (intakeFull() ? 'Four discs ready. Choose designs and export.' : 'Photo ready for this tab only.') : 'Photo saved to Today’s Bag.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();
-  } catch (error) { $('status').textContent = `Not saved: ${String(error)}`; }
+  } catch (error) { $('status').textContent = `Disc not added: ${String(error)}`; }
   finally { updateSaveState(); }
 });
 input('Color1').value = defaults.Color1; input('Color2').value = defaults.Color2; resetPaintSeed(); suggestPlastics(); preview();

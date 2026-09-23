@@ -134,21 +134,23 @@ export async function reviseScratch(pxc, source, value) {
   return address;
 }
 
-// Semantic projection of one actual creator Save receipt. It borrows only live
-// Parts, retained compositions, and execution receipts; it never replays Save.
+// Semantic projection of one actual creator receipt. It borrows live Parts,
+// retained compositions and execution receipts; it never replays intake.
 export function summarizeSaveReceipt(pxc, receiptAddress, receiptPart = pxc.get(receiptAddress)) {
   const receipt = receiptPart?.value;
-  if (!/^ds\.px\.receipt\.save-/.test(receiptAddress) || receipt?.event !== 'disc.save.completed') return null;
+  const intakeOnly = /^ds\.px\.receipt\.intake-/.test(receiptAddress) && receipt?.event === 'disc.intake.completed';
+  if (!intakeOnly && (!/^ds\.px\.receipt\.save-/.test(receiptAddress) || receipt?.event !== 'disc.save.completed')) return null;
   const entries = new Map(pxc.entries()), addressOf = part => [...entries].find(([, candidate]) => candidate === part)?.[0] ?? null;
   const get = address => { try { return typeof address === 'string' ? pxc.get(address) : null; } catch { return null; } };
-  const disc = get(receipt.discAddress), mold = get(disc?.value?.mold), bag = get(receipt.bagAddress);
+  const collectionAddress = intakeOnly ? receipt.intakeAddress : receipt.bagAddress;
+  const disc = get(receipt.discAddress), mold = get(disc?.value?.mold), bag = get(collectionAddress);
   const produced = pxc.receipts().filter(row => row.status === 'produced');
   const create = produced.find(row => row.into === receipt.discAddress && row.composition.calculation === get('fn.CREATE'));
-  const previousBag = bag?.composition?.inputs?.bag;
+  const previousBag = bag?.composition?.inputs?.[intakeOnly ? 'collection' : 'bag'];
   const before = Array.isArray(previousBag?.value) ? previousBag.value : null;
   const after = Array.isArray(bag?.value) ? bag.value : null;
   const added = before && after ? after.filter(address => !before.includes(address)) : [];
-  const bagVerified = Boolean(before && after && create && after.length === before.length + 1 && added.length === 1 && added[0] === receipt.discAddress && after.includes(receipt.discAddress));
+  const bagVerified = Boolean(before && after && create && bag?.composition?.calculation === get(intakeOnly ? 'fn.addReference' : 'fn.addToBag') && after.length === before.length + 1 && added.length === 1 && added[0] === receipt.discAddress && after.includes(receipt.discAddress));
   const operationId = receipt.operationId, pqlAddress = 'ds.px.receipt.pql.' + operationId, pql = get(pqlAddress)?.value;
   const compareRead = source => {
     const testimony = Array.isArray(pql) && pql.find(row => row?.calculation === 'fn.READ' && row?.boundAddresses?.source === source);
@@ -157,16 +159,17 @@ export function summarizeSaveReceipt(pxc, receiptAddress, receiptPart = pxc.get(
     return { source, into: testimony?.into ?? null, testimony: Boolean(testimony), execution: Boolean(execution), matches: Boolean(execution && sourcePart && outputPart && Object.is(outputPart.value, sourcePart.value)) };
   };
   const discRead = compareRead(receipt.discAddress);
-  const shelfRead = compareRead(receipt.shelfAddress);
+  const shelfRead = compareRead(intakeOnly ? collectionAddress : receipt.shelfAddress);
   const pqlCreate = Array.isArray(pql) && pql.some(row => row?.calculation === 'fn.CREATE' && row?.boundAddresses?.target === receipt.discAddress);
-  const flagsVerified = receipt.readbackMatched === true && receipt.shelfContainsDisc === true && receipt.bagContainsDisc === true;
+  const flagsVerified = receipt.readbackMatched === true && (intakeOnly ? receipt.intakeContainsDisc === true : receipt.shelfContainsDisc === true && receipt.bagContainsDisc === true);
   const readVerified = Boolean(pqlCreate && discRead.testimony && discRead.execution && discRead.matches && shelfRead.testimony && shelfRead.execution && shelfRead.matches && flagsVerified);
   return Object.freeze({
-    title: 'Saved ' + (mold?.value?.manufacturer ?? 'Unknown') + ' ' + (mold?.value?.name ?? 'disc'),
+    kind: intakeOnly ? 'intake' : 'save',
+    title: (intakeOnly ? 'Prepared ' : 'Saved ') + (mold?.value?.manufacturer ?? 'Unknown') + ' ' + (mold?.value?.name ?? 'disc'),
     discAddress: receipt.discAddress, moldAddress: disc?.value?.mold ?? null,
     create: Object.freeze({ into: create?.into ?? null, calculationAddress: addressOf(get('fn.CREATE')), verified: Boolean(create) }),
-    bag: Object.freeze({ beforeAddress: addressOf(previousBag), afterAddress: receipt.bagAddress, beforeCount: before?.length ?? null, afterCount: after?.length ?? null, added: Object.freeze(added), verified: bagVerified }),
-    readback: Object.freeze({ pqlAddress, disc: Object.freeze(discRead), shelf: Object.freeze(shelfRead), receiptFlags: Object.freeze({ readbackMatched: receipt.readbackMatched === true, shelfContainsDisc: receipt.shelfContainsDisc === true, bagContainsDisc: receipt.bagContainsDisc === true }), verified: readVerified }),
+    bag: Object.freeze({ beforeAddress: addressOf(previousBag), afterAddress: collectionAddress, beforeCount: before?.length ?? null, afterCount: after?.length ?? null, added: Object.freeze(added), verified: bagVerified }),
+    readback: Object.freeze({ pqlAddress, disc: Object.freeze(discRead), shelf: Object.freeze(shelfRead), receiptFlags: Object.freeze({ readbackMatched: receipt.readbackMatched === true, shelfContainsDisc: receipt.shelfContainsDisc === true, bagContainsDisc: receipt.bagContainsDisc === true, intakeContainsDisc: receipt.intakeContainsDisc === true }), verified: readVerified }),
     verified: Boolean(create && bagVerified && readVerified),
   });
 }

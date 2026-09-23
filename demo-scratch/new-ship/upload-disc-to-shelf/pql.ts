@@ -56,6 +56,7 @@ function requireExecutablePlan(plan: PqlPlan) {
 export const creatorPqlPlans = Object.freeze({
   createDisc: Object.freeze({ id: 'discstudio.creator.create-disc.v1', template: 'INSERT INTO :target VALUES :value', operation: 'INSERT' as const, calculation: 'fn.CREATE' as const }),
   readDisc: Object.freeze({ id: 'discstudio.creator.read-disc.v1', template: 'SELECT * FROM :source', operation: 'SELECT' as const, calculation: 'fn.READ' as const }),
+  readIntake: Object.freeze({ id: 'discstudio.creator.read-intake.v1', template: 'SELECT * FROM :source', operation: 'SELECT' as const, calculation: 'fn.READ' as const }),
   readShelf: Object.freeze({ id: 'discstudio.creator.read-shelf.v1', template: 'SELECT * FROM :source', operation: 'SELECT' as const, calculation: 'fn.READ' as const }),
 });
 

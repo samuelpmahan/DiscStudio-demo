@@ -34,7 +34,9 @@ function checkDraft(draft: Draft) {
   for (const color of [draft.Color1, draft.Color2]) if (!/^#[\da-f]{6}$/i.test(color)) throw new Error('Choose two valid colors.');
   if (!['split', 'halo'].includes(draft.paintMode) || typeof draft.colorPainting !== 'boolean') throw new Error('Choose a paint mode and color setting.');
 }
-export function createExperience(log: (event: Record<string, unknown>) => void = event => console.info(JSON.stringify(event)), options: { state?: State; persist?: (state: State) => void; status?: () => string } = {}) {
+export function createExperience(log: (event: Record<string, unknown>) => void = event => console.info(JSON.stringify(event)), options: { state?: State; persist?: (state: State) => void; status?: () => string; intakeOnly?: boolean } = {}) {
+  const intakeOnly = options.intakeOnly === true;
+  if (intakeOnly && (options.state || options.persist)) throw Error('An intake-only demo cannot restore or persist a shelf.');
   const pxc = options.state?.pxc ?? new PxC();
   if (!options.state) {
   // Lite install: id, manufacturer, name only. Flight numbers lazy on selection.
@@ -69,16 +71,18 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     if (!disc.id || bag.includes(reference)) throw new Error('Disc is already in the bag.');
     return Object.freeze([...bag, reference]);
   }));
-  pxc.set('ds.px.shelf.0', new Part(Object.freeze([])));
-  // MVP: the bag is the primary collection. Shelf is retained for legacy.
-  pxc.set('ds.px.bag.0', new Part(Object.freeze([])));
+  if (intakeOnly) pxc.set('ds.px.intake.0', new Part(Object.freeze([])));
+  else {
+    pxc.set('ds.px.shelf.0', new Part(Object.freeze([])));
+    pxc.set('ds.px.bag.0', new Part(Object.freeze([])));
+  }
   pxc.set('ds.px.output.queue.0', new Part(Object.freeze([])));
   }
   let shelfAddress = options.state?.shelfAddress ?? 'ds.px.shelf.0', serial = options.state?.serial ?? 0;
-  let bagAddress = options.state?.bagAddress ?? 'ds.px.bag.0';
+  let bagAddress = options.state?.bagAddress ?? (intakeOnly ? 'ds.px.intake.0' : 'ds.px.bag.0');
   if (!pxc.entries().some(([name]: [string, unknown]) => name === bagAddress)) pxc.set(bagAddress, new Part(Object.freeze([])));
   let bagsAddress = options.state?.bagsAddress ?? 'ds.px.bags.0';
-  if (!pxc.entries().some(([name]: [string, unknown]) => name === bagsAddress)) pxc.set(bagsAddress, new Part(Object.freeze([])));
+  if (!intakeOnly && !pxc.entries().some(([name]: [string, unknown]) => name === bagsAddress)) pxc.set(bagsAddress, new Part(Object.freeze([])));
   // Output is deliberately current-session material. It is represented in PxC
   // for calculated provenance, but a fresh launch never restores it into the
   // creator flow.
@@ -134,6 +138,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     get persistenceStatus() { return options.status?.() ?? 'Session only · reload starts fresh.'; },
     get shelfAddress() { return shelfAddress; },
     get bagAddress() { return bagAddress; },
+    get intakeAddress() { return intakeOnly ? bagAddress : null; },
     get bagsAddress() { return bagsAddress; },
     get outputQueueAddress() { return outputQueueAddress; },
     seedOptions(query = ''): { address: string; seed: Mold }[] {
@@ -279,6 +284,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     async enqueueOutput(cards: readonly QueuedCard[]) {
       const held = queueCards(cards);
       if (!held.length) throw Error('Select at least one disc before adding output.');
+      if (intakeOnly && this.outputQueue().length + held.length > 4) throw Error('This demo exports at most four cards. Remove a queued card to make room.');
       const operationId = `enqueue-${++serial}`, cardsAddress = `ds.px.output.cards.${operationId}`, next = `ds.px.output.queue.${operationId}`;
       pxc.set(cardsAddress, new Part(held));
       await pxc.compose({ into: next, calculation: 'fn.appendOutputQueue', inputs: { queue: outputQueueAddress, cards: cardsAddress } });
@@ -311,10 +317,11 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     async save(draft: Draft, depiction: Depiction, sources: DepictionSources = {}) {
       if (saving) throw new Error('A save is already in progress.');
       saving = true;
-      const operationId = `save-${++serial}`;
+      const operationId = `${intakeOnly ? 'intake' : 'save'}-${++serial}`;
       let discAddress = '', discId = '';
-      const nextShelf = `ds.px.shelf.${operationId}`, nextBag = `ds.px.bag.${operationId}`;
+      const nextShelf = `ds.px.shelf.${operationId}`, nextBag = `ds.px.${intakeOnly ? 'intake' : 'bag'}.${operationId}`;
       try {
+        if (intakeOnly && (pxc.get(bagAddress).value as string[]).length >= 4) throw Error('This demo accepts at most four discs. Export your cards before starting again.');
         checkDraft(draft);
         if (depiction.kind !== 'photo') throw new Error('Demo is photo-only. Upload a photo.');
         if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(depiction.src)) throw new Error('Invalid prepared photo.');
@@ -356,38 +363,42 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
           ] },
           ...(recipe ? [{ into: `ds.px.tick.${operationId}.recipe`, calculations: [{ into: recipeAddress, calculation: 'fn.paintRecipe', inputs: { recipe: new Part(recipe) } }] }] : []),
           { into: `ds.px.tick.${operationId}.depict`, calculations: [{ into: artAddress, calculation: 'fn.renderDepiction', inputs: { recipe: recipeAddress, photo: photoAddress, choice: choiceAddress, seed: draft.mold } }] },
-          { into: `ds.px.tick.${operationId}.retain`, calculations: [
-            { into: nextShelf, calculation: 'fn.addToShelf', inputs: { shelf: shelfAddress, reference: new Part(discAddress), disc: discAddress } },
-            { into: nextBag, calculation: 'fn.addToBag', inputs: { bag: bagAddress, reference: new Part(discAddress), disc: discAddress } },
-          ] },
+          { into: `ds.px.tick.${operationId}.retain`, calculations: intakeOnly
+            ? [{ into: nextBag, calculation: 'fn.addReference', inputs: { collection: bagAddress, reference: new Part(discAddress), value: discAddress } }]
+            : [
+              { into: nextShelf, calculation: 'fn.addToShelf', inputs: { shelf: shelfAddress, reference: new Part(discAddress), disc: discAddress } },
+              { into: nextBag, calculation: 'fn.addToBag', inputs: { bag: bagAddress, reference: new Part(discAddress), disc: discAddress } },
+            ] },
         ];
         pxc.set(`ds.px.stage.${operationId}`, new Part(Object.freeze(stage)));
         for await (const _boundary of runStage(pxc, stage.slice(1))) { /* Boundary Parts are inspectable in DevTools. */ }
         const discReadback = `ds.px.pql.${operationId}.disc`;
-        const shelfReadback = `ds.px.pql.${operationId}.shelf`;
+        const shelfReadback = `ds.px.pql.${operationId}.${intakeOnly ? 'intake' : 'shelf'}`;
         pql.push(await executePqlPlan(pxc, creatorPqlPlans.readDisc, { source: discAddress, into: discReadback }));
-        pql.push(await executePqlPlan(pxc, creatorPqlPlans.readShelf, { source: nextShelf, into: shelfReadback }));
+        pql.push(await executePqlPlan(pxc, intakeOnly ? creatorPqlPlans.readIntake : creatorPqlPlans.readShelf, { source: intakeOnly ? nextBag : nextShelf, into: shelfReadback }));
         pxc.set(`ds.px.receipt.pql.${operationId}`, new Part(Object.freeze(pql)));
         const disc = pxc.get(discAddress).value as Disc;
         const shelf = pxc.get(shelfReadback).value as string[];
         const bag = pxc.get(nextBag).value as string[];
         const expected = { ...draft, id: discId, depiction, paintRecipe: recipeAddress, photo: photoAddress, choice: choiceAddress, art: artAddress };
         if (JSON.stringify(pxc.get(discReadback).value) !== JSON.stringify(expected) || !shelf.includes(discAddress)) throw new Error('Save readback failed.');
-        if (!bag.includes(discAddress)) throw new Error('Bag readback failed.');
-        const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discId, discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), pql: pql.map(entry => ({ operation: entry.operation, calculation: entry.calculation, into: entry.into })), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
+        if (!bag.includes(discAddress)) throw new Error(intakeOnly ? 'Intake readback failed.' : 'Bag readback failed.');
+        const receipt = Object.freeze({ event: intakeOnly ? 'disc.intake.completed' : 'disc.save.completed', operationId, calculation: intakeOnly ? 'fn.addReference' : 'fn.addToShelf', discId, discAddress,
+          ...(intakeOnly ? { intakeAddress: nextBag, intakeContainsDisc: true } : { shelfAddress: nextShelf, bagAddress: nextBag, shelfContainsDisc: true, bagContainsDisc: true }),
+          artAddress, ticks: stage.map(tick => tick.into), pql: pql.map(entry => ({ operation: entry.operation, calculation: entry.calculation, into: entry.into })), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, storage: 'session-memory' });
         pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
-        persist(nextShelf, currentSeeds, bagsAddress, nextBag);
+        if (!intakeOnly) persist(nextShelf, currentSeeds, bagsAddress, nextBag);
         // Do not consume a retryable draft until a save has either reached the
         // durable archive or been explicitly accepted as this-tab-only work.
         // Unexpected persistence failures still leave the photo retryable.
         const photoKeys = [...pxc.entries()].filter(([name]) => name.startsWith('ds.px.draft.photos.')).map(([name]) => name);
         if (photoKeys.length > 0) pxc.set(`ds.px.draft.consumedPhotos.${operationId}`, new Part(Object.freeze(photoKeys)));
-        shelfAddress = nextShelf;
+        if (!intakeOnly) shelfAddress = nextShelf;
         bagAddress = nextBag;
         emit(receipt);
         return discAddress;
       } catch (error) {
-        emit({ event: 'disc.save.failed', operationId, message: String(error) });
+        emit({ event: intakeOnly ? 'disc.intake.failed' : 'disc.save.failed', operationId, message: String(error) });
         throw error;
       } finally { saving = false; }
     },
@@ -408,6 +419,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       });
       return find({ collection, query: query.replace(/[·•,]/g, ' '), fields: (row: any) => [row.seed.manufacturer, row.seed.name, row.disc.plastic, String(row.disc.weight ?? '')] });
     },
+    intake(query = '') { return intakeOnly ? this.bag(query) : []; },
   };
 }
 // {?} Persist the retained compositions across reload; this first shelf is session-local.

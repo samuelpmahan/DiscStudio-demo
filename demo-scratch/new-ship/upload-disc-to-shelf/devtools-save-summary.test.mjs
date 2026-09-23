@@ -41,3 +41,22 @@ test('Save receipt summary refuses a receipt whose retained Bag cannot prove its
   assert.equal(summary.bag.verified, false);
   assert.equal(summary.verified, false);
 });
+
+test('Intake receipt shows the actual temporary collection and refuses a forged addition', async () => {
+  const app = createExperience(() => {}, { intakeOnly: true });
+  const discAddress = await app.save(initialDraft(), photo);
+  const operationId = app.events.at(-1).operationId;
+  const summary = summarizeSaveReceipt(app.pxc, 'ds.px.receipt.' + operationId);
+  assert.equal(summary.kind, 'intake');
+  assert.equal(summary.title, 'Prepared Discraft Buzzz');
+  assert.equal(summary.discAddress, discAddress);
+  assert.deepEqual(summary.bag.added, [discAddress]);
+  assert.equal(summary.bag.afterAddress, app.intakeAddress);
+  assert.equal(summary.bag.beforeCount, 0);
+  assert.equal(summary.bag.afterCount, 1);
+  assert.equal(summary.readback.shelf.source, app.intakeAddress);
+  assert.equal(summary.verified, true);
+  const fake = 'ds.px.receipt.intake-forged';
+  app.pxc.set(fake, new Part({ ...app.pxc.get('ds.px.receipt.' + operationId).value, operationId: 'intake-forged', intakeAddress: 'ds.px.intake.0' }));
+  assert.equal(summarizeSaveReceipt(app.pxc, fake).verified, false);
+});
