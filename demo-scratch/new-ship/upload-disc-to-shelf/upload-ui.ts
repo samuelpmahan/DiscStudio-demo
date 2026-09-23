@@ -3,7 +3,7 @@ import { plasticGuides } from './plastics.ts';
 import { createDiscView } from './disc-view.ts';
 import { recipeFromDraft, validatePaintRecipe, renderDepiction } from './paint-recipe.ts';
 import { fuzzyMoldOptions } from './mold-search.ts';
-import { cropForSourceSamples, drawRotatedCrop, edgeSafeCrop, normalizeCropRotation } from './crop-geometry.ts';
+import { cropForSourceSamples, drawOrientedCrop, edgeSafeCrop, normalizeCropRotation } from './crop-geometry.ts';
 import { composeCircleCandidateChoices, createCircleCandidateSession, type CircleCandidate, type CircleCandidateSession, type DiscCircle } from './circle-fit.ts';
 export { detectDiscCircle } from './circle-fit.ts';
 export type { CircleCandidate, DiscCircle } from './circle-fit.ts';
@@ -317,6 +317,7 @@ let cropBitmap: CropSource | null = null; let cropFile: File | null = null; let 
 let candidateSession: CircleCandidateSession | null = null, candidateChoices: CircleCandidate[] = [], seenCandidates: CircleCandidate[] = [], selectedCandidate: CircleCandidate | null = null, candidateBusy = false;
 const cropIds = ['crop-center-x', 'crop-center-y', 'crop-radius-x', 'crop-radius-y'];
 let cropRotation = 0;
+let discOrientationDegrees = 0;
 // Every new photo or crop action supersedes an in-flight circle request.
 let circleFitRequest = 0, circleFitSerial = 0, candidateRequest = 0;
 function invalidateCircleFit() { circleFitRequest++; candidateRequest++; candidateBusy = false; syncCandidateApply(); }
@@ -362,10 +363,20 @@ function drawCandidateCutoutPreview(canvas: HTMLCanvasElement, ctx: CanvasRender
   drawTransparentGutter(ctx, canvas.width);
   const mapping = selectedCandidate?.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState()) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
   ctx.save(); ctx.beginPath(); ctx.ellipse(canvas.width / 2, canvas.height / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.translate(gutter, gutter); drawRotatedCrop(ctx, cropBitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse)); ctx.restore();
+  ctx.translate(gutter, gutter); drawOrientedCrop(ctx, cropBitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse), discOrientationDegrees); ctx.restore();
+}
+function drawOrientationPreview() {
+  if (!cropBitmap) return;
+  const canvas = $('crop-orientation-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, size = canvas.width;
+  ctx.clearRect(0, 0, size, size); drawTransparentGutter(ctx, size);
+  const tilted = !!selectedCandidate?.ellipse && !manualCrop.open;
+  const mapping = tilted ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState()) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
+  ctx.save(); ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.clip();
+  drawOrientedCrop(ctx, cropBitmap.image, edgeSafeCrop(mapping, tilted), discOrientationDegrees); ctx.restore();
 }
 function updateCropPreview() {
   if (!cropWorking || !cropBitmap) return;
+  drawOrientationPreview();
   const canvas = $('crop-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, showCandidate = !!selectedCandidate && !manualCrop.open;
   cropStage.dataset.candidate = String(showCandidate);
   if (showCandidate) { drawCandidateCutoutPreview(canvas, ctx); return; }
@@ -400,7 +411,7 @@ function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCand
   drawTransparentGutter(context, canvas.width);
   const mapping = candidate.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, crop);
   context.save(); context.beginPath(); context.arc(canvas.width / 2, canvas.height / 2, size / 2, 0, Math.PI * 2); context.clip();
-  context.translate(gutter, gutter); drawRotatedCrop(context, cropBitmap.image, edgeSafeCrop(mapping, !!candidate.ellipse)); context.restore();
+  context.translate(gutter, gutter); drawOrientedCrop(context, cropBitmap.image, edgeSafeCrop(mapping, !!candidate.ellipse), discOrientationDegrees); context.restore();
 }
 function renderCandidateChoices() {
   candidateList.replaceChildren();
@@ -417,6 +428,14 @@ function renderCandidateChoices() {
   });
   candidateList.append(fragment); refineButton.disabled = candidateBusy || !selectedCandidate; otherButton.disabled = candidateBusy || candidateChoices.length === 0; syncCandidateApply(); requestAnimationFrame(sizeCropStage);
 }
+input('crop-orientation').addEventListener('input', () => {
+  discOrientationDegrees = Number(input('crop-orientation').value);
+  ($('crop-orientation-value') as HTMLOutputElement).value = `${discOrientationDegrees > 0 ? '+' : ''}${discOrientationDegrees}°`;
+  candidateList.querySelectorAll<HTMLCanvasElement>('.circle-candidate canvas').forEach((canvas, index) => {
+    if (candidateChoices[index]) drawCandidateThumbnail(canvas, candidateChoices[index]);
+  });
+  scheduleCropPreview();
+});
 function clearCandidateSelection() { if (!selectedCandidate) return; selectedCandidate = null; renderCandidateChoices(); }
 function chooseCandidate(candidate: CircleCandidate) {
   const crop = candidateCrop(candidate); if (!crop) return;
@@ -515,6 +534,7 @@ manualCrop.addEventListener('toggle', () => { if (manualCrop.open) { invalidateC
 function discardPendingPhoto() {
   endCropGesture(); invalidateCircleFit(); candidateSession = null; resetCandidateChoices(); manualCrop.open = false; syncManualMode();
   if (cropBitmap) cropBitmap.dispose(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
+  discOrientationDegrees = 0; input('crop-orientation').value = '0'; ($('crop-orientation-value') as HTMLOutputElement).value = '0°';
 }
 async function decodePhoto(file: File): Promise<CropSource> {
   if (typeof createImageBitmap === 'function') {
@@ -562,8 +582,8 @@ $('crop-apply').addEventListener('click', async () => {
     const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
     invalidateCircleFit();
     const ctx = canvas.getContext('2d')!, mapping = selectedCandidate?.ellipse && !manualCrop.open ? cropExportMapping(bitmap.width, bitmap.height, size, cropState()) : circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
-    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse && !manualCrop.open)); ctx.restore();
-    const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
+    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawOrientedCrop(ctx, bitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse && !manualCrop.open), discOrientationDegrees); ctx.restore();
+    const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86), ...(discOrientationDegrees ? { orientationDegrees: discOrientationDegrees } : {}) };
     await experience.addDraftPhoto(photoDepiction);
     photo = photoDepiction; depiction = photoDepiction; savedPhotoConsumed = false;
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = input('seed').value ? 'Photo ready.' : 'Photo ready. Select a manufacturer and mold.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();

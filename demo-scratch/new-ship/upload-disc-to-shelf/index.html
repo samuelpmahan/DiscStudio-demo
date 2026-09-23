@@ -22,6 +22,7 @@
     <p id="photo-crop-help" class="subtle">Finding circle choices…</p>
     <div class="crop-stage" id="crop-stage"><canvas id="crop-preview" width="320" height="320" role="img" aria-label="Photo crop preview"></canvas><button id="crop-resize-handle" class="crop-resize-handle" type="button" aria-label="Resize circle"><span aria-hidden="true">↘</span></button><output id="crop-gesture-state" class="crop-gesture-state" aria-live="polite">Circle ready</output></div>
     <input id="crop-center-x" type="hidden" value=".5"><input id="crop-center-y" type="hidden" value=".5">
+    <div class="crop-orientation"><div class="crop-orientation-main"><label for="crop-orientation">Rotate disc <output id="crop-orientation-value" for="crop-orientation">0°</output></label><div class="crop-orientation-track"><span>−180°</span><input id="crop-orientation" type="range" min="-180" max="180" step="1" value="0" aria-label="Rotate disc in degrees"><span>+180°</span></div></div><canvas id="crop-orientation-preview" width="72" height="72" role="img" aria-label="Prepared disc rotation preview"></canvas></div>
     <section id="circle-candidate-picker" class="circle-candidate-picker" aria-label="Circle choices" aria-live="polite" hidden>
       <p id="circle-candidate-heading" class="circle-candidate-heading">Pick the closest circle</p>
       <div id="circle-candidates" class="circle-candidates" role="group" aria-label="Circle choices"></div>

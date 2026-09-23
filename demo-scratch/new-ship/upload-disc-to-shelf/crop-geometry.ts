@@ -26,6 +26,17 @@ export function drawRotatedCrop(ctx: CanvasRenderingContext2D, source: CanvasIma
   ctx.restore();
 }
 
+/** Turn the prepared disc after its source ellipse has been repaired to a circle. */
+export function drawOrientedCrop(ctx: CanvasRenderingContext2D, source: CanvasImageSource, mapping: Parameters<typeof drawRotatedCrop>[2], degrees: number) {
+  if (!Number.isFinite(degrees) || degrees < -180 || degrees > 180) throw Error('Disc rotation must be between −180° and 180°.');
+  ctx.save();
+  ctx.translate(mapping.outputSize / 2, mapping.outputSize / 2);
+  ctx.rotate(degrees * Math.PI / 180);
+  ctx.translate(-mapping.outputSize / 2, -mapping.outputSize / 2);
+  drawRotatedCrop(ctx, source, mapping);
+  ctx.restore();
+}
+
 /** Keep the source aperture inside the estimated rim while filling the output circle.
  * A tilted ellipse has more edge uncertainty than a circular fit. This guard
  * belongs to photo materialization, so preview and retained pixels use it alike.

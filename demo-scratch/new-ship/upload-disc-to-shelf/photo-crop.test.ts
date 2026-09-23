@@ -3,7 +3,27 @@ import assert from 'node:assert/strict';
 import { clampCircleCropSelection, clampCropSelection, circleCropExportMapping, cropExportMapping, cropForDetectedCircle, cropZoomNudges, detectDiscCircle, fixedCirclePreviewGeometry, panCircleCrop, resizeCircleAtFixedCenter, resizeCircleCrop, resizeCircleCropByScreenDelta, resizeCrop, sourceImagePlacement } from './upload-ui.ts';
 import { mapWorkingCircleToSource, refineDiscCircle } from './circle-fit.ts';
 import { createCanvas } from '@napi-rs/canvas';
-import { drawRotatedCrop, edgeSafeCrop } from './crop-geometry.ts';
+import { drawOrientedCrop, drawRotatedCrop, edgeSafeCrop } from './crop-geometry.ts';
+
+test('orientation turns the finished cutout without changing ellipse repair or its transparent edge', () => {
+  const source = createCanvas(120, 120), src = source.getContext('2d');
+  for (const [x, y, color] of [[0, 0, '#dc280d'], [60, 0, '#2843e8'], [0, 60, '#f3c61d'], [60, 60, '#20b459']] as const) {
+    src.fillStyle = color; src.fillRect(x, y, 60, 60);
+  }
+  const mapping = { outputSize: 100, sourceCenterX: 60, sourceCenterY: 60, sourceRadiusX: 50, sourceRadiusY: 40, rotation: .23 };
+  const draw = (angle: number) => {
+    const canvas = createCanvas(100, 100), ctx = canvas.getContext('2d');
+    ctx.save(); ctx.beginPath(); ctx.arc(50, 50, 50, 0, Math.PI * 2); ctx.clip();
+    drawOrientedCrop(ctx as unknown as CanvasRenderingContext2D, source as unknown as CanvasImageSource, mapping, angle);
+    ctx.restore(); return ctx;
+  };
+  const zero = draw(0), quarterTurn = draw(90);
+  const rgba = (ctx: ReturnType<typeof draw>, x: number, y: number) => [...ctx.getImageData(x, y, 1, 1).data];
+  assert.deepEqual(rgba(quarterTurn, 75, 25), rgba(zero, 25, 25), 'top-left stamp moves to top-right after +90°');
+  assert.deepEqual(rgba(quarterTurn, 75, 75), rgba(zero, 75, 25), 'all quadrants rotate after ellipse correction');
+  assert.equal(rgba(quarterTurn, 0, 0)[3], 0, 'the output stays a transparent circle');
+  assert.throws(() => drawOrientedCrop(zero as unknown as CanvasRenderingContext2D, source as unknown as CanvasImageSource, mapping, Infinity), /Disc rotation/);
+});
 
 test('a fitted tilted rim with a background fringe materializes without visible background', () => {
   const source = createCanvas(240, 240), sourceContext = source.getContext('2d');
