@@ -3,7 +3,7 @@ import { plasticGuides } from './plastics.ts';
 import { createDiscView } from './disc-view.ts';
 import { recipeFromDraft, validatePaintRecipe, renderDepiction } from './paint-recipe.ts';
 import { fuzzyMoldOptions } from './mold-search.ts';
-import { cropForSourceSamples, drawRotatedCrop, normalizeCropRotation } from './crop-geometry.ts';
+import { cropForSourceSamples, drawRotatedCrop, edgeSafeCrop, normalizeCropRotation } from './crop-geometry.ts';
 import { composeCircleCandidateChoices, createCircleCandidateSession, type CircleCandidate, type CircleCandidateSession, type DiscCircle } from './circle-fit.ts';
 export { detectDiscCircle } from './circle-fit.ts';
 export type { CircleCandidate, DiscCircle } from './circle-fit.ts';
@@ -362,7 +362,7 @@ function drawCandidateCutoutPreview(canvas: HTMLCanvasElement, ctx: CanvasRender
   drawTransparentGutter(ctx, canvas.width);
   const mapping = selectedCandidate?.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState()) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
   ctx.save(); ctx.beginPath(); ctx.ellipse(canvas.width / 2, canvas.height / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.translate(gutter, gutter); drawRotatedCrop(ctx, cropBitmap.image, mapping); ctx.restore();
+  ctx.translate(gutter, gutter); drawRotatedCrop(ctx, cropBitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse)); ctx.restore();
 }
 function updateCropPreview() {
   if (!cropWorking || !cropBitmap) return;
@@ -400,7 +400,7 @@ function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCand
     drawTransparentGutter(canvas.getContext('2d')!, canvas.width);
     const context = canvas.getContext('2d')!, gutter = 6, size = canvas.width - 2 * gutter;
     context.save(); context.beginPath(); context.arc(canvas.width / 2, canvas.height / 2, size / 2, 0, Math.PI * 2); context.clip();
-    context.translate(gutter, gutter); drawRotatedCrop(context, cropBitmap.image, cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop)); context.restore();
+    context.translate(gutter, gutter); drawRotatedCrop(context, cropBitmap.image, edgeSafeCrop(cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop), true)); context.restore();
     return;
   }
   const context = canvas.getContext('2d')!, view = fixedCirclePreviewGeometry(cropBitmap.width, cropBitmap.height, crop, canvas.width);
@@ -566,7 +566,7 @@ $('crop-apply').addEventListener('click', async () => {
     const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
     invalidateCircleFit();
     const ctx = canvas.getContext('2d')!, mapping = selectedCandidate?.ellipse && !manualCrop.open ? cropExportMapping(bitmap.width, bitmap.height, size, cropState()) : circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
-    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, mapping); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse && !manualCrop.open)); ctx.restore();
     const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
     await experience.addDraftPhoto(photoDepiction);
     photo = photoDepiction; depiction = photoDepiction; savedPhotoConsumed = false;

@@ -2,6 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { clampCircleCropSelection, clampCropSelection, circleCropExportMapping, cropExportMapping, cropForDetectedCircle, cropZoomNudges, detectDiscCircle, fixedCirclePreviewGeometry, panCircleCrop, resizeCircleAtFixedCenter, resizeCircleCrop, resizeCircleCropByScreenDelta, resizeCrop, sourceImagePlacement } from './upload-ui.ts';
 import { mapWorkingCircleToSource, refineDiscCircle } from './circle-fit.ts';
+import { createCanvas } from '@napi-rs/canvas';
+import { drawRotatedCrop, edgeSafeCrop } from './crop-geometry.ts';
+
+test('a fitted tilted rim with a background fringe materializes without visible background', () => {
+  const source = createCanvas(240, 240), sourceContext = source.getContext('2d');
+  sourceContext.fillStyle = '#00ff00'; sourceContext.fillRect(0, 0, 240, 240);
+  sourceContext.fillStyle = '#e20000'; sourceContext.beginPath();
+  sourceContext.ellipse(120, 120, 100 * .975, 90 * .975, .3, 0, Math.PI * 2); sourceContext.fill();
+  const output = createCanvas(128, 128), ctx = output.getContext('2d');
+  ctx.save(); ctx.beginPath(); ctx.arc(64, 64, 64, 0, Math.PI * 2); ctx.clip();
+  drawRotatedCrop(ctx as unknown as CanvasRenderingContext2D, source as unknown as CanvasImageSource,
+    edgeSafeCrop({ outputSize: 128, sourceCenterX: 120, sourceCenterY: 120, sourceRadiusX: 100, sourceRadiusY: 90, rotation: .3 }, true));
+  ctx.restore();
+  const rgba = ctx.getImageData(0, 0, 128, 128).data;
+  // Very low-alpha pixels are unpremultiplied by canvas and can report a bright
+  // RGB value even though their visible contribution is below one color step.
+  for (let i = 0; i < rgba.length; i += 4) assert.ok(rgba[i + 1] * rgba[i + 3] / 255 < 10, `visible background leaked at pixel ${i / 4}`);
+  assert.equal(rgba[(64 * 128 + 64) * 4], 226);
+});
 
 test('correction strip exposes the exact discrete nudges', () => {
   assert.deepEqual(cropZoomNudges, [-10, -5, -3, -1, 1, 3, 5, 10]);

@@ -25,3 +25,12 @@ export function drawRotatedCrop(ctx: CanvasRenderingContext2D, source: CanvasIma
   ctx.drawImage(source, 0, 0);
   ctx.restore();
 }
+
+/** Keep the source aperture inside the estimated rim while filling the output circle.
+ * A tilted ellipse has more edge uncertainty than a circular fit. This guard
+ * belongs to photo materialization, so preview and retained pixels use it alike.
+ */
+export function edgeSafeCrop<T extends { sourceRadiusX: number; sourceRadiusY: number }>(mapping: T, tilted: boolean): T {
+  const inset = tilted ? .96 : .985;
+  return { ...mapping, sourceRadiusX: mapping.sourceRadiusX * inset, sourceRadiusY: mapping.sourceRadiusY * inset };
+}
