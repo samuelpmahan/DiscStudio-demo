@@ -3,8 +3,18 @@ import assert from 'node:assert/strict';
 import { Part } from '../part-first-kernel/src/pxc.mjs';
 import { createExperience, initialDraft } from './model.ts';
 import { creatorPqlPlans } from './pql.ts';
+import { plasticGuides } from './plastics.ts';
 
 const photo = { kind: 'photo' as const, src: 'data:image/webp;base64,AAAA', name: 'fixture.webp' };
+
+test('MVP-family suggestions are shared; new named blends remain optional input values', () => {
+  assert.strictEqual(plasticGuides.MVP.values, plasticGuides.Axiom.values);
+  assert.strictEqual(plasticGuides.MVP.values, plasticGuides.Streamline.values);
+  for (const name of ['Particle Glow Proton', 'Particle Eclipse', 'Particle Proton', 'Particle Proton Soft']) {
+    assert.ok(plasticGuides.MVP.values.includes(name), `missing ${name}`);
+  }
+  assert.ok(plasticGuides.Innova.values.includes('Duo'));
+});
 
 test('demo intake creates four physical Disc Parts without a shelf or a browser archive', async () => {
   const app = createExperience(() => {}, { intakeOnly: true });
