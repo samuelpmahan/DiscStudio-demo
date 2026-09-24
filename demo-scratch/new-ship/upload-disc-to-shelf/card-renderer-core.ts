@@ -93,7 +93,7 @@ function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: numb
 }
 
 /** Draw image cover-fit inside a circle. Falls back to a placeholder ring. */
-async function drawPhotoCircle(environment: CardRenderEnvironment, ctx: any, src: string | null, cx: number, cy: number, d: number) {
+async function drawPhotoCircle(environment: CardRenderEnvironment, ctx: any, src: string | null, cx: number, cy: number, d: number, rim = 'rgba(143,227,174,0.9)') {
   const r = d / 2;
   ctx.save();
   ctx.beginPath();
@@ -125,7 +125,7 @@ async function drawPhotoCircle(environment: CardRenderEnvironment, ctx: any, src
   }
   ctx.restore();
   // Mint rim around the photo, echoing the deck's disc-mark ring.
-  ctx.strokeStyle = 'rgba(143,227,174,0.9)';
+  ctx.strokeStyle = rim;
   ctx.lineWidth = 7;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -133,11 +133,11 @@ async function drawPhotoCircle(environment: CardRenderEnvironment, ctx: any, src
 }
 
 /** Draw manufacturer + the exact retained blend on a defended reading surface. */
-function drawMakerPlastic(ctx: any, rd: ResolvedDisc, x: number, baseline: number, width: number, px: number, lineHeight = 42): number {
+function drawMakerPlastic(ctx: any, rd: ResolvedDisc, x: number, baseline: number, width: number, px: number, lineHeight = 42, color = MINT): number {
   const maker = rd.manufacturer.trim(), plastic = rd.plastic.trim();
   const text = [maker, plastic].filter(Boolean).join(' • ');
   if (!text) return 0;
-  ctx.fillStyle = MINT;
+  ctx.fillStyle = color;
   ctx.font = `700 ${px}px ${FONT_STACK}`;
   const words = maker && plastic ? [`${maker} •`, ...plastic.split(/\s+/)] : text.split(/\s+/);
   let lines = [text];
@@ -243,6 +243,15 @@ export type CardPreset = 'u01' | 'u02' | 'u03' | 'u04' | 'u05' | 'b01' | 'b02' |
 /** Preset id -> renderer. Breakout presets (b01..b05) register here too. */
 export const presetRenderers: Record<string, (ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) => Promise<void>> = {};
 
+// Offered overlays occupy a corner of the video, not the video's subject area.
+// Scale the one production painter for both preview and exported PNGs.
+export const CARD_PRESENTATION: Partial<Record<CardPreset, { scale: number; anchorX: number; anchorY: number }>> = {
+  b01: { scale: .6, anchorX: 48, anchorY: 1032 },
+  b02: { scale: .58, anchorX: 48, anchorY: 1032 },
+  u01: { scale: .72, anchorX: 48, anchorY: 410 },
+  u02: { scale: .55, anchorX: 48, anchorY: 460 },
+};
+
 const VW = 1080, VH = 1920;
 const Z_TOP = VH * 0.14;   // platform UI dead zone
 const Z_BOT = VH * 0.75;   // caption/controls dead zone
@@ -254,7 +263,7 @@ const CORAL = '#ff5c47';
 const DISPLAY = '"DejaVu Sans Condensed", "Nimbus Sans Narrow", "DejaVu Sans", sans-serif';
 
 function flightTiles(rd: ResolvedDisc): string[] {
-  if (!rd.flights) return [];
+  if (!rd.flights || !rd.flights.some(v => v !== null && v !== undefined)) return [];
   return rd.flights.map(v => (v === null || v === undefined ? '?' : String(v)));
 }
 
@@ -299,42 +308,39 @@ function drawPresetName(
 }
 
 /** U01 Compact Scorebug (NFL on Fox, corner card).
- * Card footprint: x 48-508, y ~410-1000. A slim dark scorebug anchors in the
- * safe left; the disc breaks out above it. Acid left rule is the one motif. */
+ * A slim dark scorebug anchors in the safe left; the disc breaks out above it. */
 async function renderU01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  const cardX = 48, cardW = 460, cardY = 700, cardH = 300;
+  const cardX = 48, cardW = 460, cardY = 700;
+  const cardH = flightTiles(rd).length ? 300 : rd.manufacturer.trim() || rd.plastic.trim() ? 220 : 160;
 
   // Hero breaks out above the card.
   const d = 380;
-  await drawPhotoCircle(environment, ctx, rd.photoSrc, 310, 600, d);
+  await drawPhotoCircle(environment, ctx, rd.photoSrc, 310, 600, d, '#1d2825');
 
   // Scorebug block: dark protection behind type only.
   ctx.fillStyle = NIGHT92;
   ctx.fillRect(cardX, cardY, cardW, cardH);
-  ctx.fillStyle = ACID;
-  ctx.fillRect(cardX, cardY, 4, cardH);
 
   const nameX = cardX + 28;
   drawPresetName(ctx, rd.moldName, nameX, cardY + 120, cardW - 56, 96);
 
-  drawMakerPlastic(ctx, rd, nameX, cardY + 170, cardW - 56, 42, 38);
+  drawMakerPlastic(ctx, rd, nameX, cardY + 170, cardW - 56, 42, 38, '#dfe4dd');
   drawTilesRow(ctx, flightTiles(rd), nameX, cardY + 234, 64, 10, 38);
 }
 presetRenderers.u01 = renderU01;
 
 /** U02: an editorial vertical disc card with protected, readable flight values. */
 async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  const left = 48, top = 770, width = 740, height = 610, inset = 34;
+  const left = 48, top = 770, width = 740, inset = 34;
+  const height = flightTiles(rd).length ? 610 : rd.manufacturer.trim() || rd.plastic.trim() ? 440 : 350;
   ctx.fillStyle = NIGHT94;
   ctx.fillRect(left, top, width, height);
-  ctx.fillStyle = MINT;
-  ctx.fillRect(left, top, 6, height);
   // The photograph breaks the top boundary but all text stays inside the slab.
   await drawHeroDisc(environment, ctx, rd.photoSrc, 305, 675, 430, { rim: '#16392e', rimWidth: 9 });
 
   const x = left + inset, available = width - inset * 2;
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  const makerLines = drawMakerPlastic(ctx, rd, x, 950, available, 52, 42);
+  const makerLines = drawMakerPlastic(ctx, rd, x, 950, available, 52, 42, '#dfe4dd');
   const words = rd.moldName.toUpperCase().split(/\s+/).filter(Boolean), lines: string[] = [];
   ctx.font = `800 98px ${DISPLAY}`;
   if (ctx.measureText(words.join(' ')).width <= available || words.length === 1) lines.push(words.join(' '));
@@ -352,8 +358,8 @@ async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const column = 154, columnGap = 15, start = x;
   values.forEach((value, index) => {
     const bx = start + index * (column + columnGap);
-    ctx.fillStyle = '#273a31'; ctx.fillRect(bx, 1210, column, 122);
-    ctx.fillStyle = '#b7d6bf'; ctx.font = `700 25px ${FONT_STACK}`;
+    ctx.fillStyle = '#222927'; ctx.fillRect(bx, 1210, column, 122);
+    ctx.fillStyle = '#d7dcd5'; ctx.font = `700 25px ${FONT_STACK}`;
     ctx.fillText(labels[index], bx + 8, 1242);
     ctx.fillStyle = INK;
     fitFont(ctx, value, column - 16, 800, 72);
@@ -554,43 +560,45 @@ function scrimV(ctx: any, x: number, y: number, w: number, h: number) {
   ctx.fillRect(x, y, w, h);
 }
 
-/** B01: compact breakout hero rail. The tilted disc sits beyond the text. */
+/** B01: compact breakout hero rail. The tilted disc sits beyond neutral text. */
 async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  const cx0 = 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
+  const cx0 = 48, cw = 620;
+  const ch = flightTiles(rd).length ? 380 : rd.manufacturer.trim() || rd.plastic.trim() ? 290 : 230;
+  const cy0 = HH - 48 - ch;
   ctx.fillStyle = NIGHT94;
   ctx.fillRect(cx0, cy0, cw, ch);
-  ctx.fillStyle = ACID;
-  ctx.fillRect(cx0, cy0, 6, ch);
   // The dark perimeter survives pale discs on white video. Keep the circle
   // beyond the name's reserved area, including long manufacturer/mold names.
   await drawHeroDisc(environment, ctx, rd.photoSrc, cx0 + cw + 157, cy0 - 60, 420,
     { tiltDeg: 12, rim: '#19382f', rimWidth: 10 });
   const nx = cx0 + 36;
   drawPresetName(ctx, rd.moldName, nx, cy0 + 168, cw - 72, 104);
-  drawMakerPlastic(ctx, rd, nx, cy0 + 226, cw - 72, 52, 38);
+  drawMakerPlastic(ctx, rd, nx, cy0 + 226, cw - 72, 52, 38, '#dfe4dd');
   drawTilesRow(ctx, flightTiles(rd), nx, cy0 + 292, 62, 14, 36);
 }
 presetRenderers.b01 = renderB01;
 
 /** B02: a contained two-column card; the disc and text have separate homes. */
 async function renderB02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment) {
-  const left = 48, top = HH - 48 - 384, width = 1130, height = 384;
+  const left = 48, width = 1130;
+  const height = flightTiles(rd).length ? 384 : rd.manufacturer.trim() || rd.plastic.trim() ? 300 : 240;
+  const top = HH - 48 - height;
   ctx.fillStyle = NIGHT94;
   ctx.fillRect(left, top, width, height);
   await drawHeroDisc(environment, ctx, rd.photoSrc, left + 206, top + height / 2, 330,
     { rim: '#19382f', rimWidth: 10 });
-  ctx.fillStyle = MINT;
+  ctx.fillStyle = '#dfe4dd';
   ctx.fillRect(left + 410, top + 36, 4, height - 72);
 
   const nx = left + 450, available = width - 492;
   drawPresetName(ctx, rd.moldName, nx, top + 155, available, 100);
-  drawMakerPlastic(ctx, rd, nx, top + 225, available, 54, 38);
+  drawMakerPlastic(ctx, rd, nx, top + 225, available, 54, 38, '#dfe4dd');
   const labels = ['SPEED', 'GLIDE', 'TURN', 'FADE'];
   flightTiles(rd).forEach((value, index) => {
     const bx = nx + index * 131;
-    ctx.fillStyle = '#263c32';
+    ctx.fillStyle = '#222927';
     ctx.fillRect(bx, top + 298, 118, 72);
-    ctx.fillStyle = '#b7d6bf'; ctx.font = `700 20px ${FONT_STACK}`;
+    ctx.fillStyle = '#d7dcd5'; ctx.font = `700 20px ${FONT_STACK}`;
     ctx.fillText(labels[index], bx + 10, top + 320);
     ctx.fillStyle = INK;
     fitFont(ctx, value, 100, 800, 48);
@@ -712,7 +720,15 @@ export async function drawCard(
     if (preset[0] === 'b' && orientation !== 'horizontal') {
       throw new Error(`preset ${preset} is horizontal-native; use orientation 'horizontal'`);
     }
-    await fn(context, rd, environment);
+    const presentation = CARD_PRESENTATION[preset];
+    if (presentation) {
+      context.save();
+      context.translate(presentation.anchorX, presentation.anchorY);
+      context.scale(presentation.scale, presentation.scale);
+      context.translate(-presentation.anchorX, -presentation.anchorY);
+    }
+    try { await fn(context, rd, environment); }
+    finally { if (presentation) context.restore(); }
   } else if (orientation === 'horizontal') await drawHorizontal(environment, context, rd);
   else await drawVertical(environment, context, rd);
 }

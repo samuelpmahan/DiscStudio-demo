@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderCard, renderCardDataUrl, CARD_SIZE } from './card-renderer.ts';
-import { resolveCardDisc } from './card-renderer-core.ts';
+import { CARD_PRESENTATION, resolveCardDisc } from './card-renderer-core.ts';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import type { Disc } from './model.ts';
 
@@ -27,6 +27,16 @@ function testDisc(overrides: Partial<Disc> = {}): Disc {
 function pngSize(buf: Buffer): { w: number; h: number } {
   assert.equal(buf.slice(0, 8).toString('hex'), '89504e470d0a1a0a', 'must be a PNG');
   return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
+
+function presentedPoint(preset: 'u02' | 'b01' | 'b02', x: number, y: number): [number, number] {
+  const { scale, anchorX, anchorY } = CARD_PRESENTATION[preset]!;
+  return [Math.round(anchorX + scale * (x - anchorX)), Math.round(anchorY + scale * (y - anchorY))];
+}
+
+function presentedArea(preset: 'u02' | 'b01' | 'b02', x: number, y: number, width: number, height: number): [number, number, number, number] {
+  const { scale } = CARD_PRESENTATION[preset]!;
+  return [...presentedPoint(preset, x, y), Math.round(width * scale), Math.round(height * scale)];
 }
 
 test('horizontal card is a 1920x1080 PNG', async () => {
@@ -84,14 +94,15 @@ test('held renderer facts win over a later catalog lookup', async () => {
 });
 
 test('U02 retains visible manufacturer and opaque flight cells on a transparent frame', async () => {
-  const base = testDisc({ depiction: { kind: 'photo', src: '', name: '' } });
+  const base = testDisc({ depiction: { kind: 'photo', src: '', name: '' }, speed: 5, glide: 4, turn: -1, fade: 1 });
   const first = await renderCard({ ...base, renderer: { manufacturer: 'Discraft', moldName: 'Buzzz', flights: [5, 4, -1, 1] } }, 'vertical', 'u02');
   const second = await renderCard({ ...base, renderer: { manufacturer: 'MVP', moldName: 'Buzzz', flights: [5, 4, -1, 1] } }, 'vertical', 'u02');
   const pixels = async (png: Buffer) => { const canvas = createCanvas(1080, 1920), ctx = canvas.getContext('2d'); ctx.drawImage(await loadImage(png), 0, 0); return ctx; };
   const a = await pixels(first), b = await pixels(second);
-  assert.notDeepEqual(a.getImageData(82, 920, 350, 45).data, b.getImageData(82, 920, 350, 45).data, 'changing held manufacturer must change visible ink');
+  const makerArea = presentedArea('u02', 82, 920, 350, 45);
+  assert.notDeepEqual(a.getImageData(...makerArea).data, b.getImageData(...makerArea).data, 'changing held manufacturer must change visible ink');
   for (const x of [82, 251, 420, 589]) {
-    const [red, green, blue, alpha] = a.getImageData(x + 2, 1213, 1, 1).data;
+    const [red, green, blue, alpha] = a.getImageData(...presentedPoint('u02', x + 10, 1218), 1, 1).data;
     assert.equal(alpha, 255, 'flight cell protects type against light footage');
     assert.ok(Math.max(red, green, blue) < 90, 'flight cell has a dark reading surface');
   }
@@ -108,6 +119,33 @@ test('offered designs show the exact plastic blend and ignore weight', async () 
   }
 });
 
+test('offered overlays leave most of the video unobscured', async () => {
+  const disc = testDisc({ renderer: { manufacturer: 'Innova', moldName: 'WHITE TEST', flights: [5, 4, -1, 1] } } as any);
+  for (const [preset, orientation] of [['b01', 'horizontal'], ['b02', 'horizontal'], ['u01', 'vertical'], ['u02', 'vertical']] as const) {
+    const { w, h } = CARD_SIZE[orientation], png = await renderCard(disc, orientation, preset);
+    const canvas = createCanvas(w, h), ctx = canvas.getContext('2d');
+    ctx.drawImage(await loadImage(png), 0, 0);
+    const pixels = ctx.getImageData(0, 0, w, h).data;
+    let left = w, right = 0, top = h, bottom = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (pixels[(y * w + x) * 4 + 3] === 0) continue;
+      left = Math.min(left, x); right = Math.max(right, x);
+      top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+    assert.ok(right - left < w * .42, `${preset}: overlay must use less than 42% of the video width`);
+    assert.ok(bottom - top < h * .38, `${preset}: overlay must use less than 38% of the video height`);
+  }
+});
+
+test('unknown flight numbers do not draw four question-mark tiles', async () => {
+  const base: any = testDisc({ mold: 'ds.px.seed.no-such-mold-xyz', renderer: { manufacturer: '', moldName: 'PALE DISC' } } as any);
+  for (const [preset, orientation] of [['b01', 'horizontal'], ['u02', 'vertical']] as const) {
+    const absent = await renderCard(base, orientation, preset);
+    const unknown = await renderCard({ ...base, renderer: { ...base.renderer, flights: [null, null, null, null] } }, orientation, preset);
+    assert.deepEqual(unknown, absent, `${preset}: entirely unknown flights are absent, not four question marks`);
+  }
+});
+
 test('B01 and B02 retain a white disc edge; B02 name never paints across its photo', async () => {
   const source = createCanvas(128, 128), sourceCtx = source.getContext('2d');
   sourceCtx.fillStyle = '#fff'; sourceCtx.fillRect(0, 0, 128, 128);
@@ -115,7 +153,7 @@ test('B01 and B02 retain a white disc edge; B02 name never paints across its pho
   sourceCtx.fillStyle = '#111'; sourceCtx.fillRect(0, 0, 128, 128);
   const darkPhoto = source.toDataURL('image/png');
   const paint = async (name: string, preset: 'b01' | 'b02', photo = whitePhoto) => {
-    const base = testDisc({ depiction: { kind: 'photo', src: photo, name: 'test.png' } });
+    const base = testDisc({ depiction: { kind: 'photo', src: photo, name: 'test.png' }, speed: 5, glide: 4, turn: -1, fade: 1 });
     const png = await renderCard({ ...base, renderer: { manufacturer: 'Example Maker', moldName: name, flights: [5, 4, -1, 1] } }, 'horizontal', preset);
     const canvas = createCanvas(1920, 1080), ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -125,8 +163,8 @@ test('B01 and B02 retain a white disc edge; B02 name never paints across its pho
   const colorAt = (ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>, x: number, y: number) =>
     [...ctx.getImageData(x, y, 1, 1).data];
   const b01 = await paint('WHITE TEST', 'b01'), b02 = await paint('WHITE TEST', 'b02');
-  for (const [ctx, x, edgeY, innerY] of [[b01, 825, 382, 410], [b02, 254, 675, 704]] as const) {
-    const edge = colorAt(ctx, x, edgeY), inside = colorAt(ctx, x, innerY);
+  for (const [preset, ctx, x, edgeY, innerY] of [['b01', b01, 825, 382, 410], ['b02', b02, 254, 675, 704]] as const) {
+    const edge = colorAt(ctx, ...presentedPoint(preset, x, edgeY)), inside = colorAt(ctx, ...presentedPoint(preset, x, innerY));
     assert.ok(Math.max(...edge.slice(0, 3)) < 110, 'white disc must have a dark perimeter on white footage');
     assert.ok(Math.min(...inside.slice(0, 3)) > 240, 'white disc itself remains white');
   }
@@ -136,19 +174,19 @@ test('B01 and B02 retain a white disc edge; B02 name never paints across its pho
   ] as const) {
     const dark = await paint('WHITE TEST', preset, darkPhoto);
     assert.deepEqual(
-      white.getImageData(x, y, width, height).data,
-      dark.getImageData(x, y, width, height).data,
+      white.getImageData(...presentedArea(preset, x, y, width, height)).data,
+      dark.getImageData(...presentedArea(preset, x, y, width, height)).data,
       `${preset} manufacturer and white title must stay on their own protected reading surface regardless of disc color`,
     );
-    assert.ok(Math.max(...colorAt(white, backX, backY).slice(0, 3)) < 80, `${preset} title panel must remain dark over white footage`);
+    assert.ok(Math.max(...colorAt(white, ...presentedPoint(preset, backX, backY)).slice(0, 3)) < 80, `${preset} title panel must remain dark over white footage`);
   }
   const renamed = await paint('A DIFFERENT MOLD', 'b02');
   assert.deepEqual(
-    b02.getImageData(85, 680, 340, 320).data,
-    renamed.getImageData(85, 680, 340, 320).data,
+    b02.getImageData(...presentedArea('b02', 85, 680, 340, 320)).data,
+    renamed.getImageData(...presentedArea('b02', 85, 680, 340, 320)).data,
     'the entire B02 disc region stays independent of the mold typography',
   );
-  assert.notDeepEqual(b02.getImageData(500, 760, 640, 100).data, renamed.getImageData(500, 760, 640, 100).data);
+  assert.notDeepEqual(b02.getImageData(...presentedArea('b02', 500, 760, 640, 100)).data, renamed.getImageData(...presentedArea('b02', 500, 760, 640, 100)).data);
 });
 
 test('unknown mold id falls back to the id as name', async () => {
