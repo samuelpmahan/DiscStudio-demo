@@ -5,7 +5,7 @@
 const mvpFamilyPlastics = ['Neutron', 'Cosmic Neutron', 'R2 Neutron', 'Proton', 'Plasma', 'Eclipse', 'Total Eclipse', 'Fission', 'Electron', 'Cosmic Electron', 'Prism', 'Particle Glow Proton', 'Particle Eclipse', 'Particle Proton', 'Particle Proton Soft'];
 export const plasticGuides: Record<string, { source: string; values: string[] }> = {
   Discraft: { source: 'https://www.team.discraft.com/plastics', values: ['Z', 'ESP', 'Titanium', 'Big Z', 'Jawbreaker', 'Pro D', 'X', 'GLO', 'Z FLX', 'Z Lite'] },
-  Innova: { source: 'https://proshop.innovadiscs.com/categories', values: ['Halo Star', 'Star', 'GStar', 'Champion', 'Metal Flake', 'Blizzard Champion', 'Nexus', 'XT', 'Driver Pro', 'KC Pro', 'R-Pro', 'JK Pro', 'DX', 'Duo'] },
+  Innova: { source: 'https://proshop.innovadiscs.com/categories', values: ['Halo Star', 'Halo Champion', 'Star', 'Echo Star', 'GStar', 'Champion', 'Metal Flake', 'Metal Flake Champion', 'Blizzard Champion', 'Proto Glow DX', 'Proto Glow Champion', 'Proto Glow Halo Champion', 'Classic Glow Champion', 'Duo', 'Party Time', 'Moondust Halo Champion', 'Nexus', 'XT', 'Driver Pro', 'KC Pro', 'R-Pro', 'JK Pro', 'DX'] },
   Kastaplast: { source: 'https://www.kastaplast.com/en-us/pages/plastic-guide', values: ['K1', 'K1 Soft', 'K1 Glow', 'K1 Grind', 'K3', 'K3 Hard', 'K3 Glow', 'K1 Hard', 'K4'] },
   MVP: { source: 'https://mvpdiscsports.com/plastics/', values: mvpFamilyPlastics },
   Axiom: { source: 'https://axiomdiscs.com/plastics/', values: mvpFamilyPlastics },
