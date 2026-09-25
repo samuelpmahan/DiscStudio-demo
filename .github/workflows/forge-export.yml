@@ -1,0 +1,29 @@
+name: NTC Forge Export
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Package repository for Forge migration
+        run: |
+          zip -r "$RUNNER_TEMP/discstudio-demo-forge.zip" . \
+            -x '.git/*' \
+            -x 'node_modules/*' \
+            -x 'dist/*'
+
+      - name: Upload Forge migration artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: discstudio-demo-forge
+          path: ${{ runner.temp }}/discstudio-demo-forge.zip
+          if-no-files-found: error
+          retention-days: 7
