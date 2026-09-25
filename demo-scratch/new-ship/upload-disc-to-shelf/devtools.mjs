@@ -1,4 +1,4 @@
-import { inventory, inspectPart, printable, find, createScratch, reviseScratch, objectId, objectModel, runCalculation, runMember, createObjectPlayground } from './devtools-data.mjs';
+import { inventory, inspectPart, printable, find, createScratch, reviseScratch, objectId, objectModel, runCalculation, runMember, createObjectPlayground, summarizeSaveReceipt } from './devtools-data.mjs';
 
 export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   const stylesheet = document.createElement('link'); stylesheet.rel = 'stylesheet'; stylesheet.href = './devtools.css'; document.head.append(stylesheet);
@@ -6,7 +6,7 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   const nav = document.createElement('nav'); nav.className = 'pxdt-nav'; nav.setAttribute('aria-label', 'Workspace');
   const panel = document.createElement('section'); panel.className = 'pxdt'; panel.hidden = true;
   // Static template only. All material, addresses and code below are textContent.
-  panel.innerHTML = `<div class="pxdt-heading"><div><h1>PxC DevTools</h1><p>Live Parts. Actual links. No schema homework.</p></div><button data-action="refresh">Refresh live store</button></div>
+  panel.innerHTML = `<div class="pxdt-heading"><div><h1>PxC DevTools</h1><p>Live Parts. Actual links. No schema homework.</p></div><div class="pxdt-actions"><button data-action="refresh">Refresh live store</button><button data-action="close" aria-label="Close PxC DevTools">Close</button></div></div>
     <p class="pxdt-notice">Actual PxC of this mounted Experience. The host selects persistence or disposable state. Values are borrowed, not historical snapshots. Scratch results do not change application selections.</p>
     <div class="pxdt-toolbar"><label>Find Parts<input data-field="query" placeholder="Address, field, value…"></label><label>Address prefix<select data-field="prefix"><option value="">All addresses</option></select></label><label>Kind<select data-field="kind"><option value="">All kinds</option><option>Supplied</option><option>Produced</option><option>Calculation</option></select></label></div>
     <p data-view="stats" role="status"></p><div class="pxdt-grid"><section aria-label="Parts"><div data-view="list"></div><button data-action="more">Show 100 more</button></section><section class="pxdt-detail" aria-label="Part inspector"><h2 data-view="title">Select a Part</h2><div data-view="detail"></div></section></div>
@@ -17,17 +17,35 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   const text = (tag, value) => { const el = document.createElement(tag); el.textContent = value; return el; };
   let selected = null, selectedLabel = '', limit = 100;
   function show(open) {
-    panel.hidden = !open; app.hidden = open;
+    panel.hidden = !open;
     nav.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-pressed', String(i === (open ? 1 : 0))));
     if (open) refresh();
   }
   nav.append(button(label, () => show(false)), button('PxC DevTools', () => show(true)));
   app.before(nav); app.after(panel);
+  panel.querySelector('[data-action="close"]').onclick = () => show(false);
   panel.querySelector('.pxdt-heading').append(button('Create object playground',()=>{
     const address=createObjectPlayground(pxc); refresh(); select(pxc.get(address),address);
   }));
   panel.querySelector('.pxdt-notice').append(' Object browsing does not call ordinary getters or toJSON. Proxy reflection traps may still execute. Live calls are opt-in and can have effects. The object playground is a labeled test fixture, not a disc.');
   function select(part, label) { selected = part; selectedLabel = label; renderDetail(); }
+  function sourceLink(label, address) {
+    if (!address) return text('span', 'UNVERIFIED');
+    return button(label + ' ↗', () => select(pxc.get(address), address));
+  }
+  function verdict(ok) { const node = text('strong', ok ? 'PASS' : 'UNVERIFIED'); node.className = ok ? 'pxdt-pass' : 'pxdt-unverified'; return node; }
+  function renderSaveSummary(host) {
+    const summary = summarizeSaveReceipt(pxc, selectedLabel, selected);
+    if (!summary) return false;
+    const section = document.createElement('section'); section.className = 'pxdt-save-summary';
+    section.append(text('h3', summary.title));
+    const created = document.createElement('p'); created.append(text('strong', 'Disc Part: '), sourceLink(summary.discAddress, summary.discAddress), text('span', ' · '), sourceLink('fn.CREATE', summary.create.calculationAddress), text('span', ' · '), verdict(summary.create.verified)); section.append(created);
+    const execution = document.createElement('p'); execution.append(text('strong', (summary.kind === 'intake' ? 'Intake execution: ' : 'Save execution: ')), sourceLink(summary.readback.pqlAddress.replace('ds.px.receipt.pql.', ''), selectedLabel), text('span', ' · stage, Tick, receipt and PQL trace; the Disc Part address identifies the physical disc.')); section.append(execution);
+    const bag = document.createElement('p'); bag.append(text('strong', summary.kind === 'intake' ? 'Ready discs: ' : 'Today’s Bag: '), sourceLink(String(summary.bag.beforeCount), summary.bag.beforeAddress), text('span', ' → '), sourceLink(String(summary.bag.afterCount), summary.bag.afterAddress), text('span', ' · added Part reference: '), ...(summary.bag.added.length ? summary.bag.added.flatMap(address => [sourceLink(address, address), text('span', ' ')]) : [text('span', 'none')]), verdict(summary.bag.verified)); section.append(bag);
+    const flags = summary.readback.receiptFlags;
+    const read = document.createElement('p'); read.append(text('strong', 'Readback: '), sourceLink('PQL', summary.readback.pqlAddress), text('span', ' · Disc '), sourceLink(summary.readback.disc.into ?? 'UNVERIFIED', summary.readback.disc.into), text('span', summary.kind === 'intake' ? ' · Intake ' : ' · Shelf '), sourceLink(summary.readback.shelf.into ?? 'UNVERIFIED', summary.readback.shelf.into), text('span', ' · flags ' + (flags.readbackMatched && (summary.kind === 'intake' ? flags.intakeContainsDisc : flags.shelfContainsDisc && flags.bagContainsDisc) ? 'confirmed' : 'incomplete') + ' · '), verdict(summary.readback.verified)); section.append(read);
+    host.append(section); return true;
+  }
   function invocation(title, execute, initial) {
     const box = document.createElement('details'); box.className = 'pxdt-invoke';
     box.append(text('summary', title), text('p', 'Runs live code with the actual receiver/inputs. May mutate data or perform external effects. Not sandboxed, reversible, or cancellable.'));
@@ -123,7 +141,12 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
     const host = $('[data-view="detail"]'); host.replaceChildren();
     const info = inspectPart(pxc, selected);
     host.append(text('p', info.addresses.length ? `Bindings: ${info.addresses.join(', ')}` : 'Inline Part — retained in a composition, not bound to an address.'));
-    host.append(text('h3', 'Live JavaScript object'), material(selected.value));
+    const semanticSave = renderSaveSummary(host);
+    if (semanticSave) {
+      const raw = document.createElement('details'); raw.append(text('summary', 'Raw fields'));
+      raw.addEventListener('toggle', () => { if (raw.open && raw.childNodes.length === 1) raw.append(text('h3', 'Live JavaScript object'), material(selected.value)); });
+      host.append(raw);
+    } else host.append(text('h3', 'Live JavaScript object'), material(selected.value));
     const wrapper = document.createElement('details'); wrapper.append(text('summary','Inspect the Part wrapper itself'));
     wrapper.addEventListener('toggle',()=>{ if(wrapper.open && wrapper.childNodes.length === 1) wrapper.append(material(selected)); }); host.append(wrapper);
     if (typeof selected.value === 'function') {
@@ -202,5 +225,5 @@ export function mountDevTools(pxc, { label = 'UploadDiscToShelf' } = {}) {
   $('[data-action="create"]').onclick = () => scratch(false);
   $('[data-action="revise"]').onclick = () => scratch(true);
   show(false);
-  return { open(address) { show(true); if (address) select(pxc.get(address), address); panel.scrollIntoView({ block: 'start' }); }, refresh };
+  return { open(address) { show(true); if (address) select(pxc.get(address), address); panel.querySelector('[data-view="detail"]').scrollIntoView({ block: 'nearest' }); }, refresh };
 }

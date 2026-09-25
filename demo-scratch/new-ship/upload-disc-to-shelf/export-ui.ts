@@ -4,10 +4,8 @@ import { exportBrowserZip, downloadBlob } from './browser-export.ts';
 import type { createExperience } from './model.ts';
 
 const PRESETS: { id: CardPreset; orientation: CardOrientation; name: string }[] = [
-  { id: 'u01', orientation: 'vertical', name: 'U01 · Compact scorebug' }, { id: 'u02', orientation: 'vertical', name: 'U02 · Stacked poster' },
-  { id: 'u03', orientation: 'vertical', name: 'U03 · Rail card' }, { id: 'u04', orientation: 'vertical', name: 'U04 · Kinetic name' }, { id: 'u05', orientation: 'vertical', name: 'U05 · Glass drawer' },
-  { id: 'b01', orientation: 'horizontal', name: 'B01 · Hero rail' }, { id: 'b02', orientation: 'horizontal', name: 'B02 · Split nameplate' },
-  { id: 'b03', orientation: 'horizontal', name: 'B03 · Framed hero' }, { id: 'b04', orientation: 'horizontal', name: 'B04 · Peak mark' }, { id: 'b05', orientation: 'horizontal', name: 'B05 · Stamp macro' },
+  { id: 'u01', orientation: 'vertical', name: 'U01 · Compact scorebug' }, { id: 'u02', orientation: 'vertical', name: 'U02 · Editorial disc card' },
+  { id: 'b01', orientation: 'horizontal', name: 'B01 · Breakout hero' }, { id: 'b02', orientation: 'horizontal', name: 'B02 · Studio two-column' },
 ];
 
 type Experience = ReturnType<typeof createExperience>;
@@ -16,29 +14,29 @@ type Snapshot = Readonly<{ cards: readonly QueuedCard[]; preset: CardPreset; ori
 
 function cloneCard(row: BagRow, orientation: CardOrientation, preset: CardPreset): QueuedCard {
   const seed = row.seed;
-  return { disc: { ...row.disc, depiction: { ...row.disc.depiction }, renderer: { moldName: seed.name, flights: [seed.speed ?? null, seed.glide ?? null, seed.turn ?? null, seed.fade ?? null] } } as any, orientation, cardDesign: preset };
+  return { disc: { ...row.disc, depiction: { ...row.disc.depiction }, renderer: { manufacturer: seed.manufacturer, moldName: seed.name, flights: [seed.speed ?? null, seed.glide ?? null, seed.turn ?? null, seed.fade ?? null] } } as any, orientation, cardDesign: preset };
 }
 
 /** The current choice is disposable; only enqueueOutput creates held PxC output. */
 export function mountExport(experience: Experience, { root = document }: { root?: ParentNode } = {}) {
   const priorShelf = root.querySelector<HTMLElement>('.shelf-section');
   if (priorShelf) priorShelf.hidden = true;
-  const section = document.createElement('section'); section.id = 'todays-bag'; section.className = 'todays-bag-export';
-  section.innerHTML = `<div class="section-title"><div><p class="eyebrow">TODAY’S BAG</p><h2>Make your cards.</h2></div><span>03 — output queue</span></div>
-    <p class="subtle">Select discs, choose a layout, then add cards to the queue.</p>
-    <div class="bag-export-grid"><div><div id="bag-export-list" class="bag-export-list" aria-live="polite"></div><p id="bag-export-empty" class="subtle">Save a cropped disc photo to add it here.</p>
-      <section class="output-queue" aria-labelledby="output-queue-title"><h3 id="output-queue-title">Output queue</h3><p id="output-queue-empty" class="subtle">Nothing queued yet. Preview a selection, then add it here.</p><ol id="output-queue-list"></ol></section></div>
+  const section = document.createElement('section'); section.id = 'ready-discs'; section.className = 'todays-bag-export';
+  section.innerHTML = `<div class="section-title"><div><p class="eyebrow">READY TO EXPORT</p><h2>Make your cards.</h2></div><span>02 — choose and export</span></div>
+    <p class="subtle">Up to four discs and four cards per ZIP. This tab keeps your work until you leave.</p>
+    <div class="bag-export-grid"><div><div id="bag-export-list" class="bag-export-list" aria-live="polite"></div><p id="bag-export-empty" class="subtle">Prepare a disc photo to start.</p>
+      <section class="output-queue" aria-labelledby="output-queue-title"><h3 id="output-queue-title">Cards to export <span id="output-count">0 / 4</span></h3><p id="output-queue-empty" class="subtle">Choose a disc and a design, then add a card here.</p><ol id="output-queue-list"></ol></section></div>
     <div class="bag-export-controls"><label>Orientation<select id="card-orientation"><option value="vertical">Vertical · 9:16</option><option value="horizontal">Horizontal · 16:9</option></select></label><label>Fixed layout<select id="card-preset"></select></label>
-      <div id="card-preview" class="card-preview"><p class="subtle">Select one or more saved discs to preview a card.</p></div><p id="card-export-status" class="subtle" role="status"></p>
-      <div class="card-export-actions"><button id="card-enqueue" type="button">Add to output queue</button><button id="card-zip" class="primary" type="button">Export queue ZIP</button></div>
-      <p class="subtle">Export downloads the queued cards as a ZIP.</p></div></div>`;
-  (priorShelf?.parentElement ?? root.querySelector('main')!).insertBefore(section, priorShelf ?? null);
+      <div id="card-preview" class="card-preview"><p class="subtle">Select a ready disc to preview a card.</p></div><p id="card-export-status" class="subtle" role="status"></p>
+      <div class="card-export-actions"><button id="card-enqueue" type="button">Add card</button><button id="card-zip" class="primary" type="button">Download ZIP</button></div>
+      <p class="subtle">Two portrait and two landscape designs. Download before leaving this tab.</p></div></div>`;
+  (priorShelf?.parentElement ?? root.querySelector('main') ?? root).insertBefore(section, priorShelf ?? null);
   const $ = (id: string) => section.querySelector<HTMLElement>(`#${id}`)!;
   const orientation = $('card-orientation') as HTMLSelectElement, preset = $('card-preset') as HTMLSelectElement;
   const selected = new Set<string>(); let previewUrl = '', previewSerial = 0, busy = false, previewSnapshot: Snapshot | null = null;
   const status = (text: string) => { $('card-export-status').textContent = text; };
   const activePreset = () => preset.value as CardPreset;
-  const rows = () => experience.bag();
+  const rows = () => experience.intakeAddress ? experience.intake() : experience.bag();
   const outputQueue = () => experience.outputQueue();
   function presets() {
     const wanted = orientation.value as CardOrientation, previous = activePreset();
@@ -56,12 +54,12 @@ export function mountExport(experience: Experience, { root = document }: { root?
     busy = next;
     for (const button of section.querySelectorAll<HTMLButtonElement>('.bag-export-disc,.output-queue-remove')) button.disabled = next;
     orientation.disabled = next; preset.disabled = next;
-    ($('card-enqueue') as HTMLButtonElement).disabled = next || !previewSnapshot;
+    ($('card-enqueue') as HTMLButtonElement).disabled = next || !previewSnapshot || outputQueue().length + previewSnapshot.cards.length > 4;
     ($('card-zip') as HTMLButtonElement).disabled = next || outputQueue().length === 0;
   }
   function clearPreview() {
     previewSerial++; if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = ''; previewSnapshot = null;
-    $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Preview the current selection before adding it to the output queue.' }));
+    $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Preview a card before adding it to the ZIP.' }));
     // A saved disc can arrive while an old preview decodes. Cancel that render
     // and release its controls; its finally branch is deliberately stale.
     if (busy) setBusy(false);
@@ -69,7 +67,7 @@ export function mountExport(experience: Experience, { root = document }: { root?
   async function preview() {
     const current = snapshot(), serial = ++previewSerial;
     if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = ''; previewSnapshot = null;
-    if (!current) { $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Select one or more saved discs to preview a card.' })); status('Select at least one saved disc.'); setBusy(false); return; }
+    if (!current) { $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Select a ready disc to preview a card.' })); status('Select at least one disc.'); setBusy(false); return; }
     $('card-preview').replaceChildren(Object.assign(document.createElement('p'), { className: 'subtle', textContent: 'Rendering your card preview…' })); status(`Rendering ${current.preset.toUpperCase()} preview for ${current.cards.length} selected disc${current.cards.length === 1 ? '' : 's'}…`); setBusy(true);
     try {
       const url = await renderCardPreview(current.cards[0].disc as any, current.orientation, current.preset);
@@ -90,6 +88,7 @@ export function mountExport(experience: Experience, { root = document }: { root?
       row.append(label, remove); return row;
     }));
     $('output-queue-empty').hidden = queue.length > 0; setBusy(busy);
+    $('output-count').textContent = `${queue.length} / 4`;
   }
   function renderBag() {
     const bag = rows(), available = new Set(bag.map(row => row.address));
@@ -98,7 +97,7 @@ export function mountExport(experience: Experience, { root = document }: { root?
       const button = document.createElement('button'); button.type = 'button'; button.className = 'bag-export-disc'; button.setAttribute('aria-pressed', String(selected.has(row.address)));
       const image = document.createElement('img'); image.src = row.disc.depiction.src; image.alt = '';
       const copy = document.createElement('span'), name = document.createElement('strong'), detail = document.createElement('small');
-      name.textContent = row.disc.nickname || row.seed.name; detail.textContent = `${row.seed.manufacturer} · ${row.disc.plastic || 'plastic unknown'}${row.disc.weight == null ? '' : ` · ${row.disc.weight} g`}`;
+      name.textContent = row.disc.nickname || row.seed.name; detail.textContent = [row.seed.manufacturer, row.disc.plastic].filter(Boolean).join(' · ');
       copy.append(name, detail); button.append(image, copy);
       button.onclick = () => { selected.has(row.address) ? selected.delete(row.address) : selected.add(row.address); renderBag(); void preview(); };
       return button;
@@ -123,6 +122,6 @@ export function mountExport(experience: Experience, { root = document }: { root?
     finally { setBusy(false); }
   };
   presets(); renderBag(); renderQueue();
-  document.addEventListener('discstudio:bag-changed', () => { renderBag(); clearPreview(); renderQueue(); });
+  document.addEventListener('discstudio:intake-changed', () => { renderBag(); clearPreview(); renderQueue(); });
   return { refresh: () => { renderBag(); renderQueue(); }, outputQueue };
 }

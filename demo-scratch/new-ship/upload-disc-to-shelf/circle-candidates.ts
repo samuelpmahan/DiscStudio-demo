@@ -8,10 +8,13 @@ export type Raster = {
 };
 
 /** A source-space circle that can be shown or selected by a caller. */
+export type RimEllipse = { x: number; y: number; radiusX: number; radiusY: number; rotation: number };
 export type CircleCandidate = {
   id: string;
   circle: DiscCircle;
   score: number;
+  ellipse?: RimEllipse;
+  role?: 'recommended' | 'tilt-repair' | 'edge-trim' | 'original-fit' | 'circle-alternative';
 };
 
 const MAX_INITIAL = 3;

@@ -3,7 +3,7 @@ import { plasticGuides } from './plastics.ts';
 import { createDiscView } from './disc-view.ts';
 import { recipeFromDraft, validatePaintRecipe, renderDepiction } from './paint-recipe.ts';
 import { fuzzyMoldOptions } from './mold-search.ts';
-import { cropForSourceSamples, drawRotatedCrop, normalizeCropRotation } from './crop-geometry.ts';
+import { cropForSourceSamples, drawOrientedCrop, edgeSafeCrop, normalizeCropRotation } from './crop-geometry.ts';
 import { composeCircleCandidateChoices, createCircleCandidateSession, type CircleCandidate, type CircleCandidateSession, type DiscCircle } from './circle-fit.ts';
 export { detectDiscCircle } from './circle-fit.ts';
 export type { CircleCandidate, DiscCircle } from './circle-fit.ts';
@@ -124,6 +124,7 @@ export async function mountUpload({ root, experience, onSaved = (_address: strin
 const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
 const input = (id: string) => $(id) as HTMLInputElement;
 const discView = createDiscView(experience);
+const intakeFull = () => Boolean(experience.intakeAddress && experience.intake().length >= 4);
 // A fresh photo-first experience has no draft photo. Keep a valid painter
 // fallback only for the local preview; saving remains disabled until a photo
 // has been cropped and retained.
@@ -140,8 +141,8 @@ function photoDraftView(image: Depiction) {
 }
 function nextUploadView() {
   const figure = document.createElement('figure');
-  const title = document.createElement('h3'); title.textContent = 'Add another disc';
-  const note = document.createElement('p'); note.textContent = 'Added to Today’s Bag.';
+  const title = document.createElement('h3'); title.textContent = intakeFull() ? 'Four discs ready' : 'Add another disc';
+  const note = document.createElement('p'); note.textContent = intakeFull() ? 'Choose up to four cards and download the ZIP.' : 'Disc ready for card design.';
   figure.append(title, note); return figure;
 }
 function resetPaintSeed() { input('paint-seed').value = String(recipeFromDraft(initialDraft(), painting).seed); }
@@ -198,7 +199,7 @@ $('flight').after(overrides);
 for (const field of flightFields) input(`own-${field}`).addEventListener('change', () => { input(`disc-${field}`).disabled = !input(`own-${field}`).checked; });
 function draft(): Draft {
   const mold = input('seed').value;
-  return { mold, nickname: mold ? experience.seedAt(mold).name : '', plastic: input('plastic').value.trim(), weight: input('weight').value === '' ? null : Number(input('weight').value), Color1: input('Color1').value, Color2: input('Color2').value, paintMode: input('paint-mode').value as Draft['paintMode'], colorPainting: input('color-painting').checked,
+  return { mold, nickname: mold ? experience.seedAt(mold).name : '', plastic: input('plastic').value.trim(), weight: null, Color1: input('Color1').value, Color2: input('Color2').value, paintMode: input('paint-mode').value as Draft['paintMode'], colorPainting: input('color-painting').checked,
     ...Object.fromEntries(flightFields.filter(field => input(`own-${field}`).checked).map(field => [field, input(`disc-${field}`).value === '' ? null : Number(input(`disc-${field}`).value)])) };
 }
 function preview() {
@@ -208,7 +209,7 @@ function preview() {
   if (savedPhotoConsumed && !photo) {
    $('flight').textContent = ''; $('depiction-name').textContent = '';
    $('preview').replaceChildren(nextUploadView());
-   input('photo').disabled = photoBusy; input('save').disabled = true;
+   input('photo').disabled = photoBusy || intakeFull(); input('save').disabled = true;
    return;
   }
   if (!material.mold) {
@@ -216,12 +217,12 @@ function preview() {
    $('depiction-name').textContent = photo ? photo.name : '';
    $('preview').replaceChildren(...(photo ? [photoDraftView(photo)] : savedPhotoConsumed ? [nextUploadView()] : []));
    input('plastic').disabled = true;
-   input('photo').disabled = photoBusy;
+   input('photo').disabled = photoBusy || intakeFull();
    input('save').disabled = true;
    return;
   }
   const resolved = experience.resolve(material);
-  input('photo').disabled = photoBusy;
+  input('photo').disabled = photoBusy || intakeFull();
   $('flight').textContent = `FLIGHT  ${flightFields.map(field => resolved[field] ?? '?').join(' / ')}`;
   for (const field of flightFields) input(`disc-${field}`).placeholder = String(experience.seedAt(material.mold)[field] ?? 'Unknown');
   $('depiction-name').textContent = depiction.name.replaceAll('-', ' ');
@@ -236,30 +237,31 @@ function preview() {
  } catch (error) { $('status').textContent = String(error); }
 }
 $('composer').addEventListener('input', event => { const id=(event.target as HTMLElement).id; if (event.target !== $('depiction-choice') && !finishIds.includes(id)) preview(); });
+let suggestedPlasticMold: string | null = null;
 function suggestPlastics() {
   if (!input('seed').value) {
-   input('plastic').replaceChildren(new Option('Choose a mold first', ''));
+   $('plastic-suggestions').replaceChildren();
    input('plastic').value = '';
    input('plastic').disabled = true;
+   suggestedPlasticMold = null;
    input('save').disabled = true;
    ($('plastic-source') as HTMLAnchorElement).hidden = true;
    return;
   }
   const seed = experience.seedAt(input('seed').value);
   const guide = plasticGuides[seed.manufacturer] ?? { values: [], source: '' };
-  const preferred = input('plastic').value;
-  const unavailable = guide.values.length === 0;
-  // A guide is a suggestion, not a gate: tournament players can retain an
-  // explicit unknown blend when the manufacturer is not in the small guide.
-  const choices = unavailable ? ['', 'Unknown / not listed'] : ['', ...guide.values];
-  input('plastic').replaceChildren(...choices.map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || 'Not specified'; return option; }));
-  input('plastic').value = choices.includes(preferred) ? preferred : '';
+  // A mold or manufacturer change must not silently carry the previous
+  // disc's plastic. Suggestions never constrain the exact typed blend.
+  if (suggestedPlasticMold !== input('seed').value) input('plastic').value = '';
+  suggestedPlasticMold = input('seed').value;
+  $('plastic-suggestions').replaceChildren(...guide.values.map(value => new Option(value, value)));
   input('plastic').disabled = false;
   updateSaveState();
   const link = $('plastic-source') as HTMLAnchorElement; link.href = guide.source; link.textContent = `${seed.manufacturer} plastic guide`; link.hidden = !guide.source;
 }
 function updateSaveState() {
- input('save').disabled = photoBusy || !photo || input('plastic').disabled || !input('seed').value;
+ input('save').disabled = photoBusy || intakeFull() || !photo || input('plastic').disabled || !input('seed').value;
+ input('photo').disabled = photoBusy || intakeFull();
 }
 ['change', 'input'].forEach(event => input('plastic').addEventListener(event, updateSaveState));
 input('mold-search').addEventListener('focus', () => renderSeedChoices(''));
@@ -315,16 +317,17 @@ let cropBitmap: CropSource | null = null; let cropFile: File | null = null; let 
 let candidateSession: CircleCandidateSession | null = null, candidateChoices: CircleCandidate[] = [], seenCandidates: CircleCandidate[] = [], selectedCandidate: CircleCandidate | null = null, candidateBusy = false;
 const cropIds = ['crop-center-x', 'crop-center-y', 'crop-radius-x', 'crop-radius-y'];
 let cropRotation = 0;
+let discOrientationDegrees = 0;
 // Every new photo or crop action supersedes an in-flight circle request.
 let circleFitRequest = 0, circleFitSerial = 0, candidateRequest = 0;
 function invalidateCircleFit() { circleFitRequest++; candidateRequest++; candidateBusy = false; syncCandidateApply(); }
 function cropState(): PhotoCrop { return { centerX: Number(input('crop-center-x').value), centerY: Number(input('crop-center-y').value), radiusX: Number(input('crop-radius-x').value), radiusY: Number(input('crop-radius-y').value), rotation: cropRotation }; }
-function setCrop(next: PhotoCrop, { invalidate = true }: { invalidate?: boolean } = {}) {
+function setCrop(next: PhotoCrop, { invalidate = true, allowEllipse = false }: { invalidate?: boolean; allowEllipse?: boolean } = {}) {
   if (!cropWorking || !cropBitmap) return;
   if (invalidate) invalidateCircleFit();
-  const crop = clampCircleCropSelection(cropBitmap.width, cropBitmap.height, next);
+  const crop = allowEllipse ? clampCropSelection(cropBitmap.width, cropBitmap.height, next) : clampCircleCropSelection(cropBitmap.width, cropBitmap.height, next);
   input('crop-center-x').value = String(crop.centerX); input('crop-center-y').value = String(crop.centerY);
-  cropRotation = 0;
+  cropRotation = crop.rotation;
   input('crop-radius-x').value = String(crop.radiusX); input('crop-radius-y').value = String(crop.radiusY);
   scheduleCropPreview();
 }
@@ -358,12 +361,22 @@ function drawCandidateCutoutPreview(canvas: HTMLCanvasElement, ctx: CanvasRender
   if (!cropBitmap) return;
   const gutter = Math.max(12, Math.round(canvas.width * .05)), size = canvas.width - gutter * 2;
   drawTransparentGutter(ctx, canvas.width);
-  const mapping = circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
+  const mapping = selectedCandidate?.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState()) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
   ctx.save(); ctx.beginPath(); ctx.ellipse(canvas.width / 2, canvas.height / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.translate(gutter, gutter); drawRotatedCrop(ctx, cropBitmap.image, mapping); ctx.restore();
+  ctx.translate(gutter, gutter); drawOrientedCrop(ctx, cropBitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse), discOrientationDegrees); ctx.restore();
+}
+function drawOrientationPreview() {
+  if (!cropBitmap) return;
+  const canvas = $('crop-orientation-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, size = canvas.width;
+  ctx.clearRect(0, 0, size, size); drawTransparentGutter(ctx, size);
+  const tilted = !!selectedCandidate?.ellipse && !manualCrop.open;
+  const mapping = tilted ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState()) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, cropState());
+  ctx.save(); ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.clip();
+  drawOrientedCrop(ctx, cropBitmap.image, edgeSafeCrop(mapping, tilted), discOrientationDegrees); ctx.restore();
 }
 function updateCropPreview() {
   if (!cropWorking || !cropBitmap) return;
+  drawOrientationPreview();
   const canvas = $('crop-preview') as HTMLCanvasElement, ctx = canvas.getContext('2d')!, showCandidate = !!selectedCandidate && !manualCrop.open;
   cropStage.dataset.candidate = String(showCandidate);
   if (showCandidate) { drawCandidateCutoutPreview(canvas, ctx); return; }
@@ -389,34 +402,44 @@ function syncManualMode() {
   syncCandidateApply(); requestAnimationFrame(sizeCropStage);
 }
 function candidateCrop(candidate: CircleCandidate) {
-  return cropBitmap ? cropForDetectedCircle(cropBitmap.width, cropBitmap.height, candidate.circle) : null;
+  return cropBitmap ? clampCropSelection(cropBitmap.width, cropBitmap.height, cropForSourceSamples(cropBitmap.width, cropBitmap.height, candidate.ellipse ?? candidate.circle)) : null;
 }
-function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCandidate, selected: boolean) {
-  if (!cropWorking || !cropBitmap) return;
+function drawCandidateThumbnail(canvas: HTMLCanvasElement, candidate: CircleCandidate) {
+  if (!cropBitmap) return;
   const crop = candidateCrop(candidate); if (!crop) return;
-  const context = canvas.getContext('2d')!, view = fixedCirclePreviewGeometry(cropBitmap.width, cropBitmap.height, crop, canvas.width);
-  context.clearRect(0, 0, canvas.width, canvas.height); context.fillStyle = '#dfe5db'; context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(cropWorking, view.imageX, view.imageY, view.imageWidth, view.imageHeight);
-  context.save(); context.fillStyle = 'rgba(18,39,31,.58)'; context.beginPath(); context.rect(0, 0, canvas.width, canvas.height); context.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2, true); context.fill('evenodd'); context.beginPath(); context.arc(view.centerX, view.centerY, view.radius, 0, Math.PI * 2); context.strokeStyle = selected ? '#168a87' : '#fff'; context.lineWidth = 2; context.stroke(); context.restore();
+  const context = canvas.getContext('2d')!, gutter = 6, size = canvas.width - 2 * gutter;
+  drawTransparentGutter(context, canvas.width);
+  const mapping = candidate.ellipse ? cropExportMapping(cropBitmap.width, cropBitmap.height, size, crop) : circleCropExportMapping(cropBitmap.width, cropBitmap.height, size, crop);
+  context.save(); context.beginPath(); context.arc(canvas.width / 2, canvas.height / 2, size / 2, 0, Math.PI * 2); context.clip();
+  context.translate(gutter, gutter); drawOrientedCrop(context, cropBitmap.image, edgeSafeCrop(mapping, !!candidate.ellipse), discOrientationDegrees); context.restore();
 }
 function renderCandidateChoices() {
   candidateList.replaceChildren();
   candidatePicker.hidden = candidateChoices.length === 0;
-  candidateHeading.textContent = candidateChoices.length ? 'Pick the closest circle' : 'No circle choices yet';
+  candidateHeading.textContent = candidateChoices.length ? 'Choose a crop' : 'No crop choices yet';
   const fragment = document.createDocumentFragment();
   candidateChoices.forEach((candidate, index) => {
     const selected = selectedCandidate?.id === candidate.id;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'circle-candidate'; button.setAttribute('aria-pressed', String(selected)); button.setAttribute('aria-label', `Circle ${index + 1}${selected ? ', selected' : ''}`);
-    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate, selected);
-    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}`;
+    const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; canvas.setAttribute('aria-hidden', 'true'); drawCandidateThumbnail(canvas, candidate);
+    const detail = candidate.role === 'recommended' ? ' · Recommended' : candidate.role === 'edge-trim' ? ' · Tighter edge' : candidate.role === 'original-fit' ? ' · Original fit' : candidate.role === 'circle-alternative' ? ' · Center adjustment' : candidate.ellipse ? ' · Tilt repair' : candidate.id.endsWith('-opposing-rim') ? ' · Rim fit' : '';
+    const label = document.createElement('span'); label.textContent = `Circle ${index + 1}${detail}`;
     button.append(canvas, label); button.addEventListener('click', () => chooseCandidate(candidate)); fragment.append(button);
   });
   candidateList.append(fragment); refineButton.disabled = candidateBusy || !selectedCandidate; otherButton.disabled = candidateBusy || candidateChoices.length === 0; syncCandidateApply(); requestAnimationFrame(sizeCropStage);
 }
+input('crop-orientation').addEventListener('input', () => {
+  discOrientationDegrees = Number(input('crop-orientation').value);
+  ($('crop-orientation-value') as HTMLOutputElement).value = `${discOrientationDegrees > 0 ? '+' : ''}${discOrientationDegrees}°`;
+  candidateList.querySelectorAll<HTMLCanvasElement>('.circle-candidate canvas').forEach((canvas, index) => {
+    if (candidateChoices[index]) drawCandidateThumbnail(canvas, candidateChoices[index]);
+  });
+  scheduleCropPreview();
+});
 function clearCandidateSelection() { if (!selectedCandidate) return; selectedCandidate = null; renderCandidateChoices(); }
 function chooseCandidate(candidate: CircleCandidate) {
   const crop = candidateCrop(candidate); if (!crop) return;
-  invalidateCircleFit(); manualCrop.open = false; syncManualMode(); selectedCandidate = candidate; setCrop(crop, { invalidate: false }); renderCandidateChoices();
+  invalidateCircleFit(); manualCrop.open = false; selectedCandidate = candidate; syncManualMode(); setCrop(crop, { invalidate: false, allowEllipse: !!candidate.ellipse }); renderCandidateChoices();
   $('photo-crop-help').textContent = 'Circle selected. Refine choice stays near it, or use this circle as-is.';
 }
 function resetCandidateChoices() {
@@ -434,7 +457,7 @@ async function loadCircleCandidates(operation: 'initial' | 'refine' | 'other') {
   candidateBusy = true; renderCandidateChoices(); refineButton.disabled = true; otherButton.disabled = true;
   $('photo-crop-help').textContent = operation === 'refine' ? 'Refining around your selected circle…' : operation === 'other' ? 'Finding other circles…' : 'Finding circle choices…';
   try {
-    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
+    const result = await composeCircleCandidateChoices(experience.pxc, session, ++circleFitSerial, { operation, ...(operation === 'refine' && anchor ? { selected: anchor, rimFit: true } : {}), ...(operation === 'other' ? { excluded: seenCandidates } : {}) });
     if (request !== candidateRequest || session !== candidateSession || bitmap !== cropBitmap || working !== cropWorking) return;
     candidateBusy = false;
     const rows = result.proposal.status === 'accepted' ? result.proposal.candidates as CircleCandidate[] : [];
@@ -453,9 +476,10 @@ async function loadCircleCandidates(operation: 'initial' | 'refine' | 'other') {
       selectedCandidate = rows[0];
     }
     candidateChoices = rows;
+    if (operation === 'initial') { selectedCandidate = rows[0]; const crop = candidateCrop(rows[0]); if (crop) setCrop(crop, { invalidate: false, allowEllipse: !!rows[0].ellipse }); }
     if (operation === 'initial' || operation === 'other') { seenCandidates = [...seenCandidates, ...rows]; if (operation === 'other') selectedCandidate = null; }
     renderCandidateChoices();
-    $('photo-crop-help').textContent = operation === 'refine' ? 'Your circle is kept first. Choose a nearby alternative only if it looks better.' : 'Pick the closest circle, then refine it if needed.';
+    $('photo-crop-help').textContent = operation === 'refine' ? 'Your circle is kept first. Choose a nearby alternative only if it looks better.' : operation === 'initial' ? 'Recommended crop selected. Compare the other cuts or refine this circle.' : 'Choose a crop, then refine it if needed.';
   } catch {
     if (request !== candidateRequest || session !== candidateSession) return;
     candidateBusy = false; candidateChoices = previousChoices; selectedCandidate = previousSelection; renderCandidateChoices(); manualCrop.open = true; syncManualMode();
@@ -506,10 +530,11 @@ function startOverCircleChoices() {
 $('crop-auto').addEventListener('click', startOverCircleChoices);
 refineButton.addEventListener('click', () => loadCircleCandidates('refine'));
 otherButton.addEventListener('click', () => loadCircleCandidates('other'));
-manualCrop.addEventListener('toggle', () => { if (manualCrop.open) invalidateCircleFit(); syncManualMode(); }); syncManualMode();
+manualCrop.addEventListener('toggle', () => { if (manualCrop.open) { invalidateCircleFit(); if (selectedCandidate?.ellipse) { clearCandidateSelection(); setCrop(cropState(), { invalidate: false }); } } syncManualMode(); }); syncManualMode();
 function discardPendingPhoto() {
   endCropGesture(); invalidateCircleFit(); candidateSession = null; resetCandidateChoices(); manualCrop.open = false; syncManualMode();
   if (cropBitmap) cropBitmap.dispose(); cropBitmap = null; cropFile = null; cropWorking = null; input('photo').value = '';
+  discOrientationDegrees = 0; input('crop-orientation').value = '0'; ($('crop-orientation-value') as HTMLOutputElement).value = '0°';
 }
 async function decodePhoto(file: File): Promise<CropSource> {
   if (typeof createImageBitmap === 'function') {
@@ -556,9 +581,9 @@ $('crop-apply').addEventListener('click', async () => {
     const bitmap = cropBitmap, fileName = cropFile.name, size = Math.min(1024, Math.max(256, Math.min(bitmap.width, bitmap.height)));
     const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
     invalidateCircleFit();
-    const ctx = canvas.getContext('2d')!, mapping = circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
-    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawRotatedCrop(ctx, bitmap.image, mapping); ctx.restore();
-    const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86) };
+    const ctx = canvas.getContext('2d')!, mapping = selectedCandidate?.ellipse && !manualCrop.open ? cropExportMapping(bitmap.width, bitmap.height, size, cropState()) : circleCropExportMapping(bitmap.width, bitmap.height, size, cropState());
+    ctx.save(); ctx.beginPath(); ctx.ellipse(size / 2, size / 2, size / 2, size / 2, 0, 0, Math.PI * 2); ctx.clip(); drawOrientedCrop(ctx, bitmap.image, edgeSafeCrop(mapping, !!selectedCandidate?.ellipse && !manualCrop.open), discOrientationDegrees); ctx.restore();
+    const photoDepiction: Depiction = { kind: 'photo', name: fileName, src: canvas.toDataURL('image/webp', .86), ...(discOrientationDegrees ? { orientationDegrees: discOrientationDegrees } : {}) };
     await experience.addDraftPhoto(photoDepiction);
     photo = photoDepiction; depiction = photoDepiction; savedPhotoConsumed = false;
     ($('photo-crop') as HTMLDialogElement).close(); discardPendingPhoto(); const message = input('seed').value ? 'Photo ready.' : 'Photo ready. Select a manufacturer and mold.'; $('photo-status').textContent = message; $('status').textContent = message; finishPhotoPreparation(); preview();
@@ -573,20 +598,15 @@ $('composer').addEventListener('submit', async event => {
     const material = draft();
     const address = await experience.save(material, depiction, { photo });
     onSaved(address);
-    const storage = experience.persistenceStatus;
-    $('status').textContent = storage.startsWith('Saved in this session archive')
-      ? 'Saved to Today’s Bag.'
-      : `Added to Today’s Bag. ${storage}`;
+    $('status').textContent = experience.intakeAddress ? `${experience.intake().length} of 4 discs ready for cards.` : 'Saved to Today’s Bag.';
     input('photo').value = '';
     for (const field of flightFields) { input(`own-${field}`).checked = false; input(`disc-${field}`).value = ''; input(`disc-${field}`).disabled = true; }
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
     depiction = painting; photo = null; savedPhotoConsumed = true;
-    $('photo-status').textContent = storage.startsWith('Saved in this session archive')
-      ? 'Photo saved to Today’s Bag.'
-      : 'Photo added for this session only.';
+    $('photo-status').textContent = experience.intakeAddress ? (intakeFull() ? 'Four discs ready. Choose designs and export.' : 'Photo ready for this tab only.') : 'Photo saved to Today’s Bag.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();
-  } catch (error) { $('status').textContent = `Not saved: ${String(error)}`; }
+  } catch (error) { $('status').textContent = `Disc not added: ${String(error)}`; }
   finally { updateSaveState(); }
 });
 input('Color1').value = defaults.Color1; input('Color2').value = defaults.Color2; resetPaintSeed(); suggestPlastics(); preview();

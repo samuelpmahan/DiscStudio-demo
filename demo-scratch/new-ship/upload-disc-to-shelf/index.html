@@ -1,29 +1,28 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DiscStudio · Tournament cards</title><link rel="stylesheet" href="./style.css"></head>
-<body><header><a href="#"><img src="./brand-mark.svg" alt="" width="26" height="26"> <b>discstudio</b></a><span>TOURNAMENT CARD MAKER</span><span class="tag">ready for overlay</span><button id="clear-local-data-button" class="clear-local-data-button" type="button">Clear local data</button></header>
-<main><section class="intro"><h1>Make tournament cards.</h1><p>Add a photo, fit the rim, and choose the disc.</p></section>
+<body><header><a href="#"><img src="./brand-mark.svg" alt="" width="26" height="26"> <b>discstudio</b></a><span>FOUR-DISC CARD DEMO</span><span class="tag">ready for overlay</span></header>
+<main><section class="intro"><h1>Make cards for your video.</h1><p>Prepare up to four discs, choose a card design, and download a ZIP.</p></section>
 <section class="workspace"><form id="composer">
 <div class="section-title"><h2>Add a disc</h2><span>01 — compose</span></div>
 <div class="mold-step">
 <label class="file-button add-photo">Add a photo of this disc<input id="photo" type="file" accept="image/*"></label><p id="photo-status" class="subtle photo-primary-note" role="status">Photos are cropped on this device. The original stays unchanged.</p><label for="mold-search">Manufacturer + mold</label><div class="mold-combobox"><input id="mold-search" role="combobox" aria-autocomplete="list" aria-controls="mold-options" aria-expanded="false" autocomplete="off" placeholder="Search manufacturer or mold" required><div id="mold-options" role="listbox" hidden></div></div><input id="seed" type="hidden"><p id="flight" class="subtle"></p>
  </div><div class="form-details">
-<div class="pair"><label>Plastic <span class="subtle">optional</span><select id="plastic"><option value="">Not specified</option></select></label><label>Weight · grams<input id="weight" type="number" min="1" step="any" placeholder="Optional"></label></div>
-<p class="subtle plastic-note"><a id="plastic-source" target="_blank" rel="noreferrer">Plastic guide</a></p>
+<label for="plastic">Plastic <span class="subtle">optional</span></label><input id="plastic" type="text" list="plastic-suggestions" maxlength="120" autocomplete="off" placeholder="Choose or type the exact blend"><datalist id="plastic-suggestions"></datalist>
+<p class="subtle plastic-note">Suggestions are a starting point. Type the exact plastic if it is not listed. <a id="plastic-source" target="_blank" rel="noreferrer">Plastic guide</a></p>
 <div class="pair colors painting-only"><label>Color 1<input id="Color1" type="color" value="#98d4ba"></label><label>Color 2<input id="Color2" type="color" value="#f8b393"></label></div>
 <div class="pair painting-only"><label>Paint mode<select id="paint-mode"><option value="split">50/50</option><option value="halo">Halo</option></select></label><label class="check"><input id="color-painting" type="checkbox"> Apply colors to painting</label></div><details class="experimental"><summary>Try finish effects</summary><p class="subtle">Local preview only. Nothing here is saved yet.</p><div class="pair"><label class="painting-only">Painted rim<input id="rim-size" type="range" min="0" max="28" value="10"></label><label>Underglow<input id="underglow" type="range" min="0" max="1" step=".05" value="0"></label></div><div class="pair painting-only"><label>Stamp left / right<input id="stamp-x" type="range" min="-1" max="1" step=".05" value="0"></label><label>Stamp up / down<input id="stamp-y" type="range" min="-1" max="1" step=".05" value="0"></label></div></details><p id="paint-help" class="subtle"></p>
 <div class="pair painting-only"><button id="shuffle" type="button">↻ Another painting</button></div>
 <div class="pair depiction-switcher"><label>Show<select id="depiction-choice"><option value="painted">Painting</option><option value="photo" disabled>Photo</option></select></label><label class="painting-only">Painting seed<input id="paint-seed" type="number" step="1" value="40"></label></div>
 <label class="check label-toggle painting-only"><input id="customize-label" type="checkbox" aria-controls="paint-label-controls" aria-expanded="false"> Customize painting label</label><div id="paint-label-controls" class="painting-only" hidden><label>My text<input id="paint-label" maxlength="80" placeholder="Printed on the painting"></label></div>
-<button id="save" class="primary" type="submit">Save to Today’s Bag ↗</button><p id="status" role="status" aria-live="polite">Photos stay on this device.</p></div></form><section class="preview-panel"><div class="section-title"><span>YOUR DISC</span><span id="depiction-name"></span></div><div id="preview"></div></section></section>
-<section class="shelf-section"><div class="section-title"><h2>Your shelf <span id="count">0</span></h2><span>02 — retained in PxC</span></div><div id="shelf"><p class="empty">No discs saved yet.</p></div></section>
+<button id="save" class="primary" type="submit">Add disc to export ↗</button><p id="status" role="status" aria-live="polite">Prepare a photo to start.</p></div></form><section class="preview-panel"><div class="section-title"><span>YOUR DISC</span><span id="depiction-name"></span></div><div id="preview"></div></section></section>
 <input id="crop-radius-x" type="hidden" value=".4"><input id="crop-radius-y" type="hidden" value=".4">
-<details id="receipts-panel" hidden><summary>Save receipts · inspect the actual Parts</summary><p class="subtle">JSON lines also appear in the browser console and local server terminal. No photo bytes are logged.</p><pre id="receipts">No saves yet.</pre></details>
 <dialog id="photo-crop" aria-labelledby="photo-crop-title" aria-describedby="photo-crop-help">
   <div class="crop-shell">
     <div class="crop-heading"><div><p class="eyebrow">PHOTO</p><h2 id="photo-crop-title">Fit the disc</h2></div><button id="crop-cancel" type="button" aria-label="Cancel photo crop">Cancel</button></div>
     <p id="photo-crop-help" class="subtle">Finding circle choices…</p>
     <div class="crop-stage" id="crop-stage"><canvas id="crop-preview" width="320" height="320" role="img" aria-label="Photo crop preview"></canvas><button id="crop-resize-handle" class="crop-resize-handle" type="button" aria-label="Resize circle"><span aria-hidden="true">↘</span></button><output id="crop-gesture-state" class="crop-gesture-state" aria-live="polite">Circle ready</output></div>
     <input id="crop-center-x" type="hidden" value=".5"><input id="crop-center-y" type="hidden" value=".5">
+    <div class="crop-orientation"><div class="crop-orientation-main"><label for="crop-orientation">Rotate disc <output id="crop-orientation-value" for="crop-orientation">0°</output></label><div class="crop-orientation-track"><span>−180°</span><input id="crop-orientation" type="range" min="-180" max="180" step="1" value="0" aria-label="Rotate disc in degrees"><span>+180°</span></div></div><canvas id="crop-orientation-preview" width="72" height="72" role="img" aria-label="Prepared disc rotation preview"></canvas></div>
     <section id="circle-candidate-picker" class="circle-candidate-picker" aria-label="Circle choices" aria-live="polite" hidden>
       <p id="circle-candidate-heading" class="circle-candidate-heading">Pick the closest circle</p>
       <div id="circle-candidates" class="circle-candidates" role="group" aria-label="Circle choices"></div>
@@ -33,11 +32,4 @@
     <div class="crop-actions crop-actions-single"><button id="crop-apply" class="primary" type="button">Use photo</button></div>
   </div>
 </dialog>
-<dialog id="clear-local-data" aria-labelledby="clear-local-data-title" aria-describedby="clear-local-data-description">
-  <div class="clear-local-data-dialog">
-    <h2 id="clear-local-data-title">Clear locally saved data?</h2>
-    <p id="clear-local-data-description">This deletes locally saved DiscStudio photos, discs, sessions, current bag, queue, draft, and checklist progress. It cannot be undone. Downloaded files are unaffected.</p>
-    <p id="clear-local-data-error" role="alert" aria-live="assertive"></p>
-    <div class="clear-local-data-actions"><button id="clear-local-data-cancel" type="button" autofocus>Cancel</button><button id="clear-local-data-confirm" class="primary" type="button">Clear and restart</button></div>
-  </div>
-</dialog></main><script src="./vendor/neat/tick-part-checklist.js"></script><script type="module" src="./app.ts"></script></body></html>
+</main><script type="module" src="./app.ts"></script></body></html>

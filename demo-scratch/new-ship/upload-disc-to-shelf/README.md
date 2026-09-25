@@ -35,6 +35,16 @@ This runs the supported tournament gate: photo-first save/readback, CircleFit-to
 
 CircleFit is the creator default. It runs its edge-ring search on a bounded working raster, maps the proposal to source pixels, and refines that same foreground component at full source resolution. The crop remains one editable circle; manual use stays available when CircleFit abstains. The former RimFit v3 ellipse experiment remains deferred source and is not imported by the creator.
 
+Initial intake now searches for one disc, then composes `oc.studio.opposingRimFit`, `oc.studio.ellipseRimFit`, and `oc.studio.localCircleAlternatives` over the same transient photo Part. The best supported rim circle becomes the selected **Recommended** crop. The two remaining slots offer **Tilt repair** and **Tighter edge** where an ellipse is supported, or **Tighter edge** and a sufficiently distinct **Original fit** otherwise. Unsupported proposals abstain rather than filling a slot with a fake alternative. All three thumbnails render the same transparent cutout as Apply. **Find other circles** retains the separate broad search for a genuinely different object.
+
+**Refine choice** keeps the selected crop first and explores nearby alternatives. Opposing-rim hypotheses and bounded radial samples remain in `ds.px.OpposingRimFit.circlefit.*`; ellipse geometry and residuals remain in `ds.px.EllipseRimFit.circlefit.*`. `ds.px.LocalCircleAlternatives.circlefit.*` records the small-circle variants. An ellipse extending beyond the source abstains because missing pixels cannot be recovered.
+
+**Rotate disc** sits above the three choices. Its −180° to +180° angle turns the prepared circle after crop selection and optional ellipse repair, without rerunning rim detection. The large selected preview, all choice thumbnails, manual-crop mini preview, and saved WebP use the same angle. A nonzero angle is retained as `orientationDegrees` on the draft photo Part; each new photo resets to 0°.
+
+Prepared cutouts use a small inward source aperture while keeping the output circle full-size: 4% for an accepted tilt repair and 1.5% for a circular crop. Candidate previews and saved photos share this materialization rule. It removes the visible bedding along the estimated rim on the tested discs, at the cost of trimming a little physical rim. A fitted outline alone cannot certify every unseen photo; inspect the transparent candidate preview before Apply, and adjust manually if the edge is ambiguous.
+
+On eight real photos in local headless Chromium, the first three choices appeared in 197–257 ms and Apply took 127–204 ms (at most 416 ms combined). IMG_6161 and IMG_6167 offered tilt repairs; the other six offered an original fit. All eight recommended saved outputs were inspected against a checkerboard. These are measured samples, not a device-wide latency guarantee.
+
 ## Optional paired capture
 
 After `npm run build`, the optional local capture CLI needs a Chrome executable plus `puppeteer-core` (install it locally without changing the demo dependencies with `npm install --no-save puppeteer-core`). Normal demo builds and tests do not need either. Capture a settled creator screen and the mounted **actual PxC DevTools** screen with the ready-to-run initial-screen scenario:
@@ -52,3 +62,16 @@ node drive-real-ui.mjs --url-free --chrome /path/to/chrome --scenario ./capture-
 ```
 
 That mode is useful where local URL navigation is unavailable. It does not prove HTTP delivery or persistence across reloads. Screenshots are intentionally not run by this repository's automated tests.
+
+## Creator PQL seam
+
+The creator imports three already-compiled, frozen query plans; no query text is parsed at startup or during a save:
+
+```sql
+INSERT INTO :target VALUES :value
+SELECT * FROM :source
+```
+
+The creator owns three frozen plans with stable identities: `createDisc`, `readDisc`, and `readShelf`. A save never reparses PQL. It binds the actual Disc or Shelf semantic address and existing PxC Part inputs, then executes the resulting `fn.CREATE` or `fn.READ` composition. The target address selects the CREATE output location; it is not merged into the Disc value.
+
+Every creator save retains its three executions at `ds.px.receipt.pql.<save-id>`. Each entry records the frozen plan/template, the actual bound addresses, and the actual Part traffic separately. The ad-hoc `executePql` text API lives in `pql-compiler.ts` for workbench callers outside the creator flow; that compiler module is absent from the creator import graph. `UPDATE`, `DELETE`, projections other than `*`, and filters are rejected until a creator path needs them; `fn.UPDATE` and `fn.DELETE` remain registered universal calculations for later compilation.

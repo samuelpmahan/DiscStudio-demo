@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createExperience, initialDraft, flightFields } from './model.ts';
+import { creatorPqlPlans } from './pql.ts';
 
 const testPhoto = { kind: 'photo' as const, src: 'data:image/png;base64,iVBORw0KGgo=', name: 'test-photo.png' };
 
@@ -16,20 +17,63 @@ test('save composes a disc and a shelf, retaining inputs and readback evidence',
   const draft = { ...initialDraft(), nickname: 'Minty', plastic: 'ESP', weight: 177 };
   const address = await app.save(draft, depiction);
   const part = app.pxc.get(address);
-  assert.equal(part.composition.calculation, app.pxc.get('oc.create'));
-  assert.equal(app.pxc.get(`ds.px.resolved.${part.value.id}`).composition.inputs.base, app.pxc.get(draft.mold));
+  const operationId = (app.events.at(-1) as any).operationId;
+  assert.equal(part.composition.calculation, app.pxc.get('fn.CREATE'));
+  assert.equal(app.pxc.get(`ds.px.resolved.${operationId}`).composition.inputs.base, app.pxc.get(draft.mold));
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
   assert.equal(app.shelf()[0].disc.depiction.src, depiction.src);
   // Lite-first: full flights are explicitly hydrated before UI selection/save.
   const hydrated = await app.hydrateSeed(draft.mold);
   assert.deepEqual(flightFields.map(field => hydrated.seed[field]), [5, 4, -1, 1]);
   assert.equal(app.pxc.get(app.shelfAddress).composition.inputs.disc, part);
+  const specialize = app.pxc.get(`ds.px.tick.${operationId}.specialize`);
+  assert.equal(specialize.composition.inputs[address], part, 'specialize Tick acknowledges the actual PQL CREATE output');
+  const declared = app.pxc.get(`ds.px.stage.${operationId}`).value[0];
+  assert.equal(declared.calculations[0].inputs.id, part.composition.inputs.id, 'Stage retains the actual PQL CREATE binding Part');
+  assert.equal(app.pxc.get(declared.calculations[0].inputs.value).value, part.composition.inputs.value.value, 'address binding resolves to the actual CREATE input Part');
+  const resolved = app.pxc.get(`ds.px.resolved.${operationId}`);
+  assert.equal(declared.calculations[1].calculation, 'fn.READ');
+  assert.equal(app.pxc.get(declared.calculations[1].inputs.base), resolved.composition.inputs.base);
+  assert.equal(app.pxc.get(declared.calculations[1].inputs.own), resolved.composition.inputs.own);
+  assert.equal(specialize.composition.inputs[`ds.px.resolved.${operationId}`], resolved, 'specialize Tick acknowledges the resolved Disc output');
   assert.equal(app.pxc.get(part.value.paintRecipe).value, null); // photo-only save does not stage a duplicate recipe write
   assert.equal(app.events.at(-1)?.event, 'disc.save.completed');
   assert.equal(app.events.at(-1)?.shelfContainsDisc, true);
+  assert.deepEqual(app.events.at(-1)?.pql.map((entry: any) => entry.calculation), ['fn.CREATE', 'fn.READ', 'fn.READ']);
+  const executedPql = app.pxc.get(`ds.px.receipt.pql.${operationId}`).value as any[];
+  assert.deepEqual(executedPql.map(entry => entry.query), [
+    'INSERT INTO :target VALUES :value', 'SELECT * FROM :source', 'SELECT * FROM :source',
+  ]);
+  assert.deepEqual(executedPql.map(entry => entry.boundAddresses), [
+    { target: address, into: address },
+    { source: address, into: `ds.px.pql.${operationId}.disc` },
+    { source: app.shelfAddress, into: `ds.px.pql.${operationId}.shelf` },
+  ]);
   draft.nickname = 'Later edit';
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
 });
+
+test('two saves execute the same frozen plans while binding distinct Disc and Shelf addresses', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const first = await app.save({ ...initialDraft(), nickname: 'First' }, depiction);
+  const firstOperationId = (app.events.at(-1) as any).operationId;
+  await app.addDraftPhoto({ ...testPhoto, name: 'second.png' });
+  const second = await app.save({ ...initialDraft(), nickname: 'Second' }, await app.selectDraftDepiction());
+  const secondOperationId = (app.events.at(-1) as any).operationId;
+  const firstPlans = app.pxc.get(`ds.px.receipt.pql.${firstOperationId}`).value as any[];
+  const secondPlans = app.pxc.get(`ds.px.receipt.pql.${secondOperationId}`).value as any[];
+  assert.equal(firstPlans[0].plan, creatorPqlPlans.createDisc);
+  assert.equal(secondPlans[0].plan, creatorPqlPlans.createDisc);
+  assert.equal(firstPlans[1].plan, creatorPqlPlans.readDisc);
+  assert.equal(secondPlans[1].plan, creatorPqlPlans.readDisc);
+  assert.equal(firstPlans[2].plan, creatorPqlPlans.readShelf);
+  assert.equal(secondPlans[2].plan, creatorPqlPlans.readShelf);
+  assert.notEqual(firstPlans[0].boundAddresses.target, secondPlans[0].boundAddresses.target);
+  assert.equal(firstPlans[0].boundAddresses.target, first);
+  assert.equal(secondPlans[0].boundAddresses.target, second);
+  assert.notEqual(firstPlans[2].boundAddresses.source, secondPlans[2].boundAddresses.source);
+});
+
 test('two specimens share a seed without replacing each other or prior shelf', async () => {
   const { app, depiction: image } = await appWithPhoto();
   const a = await app.save(initialDraft(), image), previous = app.shelfAddress;
@@ -140,4 +184,26 @@ test('bag query filters by mold name like shelf does', async () => {
   await app.save({ ...initialDraft(), nickname: 'Second' }, image2);
   assert.equal(app.bag('buzzz').length, 2);
   assert.equal(app.bag('nomatchxyz').length, 0);
+});
+
+
+test('Disc Parts use mold identity ordinals while save executions retain their own trace IDs', async () => {
+  const app = createExperience(() => {});
+  const crave = app.seedOptions('Crave').find(option => option.seed.id === 'axiom--crave');
+  assert.ok(crave, 'canonical Axiom Crave seed exists');
+  for (const nickname of ['one', 'two']) {
+    await app.addDraftPhoto({ ...testPhoto, name: nickname + '.png' });
+    await app.save({ ...initialDraft(), mold: crave.address, nickname }, await app.selectDraftDepiction());
+  }
+  await app.addDraftPhoto({ ...testPhoto, name: 'buzzz.png' });
+  const buzzz = await app.save(initialDraft(), await app.selectDraftDepiction());
+  assert.deepEqual(app.bag().map(row => [row.address, row.disc.id]), [
+    ['ds.px.disc.crave-1', 'crave-1'],
+    ['ds.px.disc.crave-2', 'crave-2'],
+    ['ds.px.disc.buzzz-1', 'buzzz-1'],
+  ]);
+  assert.equal(buzzz, 'ds.px.disc.buzzz-1');
+  const saves = app.events.filter(event => event.event === 'disc.save.completed') as any[];
+  assert.ok(saves.every(receipt => /^save-[0-9]+$/.test(receipt.operationId)));
+  assert.ok(saves.every(receipt => receipt.discAddress.endsWith(receipt.discId)));
 });
