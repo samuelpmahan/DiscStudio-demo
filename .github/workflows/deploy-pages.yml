@@ -15,29 +15,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  stage:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: demo-scratch/new-ship/upload-disc-to-shelf
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: demo-scratch/new-ship/upload-disc-to-shelf/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npm run test:capture
-      - run: npm run build
+      - name: Extract prebuilt Pages artifact
+        run: |
+          unzip -t pages-artifact.zip
+          mkdir -p "$RUNNER_TEMP/pages"
+          unzip -q pages-artifact.zip -d "$RUNNER_TEMP/pages"
+          test -f "$RUNNER_TEMP/pages/index.html"
+          test -f "$RUNNER_TEMP/pages/.nojekyll"
+          python3 - "$RUNNER_TEMP/pages/BUILD_INFO.json" <<'PY'
+          import json
+          import sys
+          info = json.load(open(sys.argv[1], encoding='utf-8'))
+          assert info['artifact'] == 'discstudio-tournament-pages' and info['static'] is True and info['buildId']
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: demo-scratch/new-ship/upload-disc-to-shelf/dist
+          path: ${{ runner.temp }}/pages
 
   deploy:
-    needs: build
+    needs: stage
     runs-on: ubuntu-latest
     environment:
       name: github-pages
