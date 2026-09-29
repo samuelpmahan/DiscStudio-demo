@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createFreshSession, discoverSessionKeys, legacyStorageKey, sessionKeyPrefix } from './session-storage.ts';
+import { activeSessionKey, createFreshSession, discoverSessionKeys, legacyStorageKey, sessionKeyPrefix } from './session-storage.ts';
 
 test('fresh sessions produce distinct durable keys without touching legacy bytes', () => {
   const first = createFreshSession({ sessionId: 'session-one-00001' });
@@ -29,6 +29,7 @@ test('clearing local data snapshots every DiscStudio key and preserves unrelated
   const { clearLocalData } = await import('./session-storage.ts');
   const values = new Map([
     [legacyStorageKey, 'legacy'],
+    [activeSessionKey, `${sessionKeyPrefix}one-000000000000`],
     [`${sessionKeyPrefix}one-000000000000`, 'session one'],
     [`${sessionKeyPrefix}two-000000000000`, 'session two'],
     ['tick-part-checklist:discstudio-creator-review:start-fresh', 'done'],
@@ -51,7 +52,7 @@ test('clearing local data snapshots every DiscStudio key and preserves unrelated
     ['tick-part-checklist:another-app', 'keep'],
     ['tick-part-checklist:discstudio-creator-reviewish:keep', 'keep'],
   ]);
-  assert.equal(result.ok && result.removed.length, 5);
+  assert.equal(result.ok && result.removed.length, 6);
 });
 
 test('clearing local data reports a partial removal failure without touching unrelated keys', async () => {

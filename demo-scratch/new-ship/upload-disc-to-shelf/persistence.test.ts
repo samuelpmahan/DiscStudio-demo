@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { openExperience } from './persistent-experience.ts';
 import { createExperience, initialDraft } from './model.ts';
 import { restore } from './persistence.ts';
-import { legacyStorageKey, sessionKeyPrefix } from './session-storage.ts';
+import { activeSessionKey, legacyStorageKey, sessionKeyPrefix } from './session-storage.ts';
 import { exportZip } from './export-queue.ts';
 import { Part } from '../part-first-kernel/src/pxc.mjs';
 
@@ -37,16 +37,46 @@ function replaceFirstPhotoReference(value: any, replacement = 999): boolean {
   return Object.values(value).some(item => replaceFirstPhotoReference(item, replacement));
 }
 
-test('legacy archive survives startup and save while every launch starts with an empty bag', async () => {
+test('reload resumes the current Bag and keeps the legacy archive untouched', async () => {
   const legacy = '{legacy bytes retained verbatim}', storage = memory({ [legacyStorageKey]: legacy });
   const first = await openExperience(storage, () => {});
   assert.deepEqual(first.shelf(), []);
   await first.save(initialDraft(), image);
   assert.equal(storage.getItem(legacyStorageKey), legacy);
   assert.equal(sessionKeys(storage).length, 1);
+  assert.equal(storage.getItem(activeSessionKey), sessionKeys(storage)[0]);
   const second = await openExperience(storage, () => {});
-  assert.deepEqual(second.shelf(), []);
+  assert.equal(second.bag().length, 1);
+  assert.equal(second.bag()[0].disc.depiction.src, image.src);
+  assert.match(second.persistenceStatus, /Restored Today’s Bag/);
   assert.equal(storage.getItem(legacyStorageKey), legacy);
+});
+
+test('a sole archive from before the active pointer resumes without rewriting its bytes', async () => {
+  const storage = memory(), first = await openExperience(storage, () => {});
+  await first.save({ ...initialDraft(), nickname: 'Earlier visit' }, image);
+  const key = sessionKeys(storage)[0], bytes = storage.getItem(key)!;
+  storage.values.delete(activeSessionKey);
+  const reopened = await openExperience(storage, () => {});
+  assert.equal(reopened.bag().length, 1);
+  assert.equal(reopened.bag()[0].disc.nickname, 'Earlier visit');
+  assert.equal(storage.getItem(key), bytes);
+  assert.equal(storage.getItem(activeSessionKey), null, 'a read does not mutate old storage');
+  await reopened.save({ ...initialDraft(), nickname: 'Next visit' }, image);
+  assert.equal(storage.getItem(activeSessionKey), key);
+  assert.equal((await openExperience(storage, () => {})).bag().length, 2);
+});
+
+test('reload restores saved photo and Bag while approved output remains current-session', async () => {
+  const storage = memory(), first = await openExperience(storage, () => {});
+  await first.save({ ...initialDraft(), nickname: 'Crave proof' }, image);
+  await first.enqueueOutput([heldCard(first)]);
+  assert.equal(first.outputQueue().length, 1);
+  const reopened = await openExperience(storage, () => {});
+  assert.equal(reopened.bag().length, 1);
+  assert.equal(reopened.bag()[0].disc.depiction.src, image.src);
+  assert.equal(reopened.outputQueue().length, 0);
+  assert.match(reopened.persistenceStatus, /Approved output starts empty/);
 });
 
 test('each save writes only its unique session key', async () => {
@@ -80,7 +110,7 @@ test('quota keeps a valid current bag and export queue in memory, preserves prio
 
   failWrites = false;
   await app.save({ ...initialDraft(), nickname: 'Durable retry' }, image);
-  assert.match(app.persistenceStatus, /^Saved in this session archive/);
+  assert.match(app.persistenceStatus, /^Saved on this browser/);
   assert.notEqual(storage.getItem(priorKey), priorBytes);
   const state = await restore(storage.getItem(priorKey)!, createExperience(() => {}).pxc);
   assert.equal(createExperience(() => {}, { state }).bag().length, 3, 'the later write retains prior session-only work too');

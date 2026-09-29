@@ -585,7 +585,7 @@ $('composer').addEventListener('submit', async event => {
     const address = await experience.save(material, depiction, { photo, ...(paintedDiscsEnabled && depiction.kind === 'painted' ? { recipe: recipe(material) } : {}) });
     onSaved(address);
     const storage = experience.persistenceStatus;
-    $('status').textContent = storage.startsWith('Saved in this session archive')
+    $('status').textContent = storage.startsWith('Saved on this browser')
       ? 'Saved to Today’s Bag.'
       : `Added to Today’s Bag. ${storage}`;
     input('photo').value = '';
@@ -593,7 +593,7 @@ $('composer').addEventListener('submit', async event => {
     // The saved photo is consumed by model.save(). A new composition waits
     // for its own crop instead of reusing an older draft-photo Part.
     depiction = painting; photo = null; savedPhotoConsumed = true;
-    $('photo-status').textContent = storage.startsWith('Saved in this session archive')
+    $('photo-status').textContent = storage.startsWith('Saved on this browser')
       ? 'Photo saved to Today’s Bag.'
       : 'Photo added for this session only.';
     input('customize-label').checked = false; input('paint-label').value = ''; resetPaintSeed(); preview();

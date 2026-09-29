@@ -3,6 +3,8 @@ import { storageKey } from './persistence.ts';
 /** The original single-shelf archive is retained verbatim for future recovery. */
 export const legacyStorageKey = storageKey;
 export const sessionKeyPrefix = 'discstudio.pxc.session.v1.';
+/** Points to the current durable Bag archive without moving or deleting older sessions. */
+export const activeSessionKey = 'discstudio.pxc.active-session.v1';
 export const cardSetupStorageKey = 'discstudio.card-setup.v1';
 
 type KeyStorage = Pick<Storage, 'getItem' | 'key'> & { readonly length: number };
@@ -46,7 +48,7 @@ export function clearLocalData(storage: ClearableStorage): ClearLocalDataResult 
     matching = [];
     for (let index = 0; index < storage.length; index++) {
       const key = storage.key(index);
-      if (key === legacyStorageKey || key === cardSetupStorageKey || key?.startsWith(sessionKeyPrefix) || key?.startsWith('tick-part-checklist:discstudio-creator-review:')) matching.push(key);
+      if (key === legacyStorageKey || key === activeSessionKey || key === cardSetupStorageKey || key?.startsWith(sessionKeyPrefix) || key?.startsWith('tick-part-checklist:discstudio-creator-review:')) matching.push(key);
     }
   } catch (error) { return { ok: false, removed: Object.freeze([]), error: errorOf(error) }; }
 

@@ -28,6 +28,6 @@ test('CircleFit correction remains transient while a photo-only save restores', 
   const raw = values.get(sessionKey)!;
   assert.doesNotMatch(raw, /(?:PhotoIntake|CircleFit|CropEdit)\.circlefit/);
   const fresh = await openExperience(storage, () => {});
-  assert.equal(fresh.bag().length, 0);
-  assert.match(fresh.persistenceStatus, /Fresh session/);
+  assert.equal(fresh.bag().length, 1);
+  assert.match(fresh.persistenceStatus, /Restored Today’s Bag/);
 });

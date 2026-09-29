@@ -46,8 +46,9 @@ const persistenceNotice = document.createElement('p'); persistenceNotice.id = 'p
 document.querySelector('main')!.prepend(persistenceNotice);
 const persistenceText = () => {
   const status = experience.persistenceStatus;
-  if (status.startsWith('Saved in this session archive')) return 'Saved on this device.';
-  if (status.startsWith('Fresh session')) return 'New session.';
+  if (status.startsWith('Saved on this browser')) return 'Today’s Bag saved on this device; approved output is current-session only.';
+  if (status.startsWith('Restored Today’s Bag')) return 'Today’s Bag restored; approved output starts empty.';
+  if (status.startsWith('Fresh Bag')) return 'New Bag; saved discs reopen after reload.';
   return status;
 };
 const showPersistence = () => { persistenceNotice.textContent = persistenceText(); };

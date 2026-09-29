@@ -39,7 +39,7 @@ const log = (event: Record<string, unknown>) => {
   // Pages is static. Keep receipts in PxC and the console; only a local demo server receives diagnostics.
   if (!sandbox && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) fetch(new URL('./events', location.href), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: line }).catch(() => console.warn('Terminal logging unavailable; receipt retained in PxC and console.'));
 };
-const experience = sandbox ? await startSandbox(sandbox, log) : await openExperience({ getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, log);
+const experience = sandbox ? await startSandbox(sandbox, log) : await openExperience({ getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value), key: index => localStorage.key(index), get length() { return localStorage.length; } }, log);
 // Instrumentation hook: expose experience immediately (before mount) when
 // ?instrument=1 so the PxCube inspector strip can read live addresses
 // even if mount throws.
