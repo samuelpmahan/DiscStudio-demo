@@ -98,9 +98,10 @@ export async function restore(raw: string, knownStore: any): Promise<State> {
       if (photo.value !== null && (photo.value?.kind !== 'photo' || typeof photo.value?.src !== 'string' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(photo.value.src))) throw Error('Invalid retained photo.');
       if (!['painted', 'photo'].includes(choice.value) || choice.value !== disc.depiction?.kind) throw Error('Invalid depiction choice.');
       if (choice.value === 'photo') {
-        // Photo-first saves deliberately retain a null recipe; the prepared
-        // image itself is the declared artwork source.
-        if (recipe.value !== null || !photo.value || disc.depiction.src !== photo.value.src) throw Error('Photo source differs from selected depiction.');
+        // Photo-first saves retain a null recipe. An overlay Disc may retain
+        // its painting recipe while temporarily displaying the photo.
+        if (recipe.value !== null) validatePaintRecipe(recipe.value);
+        if (!photo.value || disc.depiction.src !== photo.value.src) throw Error('Photo source differs from selected depiction.');
       } else {
         validatePaintRecipe(recipe.value);
         if (disc.depiction.name !== recipe.value.family) throw Error('Painting source differs from selected depiction.');

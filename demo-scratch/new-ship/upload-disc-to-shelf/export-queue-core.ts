@@ -1,9 +1,11 @@
 // Environment-neutral queue and manifest semantics shared by Node and browser export.
 import type { Disc } from './model.ts';
+import { identityTransform } from './transform-geometry.mjs';
 
 export type CardOrientation = 'horizontal' | 'vertical';
 export const orientations: readonly CardOrientation[] = ['horizontal', 'vertical'];
-export interface QueuedCard { disc: Disc; orientation: CardOrientation; cardDesign: string; }
+export interface CardTransform { scale: number; dx: number; dy: number; }
+export interface QueuedCard { disc: Disc; orientation: CardOrientation; cardDesign: string; placement?: CardTransform; }
 export type CardRenderer = (card: QueuedCard) => Promise<Uint8Array>;
 export interface CardDimensions { width: number; height: number; }
 export function cardDimensions(orientation: CardOrientation): CardDimensions { return orientation === 'vertical' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 }; }
@@ -20,6 +22,8 @@ function checkCard(card: QueuedCard, index: number): void {
   if (typeof card.disc.mold !== 'string' || !card.disc.mold) throw new Error(`${where}: disc needs a mold address.`);
   if (!orientations.includes(card.orientation)) throw new Error(`${where}: orientation must be 'horizontal' or 'vertical'.`);
   if (typeof card.cardDesign !== 'string' || !card.cardDesign.trim()) throw new Error(`${where}: cardDesign must be a non-empty string.`);
+  const placement = card.placement ?? identityTransform;
+  if (![placement.scale, placement.dx, placement.dy].every(Number.isFinite) || placement.scale < 0.5 || placement.scale > 1.5 || Math.abs(placement.dx) > 1 || Math.abs(placement.dy) > 1) throw new Error(`${where}: invalid placement transform.`);
 }
 /** Queue cards are portable metadata, not arbitrary JavaScript objects. */
 function snapshot(value: unknown): any {
@@ -38,6 +42,7 @@ export interface ManifestCard {
   flight: { speed: number | null; glide: number | null; turn: number | null; fade: number | null };
   orientation: CardOrientation; cardDesign: string; width: number; height: number; byteLength: number; sha256: string;
   flightSource: { speed: 'own' | 'mold' | 'unknown'; glide: 'own' | 'mold' | 'unknown'; turn: 'own' | 'mold' | 'unknown'; fade: 'own' | 'mold' | 'unknown' };
+  placement: CardTransform; backgroundIncluded: false;
 }
 export interface ExportManifest { type: 'discstudio-export'; version: 1; cardCount: number; cards: ManifestCard[]; }
 export type RenderedExport = { filename: string; png: Uint8Array; card: QueuedCard };
@@ -57,7 +62,7 @@ export async function prepareExport(queue: readonly QueuedCard[], renderCard: Ca
     })) as Record<typeof fields[number], { value: number | null; source: 'own' | 'mold' | 'unknown' }>;
     manifestCards.push({ filename, discId: card.disc.id, nickname: card.disc.nickname, mold: card.disc.mold, plastic: card.disc.plastic, weight: card.disc.weight,
       flight: { speed: values.speed.value, glide: values.glide.value, turn: values.turn.value, fade: values.fade.value }, flightSource: { speed: values.speed.source, glide: values.glide.source, turn: values.turn.source, fade: values.fade.source }, orientation: card.orientation, cardDesign: card.cardDesign,
-      width, height, byteLength: png.length, sha256: await sha256(png) });
+      width, height, byteLength: png.length, sha256: await sha256(png), placement: { ...(card.placement ?? identityTransform) }, backgroundIncluded: false });
   }
   return { rendered, manifest: { type: 'discstudio-export', version: 1, cardCount: manifestCards.length, cards: manifestCards } };
 }

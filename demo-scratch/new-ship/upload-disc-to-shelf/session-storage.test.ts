@@ -32,6 +32,7 @@ test('clearing local data snapshots every DiscStudio key and preserves unrelated
     [`${sessionKeyPrefix}one-000000000000`, 'session one'],
     [`${sessionKeyPrefix}two-000000000000`, 'session two'],
     ['tick-part-checklist:discstudio-creator-review:start-fresh', 'done'],
+    ['discstudio.card-setup.v1', 'setup'],
     ['another-app.preference', 'keep'],
     ['discstudio.pxc.session.v2.keep', 'keep'],
     ['tick-part-checklist:another-app', 'keep'],
@@ -50,7 +51,7 @@ test('clearing local data snapshots every DiscStudio key and preserves unrelated
     ['tick-part-checklist:another-app', 'keep'],
     ['tick-part-checklist:discstudio-creator-reviewish:keep', 'keep'],
   ]);
-  assert.equal(result.ok && result.removed.length, 4);
+  assert.equal(result.ok && result.removed.length, 5);
 });
 
 test('clearing local data reports a partial removal failure without touching unrelated keys', async () => {

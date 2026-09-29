@@ -1,10 +1,10 @@
 // The executable catalog. Distinguish owner-accepted appearance from model integration.
 export const experiences = [
   { id: 'upload-disc-to-shelf', name: 'UploadDiscToShelf', status: 'm reached · live PxC',
-    description: 'Catalog → own Disc fields → retained painting and photo → chosen depiction → shelf.',
-    variants: [{ name: 'Paint / photo · isolated PxC', url: './index.html?sandbox=upload', inspectable: true }],
+    description: 'Catalog → own Disc fields → retained photo → chosen depiction → shelf. Painted discs are preserved as the painted-discs overlay.',
+    variants: [{ name: 'Photo-first base · isolated PxC', url: './index.html?sandbox=upload', inspectable: true }, { name: 'Painted discs · Kompoze overlay', url: './index.html?sandbox=upload', inspectable: true }],
     source: ['upload-ui.ts · mountUpload', 'model.ts · save', 'paint-recipe.ts · renderDepiction'],
-    inputs: 'Catalog Parts, empty shelf, fixed initial painting choice. Photo path accepts your file locally.',
+    inputs: 'Catalog Parts, empty shelf, local prepared photo. The painted-disc capability is inactive in the base Kompozition.',
     outputs: 'Disc, recipe, photo, depiction choice, resolved material, art, shelf, Tick and composition receipts.',
   },
   { id: 'explore-shelf', name: 'ExploreShelf', status: 'm accepted · shopping prototype',

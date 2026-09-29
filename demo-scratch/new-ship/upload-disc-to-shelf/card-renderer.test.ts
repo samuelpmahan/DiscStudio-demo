@@ -60,7 +60,7 @@ test('renders without a photo (placeholder path)', async () => {
 
 test('renders with blank plastic/weight (lines omitted, no throw)', async () => {
   const disc = testDisc({ plastic: '', weight: null });
-  const buf = await renderCard(disc, 'vertical');
+  const buf = await renderCard(disc, 'vertical', 'u02');
   pngSize(buf);
 });
 
@@ -73,12 +73,19 @@ test('own flight numbers win over the mold', async () => {
 
 test('held renderer facts win over a later catalog lookup', async () => {
   const held: any = testDisc({
-    renderer: { moldName: 'Held Buzzz', flights: [5, 4, -1, 1] },
+    renderer: { moldName: 'Held Buzzz', manufacturer: 'Held Discraft', flights: [5, 4, -1, 1] },
   } as any);
   for (const field of ['speed', 'glide', 'turn', 'fade']) delete held[field];
-  const resolved = await resolveCardDisc({ loadImage: async () => null, getMoldDetails: async () => ({ mold: 'Changed catalog name', flight: [99, 98, 97, 96] }) }, held);
+  const resolved = await resolveCardDisc({ loadImage: async () => null, getMoldDetails: async () => ({ manufacturer: 'Changed catalog manufacturer', mold: 'Changed catalog name', flight: [99, 98, 97, 96] }) }, held);
   assert.equal(resolved.moldName, 'Held Buzzz');
+  assert.equal(resolved.manufacturer, 'Held Discraft');
   assert.deepEqual(resolved.flights, [5, 4, -1, 1]);
+});
+
+
+test('catalog manufacturer fills a card that has no held manufacturer', async () => {
+  const resolved = await resolveCardDisc({ loadImage: async () => null, getMoldDetails: async () => ({ manufacturer: 'Discraft', mold: 'Buzzz', flight: [5, 4, -1, 1] }) }, testDisc());
+  assert.equal(resolved.manufacturer, 'Discraft');
 });
 
 test('unknown mold id falls back to the id as name', async () => {

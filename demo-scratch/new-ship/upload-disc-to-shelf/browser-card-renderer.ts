@@ -1,6 +1,8 @@
 // Browser Canvas2D adapter for the shared SpotlightCard draw routines.
 import { CARD_SIZE, drawCard, type CardOrientation, type CardPreset, type RendererDisc } from './card-renderer-core.ts';
 import { getMoldDetails } from './mold-library.ts';
+import { identityTransform } from './transform-geometry.mjs';
+import type { CardTransform } from './export-queue-core.ts';
 export { CARD_SIZE };
 export type { CardOrientation, CardPreset };
 
@@ -30,4 +32,19 @@ export async function renderCardBlob(disc: RendererDisc, orientation: CardOrient
 
 export async function renderCardPreview(disc: RendererDisc, orientation: CardOrientation, preset?: CardPreset): Promise<string> {
   return URL.createObjectURL(await renderCardBlob(disc, orientation, preset));
+}
+
+export async function renderPlacedCardBlob(disc: RendererDisc, orientation: CardOrientation, preset?: CardPreset, placement?: CardTransform): Promise<Blob> {
+  const source = await renderCardBlob(disc, orientation, preset);
+  const transform = placement ?? identityTransform;
+  if (transform.scale === 1 && transform.dx === 0 && transform.dy === 0) return source;
+  const url = URL.createObjectURL(source);
+  let image: HTMLImageElement;
+  try { image = await browserImage(url); }
+  finally { URL.revokeObjectURL(url); }
+  const { w, h } = CARD_SIZE[orientation], canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const context = canvas.getContext('2d'); if (!context) throw new Error('Canvas2D is unavailable in this browser.');
+  context.translate(w / 2 + transform.dx * w, h / 2 + transform.dy * h); context.scale(transform.scale, transform.scale);
+  context.drawImage(image, -w / 2, -h / 2, w, h);
+  return canvasBlob(canvas);
 }

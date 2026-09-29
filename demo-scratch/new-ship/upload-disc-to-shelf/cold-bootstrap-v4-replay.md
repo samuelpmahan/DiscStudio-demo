@@ -1,0 +1,7 @@
+# DiscStudio v4 strict cold bootstrap replay
+
+Independent gpt-6-luna worker was forked with no prior context and given only the Forge bootstrap URL, the DiscStudio workspace identity, and the requested painted-overlay save/render/return-to-base operation. No ZIP ID, source path, local commands, or implementation location was supplied. It found the workspace index and retrieved the v4 source archive itself, unpacking into `/tmp/disc-cold-bootstrap-v4` without changing the shared workspace.
+
+The archive SHA-256 matched the workspace index: `591e2e59deb3de76308f060dcb77cedaffcd50e1403acfba0406247eee89cb85`. After npm install, the named painted overlay materialized. Focused tests: 2 pass, 1 intentional base skip, 0 fail. A real painted save produced `ds.px.disc.save-3`; the 1080×1920 painter card PNG SHA-256 was `b2d3da852e13fcf26bb483110a92b98352f1a90e1870bd4dec3afbf4e843c2e1`, and ZIP SHA-256 was `192022a9b546140dadfaaa439dec5a1ffd4874167255d5120d00b6e5b4f99866`. Manifest flight values were 5/4/−1/1 and the ZIP PNG matched the rendered PNG byte-for-byte.
+
+Returning through crisp to the photo-first base yielded `overlays: []`, `paintedDiscs: false`, and 104 tournament passes, 1 intentional overlay skip, 0 fail. The worker's source-specific receipt files and logs are under its isolated `/tmp/disc-cold-bootstrap-v4/disc/evidence/`; the corresponding source archive already contains the same executable probes. The crisp receipt observes binding only. Browser interaction, human approval and browser ZIP download were not proven.

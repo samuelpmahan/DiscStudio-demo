@@ -141,3 +141,54 @@ test('bag query filters by mold name like shelf does', async () => {
   assert.equal(app.bag('buzzz').length, 2);
   assert.equal(app.bag('nomatchxyz').length, 0);
 });
+
+test('approved output holds an immutable queue snapshot and receipts its identity', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const address = await app.save(initialDraft(), depiction);
+  const row = app.bag().find(item => item.address === address)!;
+  const queued = [{ disc: { ...row.disc, depiction: { ...row.disc.depiction }, renderer: { moldName: row.seed.name, flights: [5, 4, -1, 1] } } as any, orientation: 'vertical' as const, cardDesign: 'u02' }];
+  await app.enqueueOutput(queued);
+  queued[0].disc.nickname = 'mutated after approval';
+  const approval = app.latestOutputApproval!;
+  assert.equal(approval.event, 'output.queue.approved');
+  assert.match(approval.approvalSnapshotId as string, /^sha256:[a-f0-9]{64}$/);
+  assert.match(approval.outputQueueSnapshotId as string, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(app.outputQueue()[0].disc.nickname, row.disc.nickname);
+  const exportReceipt = await app.recordOutputExport({ manifest: { cardCount: 1 }, manifestId: 'sha256:manifest', zipId: 'sha256:zip', expectedOutputQueueSnapshotId: approval.outputQueueSnapshotId as string, downloadRequested: true });
+  assert.equal(exportReceipt.approvalSnapshotId, approval.approvalSnapshotId);
+  assert.equal(exportReceipt.event, 'output.zip.prepared');
+  assert.equal(exportReceipt.downloadRequested, true);
+  assert.equal(exportReceipt.manifestId, 'sha256:manifest');
+});
+
+test('removing a card invalidates approval until the actual remaining queue is reapproved', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const first = await app.save({ ...initialDraft(), nickname: 'First' }, depiction);
+  await app.addDraftPhoto({ ...testPhoto, name: 'second.png' });
+  const second = await app.save({ ...initialDraft(), nickname: 'Second' }, await app.selectDraftDepiction());
+  for (const address of [first, second]) {
+    const row = app.bag().find(item => item.address === address)!;
+    await app.enqueueOutput([{ disc: { ...row.disc, depiction: { ...row.disc.depiction } }, orientation: 'vertical', cardDesign: 'u02' }]);
+  }
+  assert.equal(app.latestOutputApproval?.count, 2, 'the second approval covers the accumulated queue');
+  await app.removeOutput(1);
+  assert.equal(app.latestOutputApproval, null);
+  await assert.rejects(app.recordOutputExport({ manifest: {}, manifestId: 'sha256:manifest', zipId: 'sha256:zip', expectedOutputQueueSnapshotId: 'sha256:old' }), /Approve the current output queue/);
+  await app.approveOutputQueue();
+  const receipt = await app.recordOutputExport({ manifest: { cardCount: 1 }, manifestId: 'sha256:manifest', zipId: 'sha256:zip', expectedOutputQueueSnapshotId: app.latestOutputApproval!.outputQueueSnapshotId as string, downloadRequested: true });
+  assert.equal(receipt.outputQueueSnapshotId, app.latestOutputApproval?.outputQueueSnapshotId);
+});
+
+test('a prepared ZIP cannot borrow a later queue approval', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const first = await app.save({ ...initialDraft(), nickname: 'First' }, depiction);
+  const card = (address: string) => ({ disc: { ...app.bag().find(row => row.address === address)!.disc }, orientation: 'vertical' as const, cardDesign: 'u02' });
+  await app.enqueueOutput([card(first)]);
+  const preparedFor = app.latestOutputApproval!.outputQueueSnapshotId as string;
+  await app.addDraftPhoto({ ...testPhoto, name: 'second.png' });
+  const second = await app.save({ ...initialDraft(), nickname: 'Second' }, await app.selectDraftDepiction());
+  await app.enqueueOutput([card(second)]);
+  assert.notEqual(preparedFor, app.latestOutputApproval!.outputQueueSnapshotId);
+  await assert.rejects(app.recordOutputExport({ manifest: { cards: [{ discId: 'First' }] }, manifestId: 'sha256:old-manifest', zipId: 'sha256:old-zip', expectedOutputQueueSnapshotId: preparedFor }), /does not match the current approval snapshot/);
+  assert.equal(app.latestOutputExport, null);
+});

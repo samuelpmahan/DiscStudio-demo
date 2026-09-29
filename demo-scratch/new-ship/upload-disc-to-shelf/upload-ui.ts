@@ -5,6 +5,7 @@ import { recipeFromDraft, validatePaintRecipe, renderDepiction } from './paint-r
 import { fuzzyMoldOptions } from './mold-search.ts';
 import { cropForSourceSamples, drawRotatedCrop, normalizeCropRotation } from './crop-geometry.ts';
 import { composeCircleCandidateChoices, createCircleCandidateSession, type CircleCandidate, type CircleCandidateSession, type DiscCircle } from './circle-fit.ts';
+import { paintedDiscsEnabled } from './kompozition.ts';
 export { detectDiscCircle } from './circle-fit.ts';
 export type { CircleCandidate, DiscCircle } from './circle-fit.ts';
 
@@ -124,9 +125,9 @@ export async function mountUpload({ root, experience, onSaved = (_address: strin
 const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
 const input = (id: string) => $(id) as HTMLInputElement;
 const discView = createDiscView(experience);
-// A fresh photo-first experience has no draft photo. Keep a valid painter
-// fallback only for the local preview; saving remains disabled until a photo
-// has been cropped and retained.
+// Painting machinery remains available as a solved capability, but the base
+// Kompozition is photo-first. The painted-discs overlay binds it back into
+// the creator experience without deleting or forking the underlying code.
 let painting: Depiction = { kind: 'painted', name: 'pressed-fern', src: './art/pressed-fern.svg' };
 let depiction: Depiction = painting, photo: Depiction | null = null;
 let savedPhotoConsumed = false;
@@ -205,7 +206,14 @@ function preview() {
  try {
   syncDepictionControls();
   const material = draft();
-  if (savedPhotoConsumed && !photo) {
+  if (!paintedDiscsEnabled && !photo && material.mold) {
+   $('flight').textContent = ''; $('depiction-name').textContent = '';
+   $('preview').replaceChildren();
+   $('status').textContent = 'Add a photo to continue.';
+   input('plastic').disabled = false; input('photo').disabled = photoBusy; input('save').disabled = true;
+   return;
+  }
+  if (savedPhotoConsumed && !photo && !paintedDiscsEnabled) {
    $('flight').textContent = ''; $('depiction-name').textContent = '';
    $('preview').replaceChildren(nextUploadView());
    input('photo').disabled = photoBusy; input('save').disabled = true;
@@ -259,7 +267,7 @@ function suggestPlastics() {
   const link = $('plastic-source') as HTMLAnchorElement; link.href = guide.source; link.textContent = `${seed.manufacturer} plastic guide`; link.hidden = !guide.source;
 }
 function updateSaveState() {
- input('save').disabled = photoBusy || !photo || input('plastic').disabled || !input('seed').value;
+ input('save').disabled = photoBusy || (!photo && !(paintedDiscsEnabled && depiction.kind === 'painted')) || input('plastic').disabled || !input('seed').value;
 }
 ['change', 'input'].forEach(event => input('plastic').addEventListener(event, updateSaveState));
 input('mold-search').addEventListener('focus', () => renderSeedChoices(''));
@@ -284,14 +292,17 @@ input('mold-search').addEventListener('keydown', event => {
   }
 });
 input('mold-search').addEventListener('blur', () => { setTimeout(() => { if (!input('seed').value) $('status').textContent = 'Choose a mold from the suggestions.'; closeSeedChoices(); }); });
-$('shuffle').addEventListener('click', async () => { const next = await experience.selectDraftDepiction(random); if (next.kind === 'painted') { painting = next; depiction = next; } resetPaintSeed(); preview(); });
-$('depiction-choice').addEventListener('change', () => { depiction = input('depiction-choice').value === 'photo' && photo ? photo : painting; preview(); });
+$('shuffle').addEventListener('click', async () => { if (!paintedDiscsEnabled) return; const next = await experience.selectDraftDepiction(random, true); if (next.kind === 'painted') { painting = next; depiction = next; } resetPaintSeed(); preview(); });
+$('depiction-choice').addEventListener('change', () => { if (!paintedDiscsEnabled) { if (photo) depiction = photo; preview(); return; } depiction = input('depiction-choice').value === 'photo' && photo ? photo : painting; preview(); });
 const finishIds = ['rim-size', 'underglow', 'stamp-x', 'stamp-y'];
 const paintingControls = [...root.querySelectorAll<HTMLElement>('.painting-only')];
 function syncDepictionControls() {
   const photoMode = depiction.kind === 'photo';
   root.classList.toggle('photo-mode', photoMode);
-  paintingControls.forEach(control => { control.hidden = photoMode; });
+  root.classList.toggle('painted-disc-overlay', paintedDiscsEnabled);
+  paintingControls.forEach(control => { control.hidden = !paintedDiscsEnabled || photoMode; });
+  const switcher = root.querySelector<HTMLElement>('.depiction-switcher');
+  if (switcher) switcher.hidden = !paintedDiscsEnabled;
   if (photoMode) {
     input('customize-label').checked = false;
     input('customize-label').setAttribute('aria-expanded', 'false');
@@ -571,7 +582,7 @@ $('composer').addEventListener('submit', async event => {
   input('save').disabled = true;
   try {
     const material = draft();
-    const address = await experience.save(material, depiction, { photo });
+    const address = await experience.save(material, depiction, { photo, ...(paintedDiscsEnabled && depiction.kind === 'painted' ? { recipe: recipe(material) } : {}) });
     onSaved(address);
     const storage = experience.persistenceStatus;
     $('status').textContent = storage.startsWith('Saved in this session archive')

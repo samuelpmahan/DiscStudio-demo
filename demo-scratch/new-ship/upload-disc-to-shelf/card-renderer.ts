@@ -18,7 +18,12 @@ export async function renderCard(disc: RendererDisc, orientation: CardOrientatio
   if (orientation !== 'horizontal' && orientation !== 'vertical') throw new Error(`orientation must be 'horizontal' or 'vertical', got ${String(orientation)}`);
   const { w, h } = CARD_SIZE[orientation];
   const canvas = createCanvas(w, h);
-  await drawCard(canvas.getContext('2d'), disc, orientation, preset, { loadImage, getMoldDetails });
+  // NAPI Canvas accepts SVG bytes but not our percent-encoded SVG data URI.
+  // The browser adapter continues to pass that URI directly to Image.
+  const loadCardImage = (source: string) => source.startsWith('data:image/svg+xml;charset=utf-8,')
+    ? loadImage(Buffer.from(decodeURIComponent(source.slice(source.indexOf(',') + 1))))
+    : loadImage(source);
+  await drawCard(canvas.getContext('2d'), disc, orientation, preset, { loadImage: loadCardImage, getMoldDetails });
   return canvas.toBuffer('image/png');
 }
 

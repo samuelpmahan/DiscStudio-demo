@@ -1,0 +1,11 @@
+# DiscStudio isolated Attempt v5 — generated photo second use
+
+2026-09-26 15:35 UTC. This succeeds v4 in the isolated Attempt folder; the photo-first base remains the default materialization. No trusted workspace promotion is claimed.
+
+The existing creator path saved two generated prepared-photo graphics as physical Discs, hydrated Buzzz seed facts, retained two photo source identities, kept a first Shelf edit to speed 11 and resolved it through Today's Bag, rendered both U02 vertical card previews, approved their two-card queue, then kept a later Shelf edit to speed 12. The Bag follows speed 12 but the approved first snapshot, its rendered PNG, and the exported ZIP manifest retain speed 11; second card retains 5/4/−1/1. Both ZIP PNGs match their rendered previews byte for byte, with distinct same-mold filenames and matching lengths/hashes. The second-use executable and receipt are `disc/photo-bag-two-card-evidence.mjs` and `disc/evidence/photo-two-card.receipt.json`. Dark inspection image shows both cards; native PNGs remain transparent.
+
+This is an executed semantic/native render/ZIP path with generated graphics. No retained creator photo file was present in the current source archive or DiscStudio workspace. It does not prove the browser gallery was viewed or clicked; local browser access was blocked. The latest crisp base receipt reports REUSE with source/output identities and `BINDING_ONLY`; that receipt is materialization evidence, while the test and render artifacts establish behavior.
+
+Base tournament: 104 pass, 1 intentional overlay skip, 0 fail. The newly generated ZIP SHA-256 is `538d5f815fcdff2e09d9e8600c51121b09e82db532ecae6b3c2626f97dfb95f0`; photo card PNG SHA-256 values are `94eb63dee560b670fb39811ef103c3afe195aafcae281ed8a92c66aefc3ac34f` and `957c0d0a73701c4e601e52d2b3529406e81b526c6f10e8c27096792c0aaa201d`. v4 painted overlay results and cold bootstrap replay remain applicable; v5 changes the base second-use fixture/build skip only.
+
+Replay: `cd disc && npm ci --ignore-scripts && node --experimental-strip-types photo-bag-two-card-evidence.mjs && npm run test:tournament`. For overlay/base painter roundtrip, follow the stable index replay commands.

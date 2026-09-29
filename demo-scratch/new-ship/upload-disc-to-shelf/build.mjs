@@ -6,11 +6,13 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { buildInputIdentity } from './build-input-identity.mjs';
+import { buildOutputIdentity } from './build-output-identity.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(here, 'dist');
 const ignored = new Set(['node_modules', 'dist', 'renders', 'renders-real', 'mvp-output', 'candidate-evidence']);
-const skip = name => /(?:\.test\.|\.bundle\.js$|^(?:drive-real-ui|paired-capture|capture-output|url-free-materializer|capture-initial-scenario|instrumented-run|mvp-run|render-presets|render-breakout)\.mjs$|^(?:test-page|preset-gallery))/.test(name);
+const skip = name => /(?:\.test\.|\.bundle\.js$|^(?:drive-real-ui|paired-capture|capture-output|url-free-materializer|capture-initial-scenario|instrumented-run|mvp-run|render-presets|render-breakout|painted-card-evidence|painted-return-probe|photo-bag-two-card-evidence)\.mjs$|^(?:test-page|preset-gallery))/.test(name);
 const rewriteImports = text => text
   .replace(/(from\s*['"][^'"]+)\.ts(['"])/g, '$1.js$2')
   .replace(/(import\s*\(\s*['"][^'"]+)\.ts(['"]\s*\))/g, '$1.js$2')
@@ -93,5 +95,5 @@ fs.writeFileSync(reviewGuide, fs.readFileSync(reviewGuide, 'utf8')
   .replace('src="./creator-review.js"', `src="./creator-review.js?v=${buildId}"`));
 verifyVersionedImports(dist, buildId);
 fs.writeFileSync(path.join(dist, '.nojekyll'), '');
-fs.writeFileSync(path.join(dist, 'BUILD_INFO.json'), JSON.stringify({ artifact: 'discstudio-tournament-pages', source: 'new-ship/upload-disc-to-shelf', build: 'node-strip-types', static: true, buildId }, null, 2) + '\n');
+fs.writeFileSync(path.join(dist, 'BUILD_INFO.json'), JSON.stringify({ artifact: 'discstudio-tournament-pages', source: 'new-ship/upload-disc-to-shelf', build: 'node-strip-types', static: true, buildId, sourceId: buildInputIdentity(), outputId: buildOutputIdentity(dist) }, null, 2) + '\n');
 console.log(`Built ${dist} (${buildId})`);

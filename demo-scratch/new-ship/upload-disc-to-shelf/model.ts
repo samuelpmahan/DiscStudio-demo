@@ -9,6 +9,8 @@ import { create, read, update, destroy, runStage, type Stage } from './operation
 import { find } from './devtools-data.mjs';
 import type { State } from './persistence.ts';
 import { queueCards, type QueuedCard } from './export-queue-core.ts';
+import { approvedQueueIdentity } from './approval-identity.ts';
+import { paintedDiscsEnabled } from './kompozition.ts';
 
 export type Seed = { id: string; manufacturer: string; mold: string; flight: (number | null)[]; source?: string; sourceKind?: string; observations?: { flight: (number | null)[]; source: string }[]; conflicting?: boolean; reviewStatus?: string };
 export const flightFields = ['speed', 'glide', 'turn', 'fade'] as const;
@@ -81,6 +83,8 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   let outputQueueAddress = 'ds.px.output.queue.0';
   if (!pxc.entries().some(([name]: [string, unknown]) => name === outputQueueAddress)) pxc.set(outputQueueAddress, new Part(Object.freeze([])));
   let saving = false;
+  let latestOutputApproval: Readonly<Record<string, unknown>> | null = null;
+  let latestOutputExport: Readonly<Record<string, unknown>> | null = null;
   const events: Record<string, unknown>[] = [];
   const emit = (event: Record<string, unknown>) => { events.push(event); try { log(event); } catch (error) { console.warn('Diagnostic sink failed; receipt remains in PxC.', error); } };
   const selected = new Map<Depiction, string>();
@@ -189,6 +193,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       } finally { saving = false; }
     },
     async updateDepiction(address: string, changes: { recipe?: PaintRecipe; photo?: Depiction | null; choice?: 'painted' | 'photo'; mold?: string }) {
+      if (!paintedDiscsEnabled && (changes.choice === 'painted' || changes.recipe)) throw Error('Painted discs require the painted-discs overlay.');
       const disc = pxc.get(address).value as Disc, retained = this.depictionSources(address);
       const recipe = validatePaintRecipe(changes.recipe === undefined ? retained.recipe : changes.recipe);
       const photo = changes.photo === undefined ? retained.photo : changes.photo;
@@ -261,32 +266,66 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       return address;
     },
     outputQueue(): readonly QueuedCard[] { return pxc.get(outputQueueAddress).value as readonly QueuedCard[]; },
+    get latestOutputApproval() { return latestOutputApproval; },
+    get latestOutputExport() { return latestOutputExport; },
     async enqueueOutput(cards: readonly QueuedCard[]) {
       const held = queueCards(cards);
       if (!held.length) throw Error('Select at least one disc before adding output.');
-      const operationId = `enqueue-${++serial}`, cardsAddress = `ds.px.output.cards.${operationId}`, next = `ds.px.output.queue.${operationId}`;
+      const operationId = `enqueue-${++serial}`, cardsAddress = `ds.px.output.cards.${operationId}`, next = `ds.px.output.queue.${operationId}`, previousQueue = outputQueueAddress;
       pxc.set(cardsAddress, new Part(held));
       await pxc.compose({ into: next, calculation: 'fn.appendOutputQueue', inputs: { queue: outputQueueAddress, cards: cardsAddress } });
       const result = pxc.get(next).value as readonly QueuedCard[];
       if (result.length !== this.outputQueue().length + held.length || result.slice(-held.length).some((card, index) => card !== held[index] && JSON.stringify(card) !== JSON.stringify(held[index]))) throw Error('Output queue readback failed.');
-      const receipt = Object.freeze({ event: 'output.queue.enqueued', operationId, inputCards: cardsAddress, previousQueue: outputQueueAddress, outputQueue: next, count: held.length });
-      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); outputQueueAddress = next; emit(receipt);
+      outputQueueAddress = next;
+      const approved = await approvedQueueIdentity(result);
+      const receipt = Object.freeze({ event: 'output.queue.approved', operationId, action: 'append', inputCards: cardsAddress, previousQueue, outputQueue: next, count: result.length, addedCount: held.length, approvalSnapshotId: approved.identity, outputQueueSnapshotId: approved.identity });
+      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); latestOutputApproval = receipt; emit(receipt);
       return next;
+    },
+    async approveOutputQueue() {
+      const queue = this.outputQueue();
+      if (!queue.length) throw Error('Approve requires at least one queued card.');
+      const operationId = `approve-output-${++serial}`, approved = await approvedQueueIdentity(queue);
+      const receipt = Object.freeze({ event: 'output.queue.approved', operationId, action: 'reapprove-current-queue', outputQueue: outputQueueAddress, count: queue.length, addedCount: 0, approvalSnapshotId: approved.identity, outputQueueSnapshotId: approved.identity });
+      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); latestOutputApproval = receipt; emit(receipt);
+      return outputQueueAddress;
+    },
+    async validateOutputExport(expectedOutputQueueSnapshotId: string) {
+      const approval = latestOutputApproval, queueAddress = outputQueueAddress;
+      if (!approval) throw Error('Approve the current output queue before exporting.');
+      if (!expectedOutputQueueSnapshotId || expectedOutputQueueSnapshotId !== approval.outputQueueSnapshotId) throw Error('Prepared ZIP does not match the current approval snapshot.');
+      const actual = await approvedQueueIdentity(this.outputQueue());
+      if (outputQueueAddress !== queueAddress || latestOutputApproval !== approval || actual.identity !== expectedOutputQueueSnapshotId) throw Error('Output queue changed after approval. Approve the current queue before exporting.');
+      return actual.identity;
+    },
+    async recordOutputExport(exported: { manifest: unknown; manifestId: string; zipId: string; expectedOutputQueueSnapshotId: string; downloadRequested?: boolean }) {
+      const identity = await this.validateOutputExport(exported.expectedOutputQueueSnapshotId);
+      const operationId = `export-${++serial}`;
+      const receipt = Object.freeze({ event: 'output.zip.prepared', operationId, approvalSnapshotId: latestOutputApproval!.approvalSnapshotId, outputQueueSnapshotId: identity, outputQueue: outputQueueAddress, manifestId: exported.manifestId, zipId: exported.zipId, downloadRequested: exported.downloadRequested === true, manifest: exported.manifest });
+      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); latestOutputExport = receipt; emit(receipt);
+      return receipt;
     },
     async removeOutput(index: number) {
-      const operationId = `remove-output-${++serial}`, next = `ds.px.output.queue.${operationId}`;
+      const operationId = `remove-output-${++serial}`, next = `ds.px.output.queue.${operationId}`, previousApprovalSnapshotId = latestOutputApproval?.approvalSnapshotId ?? null;
       await pxc.compose({ into: next, calculation: 'fn.removeOutputQueueItem', inputs: { queue: outputQueueAddress, index: new Part(index) } });
-      const receipt = Object.freeze({ event: 'output.queue.removed', operationId, previousQueue: outputQueueAddress, outputQueue: next, index });
-      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); outputQueueAddress = next; emit(receipt);
+      const receipt = Object.freeze({ event: 'output.queue.removed', operationId, previousQueue: outputQueueAddress, outputQueue: next, index, approvalInvalidated: !!previousApprovalSnapshotId, previousApprovalSnapshotId });
+      pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); latestOutputApproval = null; latestOutputExport = null; outputQueueAddress = next; emit(receipt);
       return next;
     },
-    async selectDraftDepiction(): Promise<Depiction> {
+    async selectDraftDepiction(random: () => number = Math.random, preferPainting = false): Promise<Depiction> {
       const id = ++serial;
       const depictionAddress = `ds.px.draft.depiction.${id}`;
       // Photo-only: the demo requires a draft photo. No painting fallback.
       const consumed = new Set([...pxc.entries()].filter(([name]) => name.startsWith('ds.px.draft.consumedPhotos.')).flatMap(([, part]) => (part.value as string[]) ?? []));
       const photoKeys = [...pxc.entries()].filter(([name]) => name.startsWith('ds.px.draft.photos.') && !consumed.has(name)).map(([name]) => name).sort((a, b) => Number(a.split('.').pop()) - Number(b.split('.').pop()));
-      if (photoKeys.length === 0) throw new Error('No draft photo. Upload a photo first.');
+      if (photoKeys.length === 0 && !paintedDiscsEnabled) throw new Error('No draft photo. Upload a photo first.');
+      if (paintedDiscsEnabled && (photoKeys.length === 0 || preferPainting)) {
+        const families = ['pressed-fern', 'chevron-run', 'contour-basin'];
+        const name = families[Math.min(families.length - 1, Math.max(0, Math.floor(random() * families.length)))];
+        const depiction: Depiction = Object.freeze({ kind: 'painted', name, src: `./art/${name}.svg` });
+        pxc.set(depictionAddress, new Part(depiction)); selected.set(depiction, depictionAddress);
+        return depiction;
+      }
       const photo = pxc.get(photoKeys[photoKeys.length - 1]).value as Depiction;
       const depiction = Object.freeze({ ...photo });
       pxc.set(depictionAddress, new Part(depiction));
@@ -300,22 +339,22 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       const discAddress = `ds.px.disc.${operationId}`, nextShelf = `ds.px.shelf.${operationId}`, nextBag = `ds.px.bag.${operationId}`;
       try {
         checkDraft(draft);
-        if (depiction.kind !== 'photo') throw new Error('Demo is photo-only. Upload a photo.');
-        if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(depiction.src)) throw new Error('Invalid prepared photo.');
+        if (depiction.kind !== 'photo' && (!paintedDiscsEnabled || depiction.kind !== 'painted')) throw new Error('Demo is photo-only. Upload a photo.');
+        if (depiction.kind === 'photo' && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(depiction.src)) throw new Error('Invalid prepared photo.');
         const draftAddress = `ds.px.draft.${operationId}`, depictionAddress = `ds.px.depiction.${operationId}`;
         pxc.get(draft.mold);
         pxc.set(draftAddress, new Part(Object.freeze({ ...draft })));
         const selectedAddress = selected.get(depiction);
         pxc.set(depictionAddress, selectedAddress ? pxc.get(selectedAddress) : new Part(Object.freeze({ ...depiction })));
         const artAddress = `ds.px.art.${operationId}`;
-        // Photo-only demo: photos don't need a paint recipe. The photo is the art.
-        const recipe = sources.recipe === undefined ? null : validatePaintRecipe(sources.recipe);
-        const photo = sources.photo === undefined ? depiction : sources.photo;
+        const recipe = depiction.kind === 'painted'
+          ? validatePaintRecipe(sources.recipe ?? recipeFromDraft(draft, depiction))
+          : null;
+        const photo = sources.photo === undefined ? depiction.kind === 'photo' ? depiction : null : sources.photo;
         checkPhoto(photo);
-        if (!photo || photo.src !== depiction.src) throw Error('Selected photo must match the retained source.');
+        if (depiction.kind === 'photo' && (!photo || photo.src !== depiction.src)) throw Error('Selected photo must match the retained source.');
         const recipeAddress = `ds.px.recipe.${operationId}`, photoAddress = `ds.px.photo.${operationId}`, choiceAddress = `ds.px.choice.${operationId}`;
-        if (recipe) pxc.set(recipeAddress, new Part(Object.freeze({ ...recipe })));
-        else pxc.set(recipeAddress, new Part(null));
+        if (!recipe) pxc.set(recipeAddress, new Part(null));
         pxc.set(photoAddress, new Part(photo ? Object.freeze({ ...photo }) : null));
         pxc.set(choiceAddress, new Part(depiction.kind));
         const stage: Stage = [
@@ -366,7 +405,12 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     },
     // MVP: the bag is the primary collection. Mirrors shelf() for the MVP path.
     bag(query = ''): { address: string; disc: Disc; seed: Mold; art: string }[] {
-      const collection = pxc.get(bagAddress).value.map((address: string) => {
+      // The Bag holds physical Disc identity; a kept Shelf version becomes
+      // today's current depiction and facts without erasing historical Parts.
+      const current = new Map((pxc.get(shelfAddress).value as string[]).map(address => [pxc.get(address).value.id, address]));
+      const collection = pxc.get(bagAddress).value.map((held: string) => {
+        const address = current.get(pxc.get(held).value.id);
+        if (!address) throw Error(`Bag disc ${held} is missing from the shelf.`);
         const disc = pxc.get(address).value as Disc;
         return { address, disc, seed: pxc.get(disc.mold).value, art: pxc.get(artAt(disc)).value };
       });

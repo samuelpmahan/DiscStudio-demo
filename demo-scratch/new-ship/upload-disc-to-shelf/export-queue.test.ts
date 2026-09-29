@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
 import JSZip from 'jszip';
+import { exportBrowserZip } from './browser-export.ts';
+import { prepareExport } from './export-queue-core.ts';
 import {
   queueCards, cardFilename, cardDimensions, moldSlug,
   encodeTransparentPng, pngDimensions, stubCardRenderer, exportZip,
@@ -53,6 +55,19 @@ test('queueCards snapshots nested renderer and depiction data', () => {
   assert.ok(Object.isFrozen(q[0].disc.depiction));
   assert.ok(Object.isFrozen((q[0].disc as any).renderer.flights));
   assert.ok(Object.isFrozen((q[0].disc as any).renderer.options));
+});
+
+test('placement is frozen with the approved card and appears in export testimony', async () => {
+  const placement = { scale: 1.2, dx: 0.03, dy: -0.02 };
+  const source = card({ orientation: 'vertical', placement });
+  const held = queueCards([source]);
+  placement.scale = 0.8; placement.dx = 0.4;
+  assert.deepEqual(held[0].placement, { scale: 1.2, dx: 0.03, dy: -0.02 });
+  assert.ok(Object.isFrozen(held[0].placement));
+  assert.throws(() => queueCards([card({ placement: { scale: 2, dx: 0, dy: 0 } })]), /invalid placement/);
+  const { manifest } = await prepareExport(held, async () => encodeTransparentPng(1080,1920), async () => 'sha256:test');
+  assert.deepEqual(manifest.cards[0].placement, { scale: 1.2, dx: 0.03, dy: -0.02 });
+  assert.equal(manifest.cards[0].backgroundIncluded, false);
 });
 
 test('queueCards rejects bad input', () => {
@@ -183,4 +198,15 @@ test('exportZip is deterministic: same queue, same bytes', async () => {
   const a = await exportZip(q);
   const b = await exportZip(q);
   assert.deepEqual(a, b);
+});
+
+
+test('browser export returns inspectable manifest and ZIP identities', async () => {
+  const result = await exportBrowserZip(queueCards([card()]), stubCardRenderer);
+  assert.match(result.manifestId, /^sha256:[a-f0-9]{64}$/);
+  assert.match(result.zipId, /^sha256:[a-f0-9]{64}$/);
+  const zip = await JSZip.loadAsync(await result.blob.arrayBuffer());
+  const manifestText = await zip.file('manifest.json')!.async('string');
+  const { createHash } = await import('node:crypto');
+  assert.equal(result.manifestId, `sha256:${createHash('sha256').update(manifestText).digest('hex')}`);
 });

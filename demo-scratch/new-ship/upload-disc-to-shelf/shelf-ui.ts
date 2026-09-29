@@ -1,5 +1,6 @@
 import { flightFields, type createExperience } from './model.ts';
 import { update } from './operations.ts';
+import { paintedDiscsEnabled } from './kompozition.ts';
 
 // A lens over the model's shelf references. Selection/draft state is local UI state;
 // only updateDisc and keepDisc retain candidates or change the selected shelf.
@@ -147,7 +148,7 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
     el('shelf-nickname').textContent = disc.nickname ? `Nickname · ${disc.nickname}` : '';
     el('shelf-nickname').hidden = !disc.nickname;
     const sources = experience.depictionSources(address);
-    el('shelf-swap-depiction').hidden = !sources.photo;
+    el('shelf-swap-depiction').hidden = !paintedDiscsEnabled || !sources.photo;
     el('shelf-swap-depiction').textContent = sources.choice === 'photo' ? 'Use painting · keep photo' : 'Use photo · keep painting';
     const art = experience.shelf().find(row => row.address === address)?.art;
     const view = discView(disc, disc.depiction, art) as HTMLElement;
@@ -206,7 +207,7 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
     if (!rows.length) {
       const empty = document.createElement('div'); empty.className = 'shelf-empty';
       const title = document.createElement('h3'); title.textContent = all.length ? 'Nothing in this corner.' : 'Make a little room.';
-      const text = document.createElement('p'); text.textContent = all.length ? 'No discs match this search. The rest of your shelf is still here.' : 'Add your first disc above. A painting is all you need; a photo is optional.';
+      const text = document.createElement('p'); text.textContent = all.length ? 'No discs match this search. The rest of your shelf is still here.' : 'Add your first disc above with a photo. Painted discs are preserved as an optional overlay.';
       const action = document.createElement('button'); action.type = 'button'; action.textContent = all.length ? 'Clear search' : 'Add your first disc';
       action.hidden = !all.length && !onAddDisc;
       action.onclick = () => { if (all.length) clearSearch(); else onAddDisc?.(); };
@@ -215,7 +216,7 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
     bookmark(); renderBags();
   }
   el('shelf-swap-depiction').onclick = async () => {
-    if (keeping || previewing || !selected || !currentSelection()) return;
+    if (!paintedDiscsEnabled || keeping || previewing || !selected || !currentSelection()) return;
     const before = selected, sources = experience.depictionSources(before); keeping = true; buttons();
     try {
       const next = await experience.updateDepiction(before, { choice: sources.choice === 'photo' ? 'painted' : 'photo' });

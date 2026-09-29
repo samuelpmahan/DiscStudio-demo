@@ -1,0 +1,34 @@
+{
+  "kind": "kompoze.overlay/v0.1",
+  "id": "painted-discs",
+  "purpose": "Restore the intentionally backburnered painted-disc creation and depiction-switching capability without making it part of the photo-first demo base.",
+  "base": "discstudio-demo-photo-first",
+  "deltas": [
+    {
+      "address": "Experience.UploadDiscToShelf/Tick.SelectDraftDepiction",
+      "effect": "permit painted depiction as an active creator choice"
+    },
+    {
+      "address": "Experience.UploadDiscToShelf/Tick.MaterializeChosenDepiction",
+      "effect": "expose painting recipe, shuffle, color and finish controls"
+    },
+    {
+      "address": "Experience.ExploreShelf/Tick.EditDiscDepiction",
+      "effect": "permit switching between retained photo and painting sources"
+    }
+  ],
+  "observe": [
+    "Contract.AddDiscToTodaysBag",
+    "Contract.ApprovePhotoFirstCardForExport",
+    "Contract.ExportApprovedZip",
+    "Part.Disc.depiction",
+    "Part.Art",
+    "Part.Bag",
+    "Part.Shelf",
+    "Part.OutputQueue"
+  ],
+  "activation": {
+    "binding": "kompozition.ts#activeOverlays",
+    "value": ["painted-discs"]
+  }
+}

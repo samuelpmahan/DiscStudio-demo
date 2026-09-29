@@ -1,4 +1,4 @@
-// Render the 5 Upright SpotlightCard presets for Sam's review.
+// Render the 5 Upright SpotlightCard presets plus U02's optional-detail comparison.
 // Run: node --experimental-strip-types render-presets.mjs
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { createCanvas } from '@napi-rs/canvas';
@@ -35,17 +35,22 @@ const disc = {
   id: 'disc-buzzz-1',
   mold: 'ds.px.seed.buzzz',
   nickname: 'Workhorse',
-  plastic: 'ESP',
-  weight: 177,
-  speed: null, glide: null, turn: null, fade: null,
+  plastic: '',
+  weight: null,
+  renderer: { moldName: 'Buzzz', flights: [5, 4, -1, 1] },
   depiction: { kind: 'photo', src: makeTestPhoto(), name: 'buzzz.png' },
 };
 
 mkdirSync('./mvp-output', { recursive: true });
 for (const p of ['u01', 'u02', 'u03', 'u04', 'u05']) {
   const buf = await renderCard(disc, 'vertical', p);
-  const path = `./mvp-output/preset-${p}.png`;
+  const path = `./mvp-output/preset-${p}-blank-plastic.png`;
   writeFileSync(path, buf);
   console.log(p, buf.length, 'bytes ->', path);
 }
+const optionalDetailDisc = { ...disc, plastic: 'ESP', weight: 177, depiction: { ...disc.depiction, src: makeTestPhoto() } };
+const detail = await renderCard(optionalDetailDisc, 'vertical', 'u02');
+const detailPath = './mvp-output/preset-u02-with-plastic.png';
+writeFileSync(detailPath, detail);
+console.log('u02 optional detail', detail.length, 'bytes ->', detailPath);
 console.log('done');
