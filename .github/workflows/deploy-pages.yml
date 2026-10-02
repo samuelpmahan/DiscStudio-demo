@@ -15,7 +15,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Lane stoplight: runs stoplight/items.json and publishes it at /stoplight/ on this site.
+  # Delta: results whose inputs are unchanged since the published run are reused.
+  # Read-only job; it can never block or alter the DiscStudio deploy.
+  stoplight:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run stoplight
+        env:
+          PREVIOUS_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/stoplight/stoplight.json
+        run: |
+          curl -fsSL "$PREVIOUS_URL" -o "$RUNNER_TEMP/previous-stoplight.json" || echo "No published stoplight yet; running everything."
+          STOPLIGHT_PREVIOUS="$RUNNER_TEMP/previous-stoplight.json" node --experimental-strip-types --no-warnings stoplight/run.ts | tee "$RUNNER_TEMP/stoplight.txt"
+          { echo '## Lane stoplight'; echo '```'; cat "$RUNNER_TEMP/stoplight.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stoplight
+          path: |
+            stoplight/index.html
+            stoplight/stoplight.json
+
   stage:
+    needs: stoplight
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -32,25 +61,13 @@ jobs:
           info = json.load(open(sys.argv[1], encoding='utf-8'))
           assert info['artifact'] == 'discstudio-tournament-pages' and info['static'] is True and info['buildId']
           PY
-      - id: pages
-        uses: actions/configure-pages@v5
-      # Lane stoplight: runs stoplight/items.json and publishes it at /stoplight/ on this site.
-      # Delta: results whose inputs are unchanged since the published run are reused.
-      # Never blocks the DiscStudio deploy.
-      - uses: actions/setup-node@v4
+      - name: Add stoplight page if it was produced
+        uses: actions/download-artifact@v4
         continue-on-error: true
         with:
-          node-version: '22'
-      - name: Stoplight
-        continue-on-error: true
-        env:
-          PREVIOUS_URL: ${{ steps.pages.outputs.base_url }}/stoplight/stoplight.json
-        run: |
-          curl -fsSL "$PREVIOUS_URL" -o "$RUNNER_TEMP/previous-stoplight.json" || echo "No published stoplight yet; running everything."
-          STOPLIGHT_PREVIOUS="$RUNNER_TEMP/previous-stoplight.json" node --experimental-strip-types --no-warnings stoplight/run.ts | tee stoplight.txt
-          { echo '## Lane stoplight'; echo '```'; cat stoplight.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          mkdir -p "$RUNNER_TEMP/pages/stoplight"
-          cp stoplight/index.html stoplight/stoplight.json "$RUNNER_TEMP/pages/stoplight/"
+          name: stoplight
+          path: ${{ runner.temp }}/pages/stoplight
+      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
           path: ${{ runner.temp }}/pages
