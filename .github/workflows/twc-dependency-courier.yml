@@ -8,13 +8,18 @@ permissions:
 jobs:
   courier:
     runs-on: ubuntu-latest
+    env:
+      CFT_VERSION: "154.0.8037.57"
     steps:
-      - uses: actions/checkout@v4
-      - name: Fetch pinned headless shell
+      - name: Fetch Chrome for Testing headless shell
         run: |
-          bash tests/fetch-headless-shell.sh
-          find .cache/chrome-headless-shell -type f -maxdepth 4 -print
-          tar -C .cache -czf "$RUNNER_TEMP/chrome-headless-shell.tgz" chrome-headless-shell
+          set -euxo pipefail
+          URL="https://storage.googleapis.com/chrome-for-testing-public/$CFT_VERSION/linux64/chrome-headless-shell-linux64.zip"
+          curl -fL --retry 3 "$URL" -o "$RUNNER_TEMP/headless-shell.zip"
+          unzip -q "$RUNNER_TEMP/headless-shell.zip" -d "$RUNNER_TEMP/headless-shell"
+          test -x "$RUNNER_TEMP/headless-shell/chrome-headless-shell-linux64/chrome-headless-shell"
+          "$RUNNER_TEMP/headless-shell/chrome-headless-shell-linux64/chrome-headless-shell" --version
+          tar -C "$RUNNER_TEMP/headless-shell" -czf "$RUNNER_TEMP/chrome-headless-shell.tgz" chrome-headless-shell-linux64
           sha256sum "$RUNNER_TEMP/chrome-headless-shell.tgz" > "$RUNNER_TEMP/chrome-headless-shell.tgz.sha256"
       - uses: actions/upload-artifact@v4
         with:
