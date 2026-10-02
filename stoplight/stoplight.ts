@@ -89,8 +89,9 @@ export const fingerprintCalculation = ({ crucible, root }: { crucible: Crucible;
 	return hash.digest('hex');
 };
 
+// Reads the summary of either node:test reporter: TAP ("# tests 3") or spec ("ℹ tests 3", the default from Node 23).
 const count = (out: string, key: string): number | null => {
-	const match = out.match(new RegExp(`^# ${key} (\\d+)$`, 'm'));
+	const match = out.match(new RegExp(`^(?:# |ℹ )${key} (\\d+)$`, 'm'));
 	return match ? Number(match[1]) : null;
 };
 

@@ -139,10 +139,19 @@ test('classifier: incomplete or inconsistent runs are never green (dab review)',
 	assert.equal(run(`printf '# tests 2\\n# pass 2\\n# fail 0\\n# cancelled 0\\n'`), 'pass');
 });
 
-test('classifier: a real node:test run with a cancelled test is could-not-run', () => {
+test('classifier: a real node:test run with a cancelled test is could-not-run, in either reporter', () => {
 	const dir = mkdtempSync(join(tmpdir(), 'stoplight-cancel-'));
-	writeFileSync(join(dir, 'cancel.test.mjs'), "import { test } from 'node:test';\ntest('parent ends before its child', (t) => { t.test('child', async () => { await new Promise((r) => setTimeout(r, 200)); }); });\n");
-	const r = runCrucibleCalculation({ id: 'cancel', cwd: dir, cmd: 'node --test cancel.test.mjs' });
-	assert.equal(r.verdict, 'could-not-run');
-	assert.match(r.note ?? '', /cancelled/);
+	// A test that never settles is cancelled by its timeout (portable across Node 22 and 24, per dab).
+	writeFileSync(join(dir, 'cancel.test.mjs'), "import { test } from 'node:test';\ntest('never finishes', { timeout: 100 }, () => new Promise(() => {}));\n");
+	for (const reporter of ['tap', 'spec']) {
+		const r = runCrucibleCalculation({ id: 'cancel', cwd: dir, cmd: `node --test --test-reporter=${reporter} cancel.test.mjs` });
+		assert.equal(r.verdict, 'could-not-run', reporter);
+		assert.match(r.note ?? '', /cancelled/, reporter);
+	}
+});
+
+test('classifier: reads the spec reporter summary (Node 23+ default)', () => {
+	const r = runCrucibleCalculation({ id: 's', cwd: '.', cmd: `printf 'ℹ tests 2\\nℹ pass 2\\nℹ fail 0\\nℹ cancelled 0\\n'` });
+	assert.equal(r.verdict, 'pass');
+	assert.equal(r.tests, 2);
 });
