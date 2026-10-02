@@ -8,3 +8,6 @@ mvp-output/
 coverage/
 *.log
 .DS_Store
+stoplight/stoplight.json
+stoplight/index.html
+stoplight/trees/

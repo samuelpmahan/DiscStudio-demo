@@ -1,0 +1,142 @@
+{
+  "schema": "lane-stoplight-items@0",
+  "note": "Edit this file to track something new. cwd and inputs are relative to this folder. expect: fail marks a broken copy that must be caught. inputs lets an unchanged crucible reuse its last result (delta); without inputs it always re-runs. An item with no crucibles is yellow.",
+  "items": [
+    {
+      "id": "stoplight",
+      "what": "the stoplight's own rules",
+      "crucibles": [
+        {
+          "id": "rules",
+          "cwd": ".",
+          "cmd": "node --experimental-strip-types --test stoplight.test.ts",
+          "inputs": [
+            "stoplight.ts",
+            "stoplight.test.ts",
+            "board.ts"
+          ]
+        },
+        {
+          "id": "could-not-run-as-pass-caught",
+          "cwd": ".",
+          "cmd": "STOPLIGHT_IMPL=mutant node --experimental-strip-types --test stoplight.test.ts",
+          "expect": "fail",
+          "inputs": [
+            "stoplight.ts",
+            "stoplight.test.ts",
+            "board.ts"
+          ]
+        },
+        {
+          "id": "stale-reuse-caught",
+          "cwd": ".",
+          "cmd": "STOPLIGHT_IMPL=stale node --experimental-strip-types --test stoplight.test.ts",
+          "expect": "fail",
+          "inputs": [
+            "stoplight.ts",
+            "stoplight.test.ts",
+            "board.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "accepted-head",
+      "what": "nctk 01 + 02 + 04 (457bdf9d)",
+      "crucibles": [
+        {
+          "id": "nctk-suite",
+          "cwd": "trees/accepted-head",
+          "cmd": "node --test tests/*.test.mjs"
+        }
+      ]
+    },
+    {
+      "id": "05+06",
+      "what": "nctk combinators, seek, PxC bridge (cec3eaf3)",
+      "crucibles": [
+        {
+          "id": "nctk-suite",
+          "cwd": "trees/candidate-05-06",
+          "cmd": "node --test tests/*.test.mjs"
+        }
+      ]
+    },
+    {
+      "id": "F11",
+      "what": "old DiscStudio vendor tests on the accepted head",
+      "crucibles": [
+        {
+          "id": "vendor-history-tests",
+          "cwd": "trees/accepted-head/vendor/discstudio/disc",
+          "cmd": "node --experimental-strip-types mold-runtime-build.mjs --write >/dev/null && node --experimental-strip-types --test import-integration.test.ts shelf.test.ts"
+        }
+      ]
+    },
+    {
+      "id": "HH-spec",
+      "what": "HH teacher rules (reference impl, not the rewrite)",
+      "crucibles": [
+        {
+          "id": "reference",
+          "cwd": "hh-di",
+          "cmd": "HH_IMPL=reference node --experimental-strip-types --test teacher.test.ts",
+          "inputs": [
+            "hh-di",
+            "board.ts"
+          ]
+        },
+        {
+          "id": "district-bypass-caught",
+          "cwd": "hh-di",
+          "cmd": "HH_IMPL=mutantA node --experimental-strip-types --test teacher.test.ts",
+          "expect": "fail",
+          "inputs": [
+            "hh-di",
+            "board.ts"
+          ]
+        },
+        {
+          "id": "wishlist-tag-caught",
+          "cwd": "hh-di",
+          "cmd": "HH_IMPL=mutantB node --experimental-strip-types --test teacher.test.ts",
+          "expect": "fail",
+          "inputs": [
+            "hh-di",
+            "board.ts"
+          ]
+        },
+        {
+          "id": "tod-loop-caught",
+          "cwd": "hh-di",
+          "cmd": "HH_IMPL=mutantC node --experimental-strip-types --test teacher.test.ts",
+          "expect": "fail",
+          "inputs": [
+            "hh-di",
+            "board.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "HH-rewrite",
+      "what": "dab's lean rewrite",
+      "crucibles": []
+    },
+    {
+      "id": "P02",
+      "what": "storyboard placements (hand-picked)",
+      "crucibles": []
+    },
+    {
+      "id": "D01",
+      "what": "intent/execution design",
+      "crucibles": []
+    },
+    {
+      "id": "F02",
+      "what": "uniform-scale is portrait-only",
+      "crucibles": []
+    }
+  ]
+}

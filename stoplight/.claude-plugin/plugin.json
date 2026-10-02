@@ -1,0 +1,6 @@
+{
+  "name": "lane-stoplight",
+  "description": "Runs Sam's lane stoplight at session start and gives Claude the lane rules (no git, Drive lane only, propose don't apply).",
+  "version": "0.1.0",
+  "author": { "name": "Sam Mahan" }
+}
