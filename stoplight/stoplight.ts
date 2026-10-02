@@ -98,17 +98,26 @@ export const runCrucibleCalculation = (crucible: Crucible): CrucibleResult => {
 	if (!existsSync(crucible.cwd)) {
 		return { id: crucible.id, expect: crucible.expect ?? 'pass', verdict: 'could-not-run', tests: 0, pass: 0, fail: 0, outputSha256: '', note: `not present here: ${crucible.cwd}` };
 	}
-	const run = spawnSync(crucible.cmd, { cwd: crucible.cwd, shell: true, encoding: 'utf8', maxBuffer: 64 << 20 });
+	// A clean env: an inherited NODE_TEST_CONTEXT would switch a nested `node --test` away from TAP counts.
+	const { NODE_TEST_CONTEXT: _ignored, ...env } = process.env;
+	const run = spawnSync(crucible.cmd, { cwd: crucible.cwd, shell: true, encoding: 'utf8', maxBuffer: 64 << 20, env });
 	const out = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 	const tests = count(out, 'tests'), pass = count(out, 'pass'), fail = count(out, 'fail');
-	const base = { id: crucible.id, expect: crucible.expect ?? 'pass', outputSha256: createHash('sha256').update(out).digest('hex') };
-	// A crucible that never really ran proves nothing either way.
-	if (tests === null || pass === null || fail === null || tests === 0) {
-		return { ...base, verdict: 'could-not-run', tests: tests ?? 0, pass: pass ?? 0, fail: fail ?? 0, note: run.error?.message ?? 'no test counts in output' };
-	}
-	if (/ERR_MODULE_NOT_FOUND/.test(out)) {
-		return { ...base, verdict: 'could-not-run', tests, pass, fail, note: 'missing module (environment, not code)' };
-	}
+	const cancelled = count(out, 'cancelled') ?? 0;
+	const expect = crucible.expect ?? 'pass';
+	const base = { id: crucible.id, expect, outputSha256: createHash('sha256').update(out).digest('hex') };
+	const unrun = (note: string): CrucibleResult =>
+		({ ...base, verdict: 'could-not-run', tests: tests ?? 0, pass: pass ?? 0, fail: fail ?? 0, note });
+	// Anything short of a complete, consistent run proves nothing either way.
+	if (run.error) return unrun(run.error.message);
+	if (run.signal) return unrun(`killed by ${run.signal}`);
+	if (tests === null || pass === null || fail === null || tests === 0) return unrun('no test counts in output');
+	if (/ERR_MODULE_NOT_FOUND/.test(out)) return unrun('missing module (environment, not code)');
+	if (cancelled > 0) return unrun(`${cancelled} test(s) cancelled; the run is incomplete`);
+	if (fail === 0 && run.status !== 0) return unrun(`exit ${run.status} with no failing test`);
+	if (fail > 0 && run.status === 0) return unrun('failing tests but exit 0');
+	// A broken copy is only "caught" if the suite otherwise ran: every test failing looks like a crash.
+	if (expect === 'fail' && fail > 0 && pass === 0) return unrun('every test failed; cannot tell a caught copy from a crash');
 	return { ...base, verdict: fail > 0 ? 'fail' : 'pass', tests, pass, fail };
 };
 

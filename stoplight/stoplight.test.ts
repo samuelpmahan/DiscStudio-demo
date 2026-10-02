@@ -54,11 +54,11 @@ test('a real failure beats could-not-run', () => assert.equal(lightFor([r('a', '
 test('stage 1 reads real test counts and flags runs that never happened', () => {
 	const ok = runCrucibleCalculation({ id: 'ok', cwd: '.', cmd: `printf '# tests 2\\n# pass 2\\n# fail 0\\n'` });
 	assert.equal(ok.verdict, 'pass');
-	const bad = runCrucibleCalculation({ id: 'bad', cwd: '.', cmd: `printf '# tests 2\\n# pass 1\\n# fail 1\\n'` });
+	const bad = runCrucibleCalculation({ id: 'bad', cwd: '.', cmd: `printf '# tests 2\\n# pass 1\\n# fail 1\\n'; exit 1` });
 	assert.equal(bad.verdict, 'fail');
 	const silent = runCrucibleCalculation({ id: 'silent', cwd: '.', cmd: 'true' });
 	assert.equal(silent.verdict, 'could-not-run');
-	const env = runCrucibleCalculation({ id: 'env', cwd: '.', cmd: `printf 'ERR_MODULE_NOT_FOUND\\n# tests 1\\n# pass 0\\n# fail 1\\n'` });
+	const env = runCrucibleCalculation({ id: 'env', cwd: '.', cmd: `printf 'ERR_MODULE_NOT_FOUND\\n# tests 1\\n# pass 0\\n# fail 1\\n'; exit 1` });
 	assert.equal(env.verdict, 'could-not-run');
 	const gone = runCrucibleCalculation({ id: 'gone', cwd: './no-such-tree', cmd: `printf '# tests 1\\n# pass 1\\n# fail 0\\n'` });
 	assert.equal(gone.verdict, 'could-not-run');
@@ -87,7 +87,7 @@ function stage1(root: string, crucible: Crucible, previous?: Record<string, read
 test('delta: same inputs reuse the previous result; an edited input re-runs', () => {
 	const root = mkroot();
 	writeFileSync(join(root, 'input.txt'), 'v1');
-	const failing: Crucible = { id: 'c', cwd: root, inputs: ['input.txt'], cmd: `printf '# tests 1\\n# pass 0\\n# fail 1\\n'` };
+	const failing: Crucible = { id: 'c', cwd: root, inputs: ['input.txt'], cmd: `printf '# tests 2\\n# pass 1\\n# fail 1\\n'; exit 1` };
 	const fp = fingerprintCalculation({ crucible: failing, root });
 	const prior: CrucibleResult = { id: 'c', expect: 'pass', verdict: 'pass', tests: 1, pass: 1, fail: 0, outputSha256: 'old', fingerprint: fp };
 	const reused = stage1(root, failing, { it: [prior] });
@@ -125,4 +125,24 @@ test('delta: a changed runner/classifier, cwd or command invalidates reuse', () 
 	assert.equal(fingerprint({ crucible: base, root }), fp);
 	assert.notEqual(fingerprint({ crucible: { ...base, cwd: join(root, 'sub') }, root }), fp, 'cwd change must invalidate');
 	assert.notEqual(fingerprint({ crucible: { ...base, cmd: 'false' }, root }), fp, 'command change must invalidate');
+});
+
+test('classifier: incomplete or inconsistent runs are never green (dab review)', () => {
+	const run = (cmd: string, expect: 'pass' | 'fail' = 'pass') => runCrucibleCalculation({ id: 'x', cwd: '.', cmd, expect }).verdict;
+	assert.equal(run(`printf '# tests 1\\n# pass 0\\n# fail 0\\n# cancelled 1\\n'; exit 1`), 'could-not-run', 'cancelled, exit 1');
+	assert.equal(run(`printf '# tests 1\\n# pass 1\\n# fail 0\\n# cancelled 1\\n'`), 'could-not-run', 'cancelled, exit 0');
+	assert.equal(run(`printf '# tests 1\\n# pass 1\\n# fail 0\\n'; exit 3`), 'could-not-run', 'non-zero exit, no failing test');
+	assert.equal(run(`printf '# tests 2\\n# pass 1\\n# fail 1\\n'`), 'could-not-run', 'failing test but exit 0');
+	assert.equal(run(`printf '# tests 1\\n# pass 1\\n# fail 0\\n'; kill -9 $$`), 'could-not-run', 'killed by a signal');
+	assert.equal(run(`printf '# tests 1\\n# pass 0\\n# fail 1\\n'; exit 1`, 'fail'), 'could-not-run', 'all tests failing is not a caught copy');
+	assert.equal(run(`printf '# tests 2\\n# pass 1\\n# fail 1\\n'; exit 1`, 'fail'), 'fail', 'a real catch still counts');
+	assert.equal(run(`printf '# tests 2\\n# pass 2\\n# fail 0\\n# cancelled 0\\n'`), 'pass');
+});
+
+test('classifier: a real node:test run with a cancelled test is could-not-run', () => {
+	const dir = mkdtempSync(join(tmpdir(), 'stoplight-cancel-'));
+	writeFileSync(join(dir, 'cancel.test.mjs'), "import { test } from 'node:test';\ntest('parent ends before its child', (t) => { t.test('child', async () => { await new Promise((r) => setTimeout(r, 200)); }); });\n");
+	const r = runCrucibleCalculation({ id: 'cancel', cwd: dir, cmd: 'node --test cancel.test.mjs' });
+	assert.equal(r.verdict, 'could-not-run');
+	assert.match(r.note ?? '', /cancelled/);
 });

@@ -6,6 +6,8 @@ A stoplight for Sam's lane, packaged as a Claude Code plugin. When a session sta
 - 🟡 No crucible yet, or it couldn't run here.
 - 🔴 It ran and came out wrong.
 
+A result only counts when the run was complete and consistent. A killed, errored or cancelled run, a non-zero exit with no failing test, or failing tests with exit 0 all count as "couldn't run" (yellow). A broken copy only counts as caught if some of its tests still passed. If every test failed, it might have crashed instead.
+
 ## Use it
 You need Node 22 (no npm installs) and Claude Code 2.1.280 or later.
 
