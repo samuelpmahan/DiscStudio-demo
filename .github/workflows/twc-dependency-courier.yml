@@ -1,0 +1,26 @@
+name: TWC Dependency Courier
+on:
+  push:
+    paths: ['.github/workflows/twc-dependency-courier.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  courier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned headless shell
+        run: |
+          bash tests/fetch-headless-shell.sh
+          find .cache/chrome-headless-shell -type f -maxdepth 4 -print
+          tar -C .cache -czf "$RUNNER_TEMP/chrome-headless-shell.tgz" chrome-headless-shell
+          sha256sum "$RUNNER_TEMP/chrome-headless-shell.tgz" > "$RUNNER_TEMP/chrome-headless-shell.tgz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrome-headless-shell-courier
+          path: |
+            ${{ runner.temp }}/chrome-headless-shell.tgz
+            ${{ runner.temp }}/chrome-headless-shell.tgz.sha256
+          if-no-files-found: error
+          retention-days: 1
