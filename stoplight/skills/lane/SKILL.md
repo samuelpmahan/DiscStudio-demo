@@ -23,6 +23,11 @@ The stoplight ran when this session started. Its output is already in your conte
 - **Drive.** Write only inside the `nctk-claude` folder (`1hMTqyfq4jOFDFMfBOZP2AwjuA2N8VqVQ`). Never edit canonical files. `STATE.json` there is the ledger.
 - **Propose, don't apply.** Every change is proposed. Only Sam accepts.
 - **Check in.** Ask before anything that isn't already decided. One thing at a time. Keep it small and simple, in plain English first.
+- **Burst, refine, check back.**
+  - Send one message with everything: done, proposed, numbered questions, next work, and when you'll check back.
+  - Give every question a default and a deadline ("if no answer by HH:MM, I'll do X").
+  - Between bursts, work on unblocked items and don't message, except for a new red or a real blocker.
+  - At check-back, read replies, apply the defaults where nobody answered, and send the next burst.
 - **Try to break your own work** before calling it done. A check that can't fail proves nothing.
 - **Slack (if connected).**
   - Start posts with `[Claude, via Sam's account]` and tag dab as `<@U0C5V6E3MA5>`.

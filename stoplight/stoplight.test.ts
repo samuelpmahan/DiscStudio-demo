@@ -66,6 +66,14 @@ test('stage 1 reads real test counts and flags runs that never happened', () => 
 
 // ---- delta: reuse only when every declared input is byte-identical ----------
 
+/** A temp root holding stand-in runner files, so fingerprints can be computed. */
+function mkroot(): string {
+	const root = mkdtempSync(join(tmpdir(), 'stoplight-delta-'));
+	writeFileSync(join(root, 'stoplight.ts'), 'runner v1');
+	writeFileSync(join(root, 'board.ts'), 'board v1');
+	return root;
+}
+
 function stage1(root: string, crucible: Crucible, previous?: Record<string, readonly CrucibleResult[]>): CrucibleResult {
 	const pxc = createExecBoard();
 	registerStoplight(pxc, { runCrucible: runCrucibleCalculation, light, fingerprint });
@@ -77,7 +85,7 @@ function stage1(root: string, crucible: Crucible, previous?: Record<string, read
 }
 
 test('delta: same inputs reuse the previous result; an edited input re-runs', () => {
-	const root = mkdtempSync(join(tmpdir(), 'stoplight-delta-'));
+	const root = mkroot();
 	writeFileSync(join(root, 'input.txt'), 'v1');
 	const failing: Crucible = { id: 'c', cwd: root, inputs: ['input.txt'], cmd: `printf '# tests 1\\n# pass 0\\n# fail 1\\n'` };
 	const fp = fingerprintCalculation({ crucible: failing, root });
@@ -92,7 +100,7 @@ test('delta: same inputs reuse the previous result; an edited input re-runs', ()
 });
 
 test('delta: no declared inputs, or a prior could-not-run, always re-runs', () => {
-	const root = mkdtempSync(join(tmpdir(), 'stoplight-delta-'));
+	const root = mkroot();
 	writeFileSync(join(root, 'input.txt'), 'v1');
 	const ok = `printf '# tests 1\\n# pass 1\\n# fail 0\\n'`;
 	const undeclared = stage1(root, { id: 'c', cwd: root, cmd: ok }, { it: [{ id: 'c', expect: 'pass', verdict: 'fail', tests: 1, pass: 0, fail: 1, outputSha256: 'x', fingerprint: null }] });
@@ -103,4 +111,18 @@ test('delta: no declared inputs, or a prior could-not-run, always re-runs', () =
 	const unrun = stage1(root, declared, { it: [{ id: 'c', expect: 'pass', verdict: 'could-not-run', tests: 0, pass: 0, fail: 0, outputSha256: '', fingerprint: fp }] });
 	assert.equal(unrun.reused, false);
 	assert.equal(unrun.verdict, 'pass');
+});
+
+test('delta: a changed runner/classifier, cwd or command invalidates reuse', () => {
+	const root = mkroot();
+	writeFileSync(join(root, 'input.txt'), 'v1');
+	const base: Crucible = { id: 'c', cwd: root, inputs: ['input.txt'], cmd: 'true' };
+	const fp = fingerprint({ crucible: base, root });
+	assert.ok(fp);
+	writeFileSync(join(root, 'stoplight.ts'), 'runner v2');
+	assert.notEqual(fingerprint({ crucible: base, root }), fp, 'runner change must invalidate');
+	writeFileSync(join(root, 'stoplight.ts'), 'runner v1');
+	assert.equal(fingerprint({ crucible: base, root }), fp);
+	assert.notEqual(fingerprint({ crucible: { ...base, cwd: join(root, 'sub') }, root }), fp, 'cwd change must invalidate');
+	assert.notEqual(fingerprint({ crucible: { ...base, cmd: 'false' }, root }), fp, 'command change must invalidate');
 });

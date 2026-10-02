@@ -74,11 +74,15 @@ function files(path: string): string[] {
 	return readdirSync(path).filter((name) => !SKIP.has(name)).flatMap((name) => files(join(path, name)));
 }
 
+/** The runner and classifier: any change to them invalidates every reused result. */
+export const RUNNER_INPUTS = ['stoplight.ts', 'board.ts'] as const;
+
 export const fingerprintCalculation = ({ crucible, root }: { crucible: Crucible; root: string }): string | null => {
 	if (!crucible.inputs?.length) return null;
-	const paths = crucible.inputs.map((input) => join(root, input));
+	const paths = [...new Set([...crucible.inputs, ...RUNNER_INPUTS])].map((input) => join(root, input));
 	if (paths.some((path) => !existsSync(path))) return null;
-	const hash = createHash('sha256').update(JSON.stringify([process.version, crucible.cmd, crucible.expect ?? 'pass']));
+	const config = [process.version, process.platform, process.arch, crucible.cmd, relative(root, crucible.cwd), crucible.expect ?? 'pass'];
+	const hash = createHash('sha256').update(JSON.stringify(config));
 	for (const file of paths.flatMap(files).sort()) {
 		hash.update(`\0${relative(root, file)}\0`).update(readFileSync(file));
 	}

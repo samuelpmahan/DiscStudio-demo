@@ -23,7 +23,7 @@ Check it loaded with `claude plugin validate /path/to/lane-stoplight`, which sho
 
 ## CI and the Page
 - Every push to `main` runs the stoplight inside the Pages deploy (`.github/workflows/deploy-pages.yml`). The result is published at `/stoplight/` on this repo's Pages site, with the full receipt at `/stoplight/stoplight.json`. The step can't block the DiscStudio deploy.
-- **Delta:** a crucible that lists its `inputs` in `items.json` gets a fingerprint covering the Node version, the command, and every input file. When the fingerprint matches the published run, the old result is reused instead of re-run. Results that couldn't run are never reused. Crucibles without `inputs` always re-run.
+- **Delta:** a crucible that lists its `inputs` in `items.json` gets a fingerprint covering the Node version, platform, command, working folder and expected result, plus every input file and the runner/classifier (`stoplight.ts`, `board.ts`). When the fingerprint matches the published run, the old result is reused instead of re-run. Results that couldn't run are never reused. Crucibles without `inputs` always re-run.
 - Locally: `STOPLIGHT_PREVIOUS=path/to/old/stoplight.json node --experimental-strip-types run.ts`.
 
 ## Files
