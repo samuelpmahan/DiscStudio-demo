@@ -90,9 +90,11 @@ export const fingerprintCalculation = ({ crucible, root }: { crucible: Crucible;
 };
 
 // Reads the summary of either node:test reporter: TAP ("# tests 3") or spec ("ℹ tests 3", the default from Node 23).
+// Takes the LAST match: the runner prints its summary after all test output, so a test that logs
+// summary-shaped text ("ℹ pass 1") can't stand in for the real totals (dab review).
 const count = (out: string, key: string): number | null => {
-	const match = out.match(new RegExp(`^(?:# |ℹ )${key} (\\d+)$`, 'm'));
-	return match ? Number(match[1]) : null;
+	const matches = [...out.matchAll(new RegExp(`^(?:# |ℹ )${key} (\\d+)$`, 'gm'))];
+	return matches.length ? Number(matches[matches.length - 1][1]) : null;
 };
 
 export const runCrucibleCalculation = (crucible: Crucible): CrucibleResult => {
@@ -115,6 +117,8 @@ export const runCrucibleCalculation = (crucible: Crucible): CrucibleResult => {
 	if (tests === null || pass === null || fail === null || tests === 0) return unrun('no test counts in output');
 	if (/ERR_MODULE_NOT_FOUND/.test(out)) return unrun('missing module (environment, not code)');
 	if (cancelled > 0) return unrun(`${cancelled} test(s) cancelled; the run is incomplete`);
+	const skipped = count(out, 'skipped') ?? 0, todo = count(out, 'todo') ?? 0;
+	if (tests !== pass + fail + skipped + todo) return unrun(`inconsistent totals: tests ${tests} ≠ pass ${pass} + fail ${fail} + skipped ${skipped} + todo ${todo}`);
 	if (fail === 0 && run.status !== 0) return unrun(`exit ${run.status} with no failing test`);
 	if (fail > 0 && run.status === 0) return unrun('failing tests but exit 0');
 	// A broken copy is only "caught" if the suite otherwise ran: every test failing looks like a crash.

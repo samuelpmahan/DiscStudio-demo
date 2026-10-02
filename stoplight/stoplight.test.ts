@@ -155,3 +155,15 @@ test('classifier: reads the spec reporter summary (Node 23+ default)', () => {
 	assert.equal(r.verdict, 'pass');
 	assert.equal(r.tests, 2);
 });
+
+test('classifier: summary-shaped log lines cannot replace the real totals (dab review)', () => {
+	const dir = mkdtempSync(join(tmpdir(), 'stoplight-noise-'));
+	writeFileSync(join(dir, 'noise.test.mjs'), "import { test } from 'node:test';\ntest('failure', () => { console.log('ℹ pass 1'); console.log('# pass 1'); throw Error('fixture'); });\n");
+	for (const reporter of ['tap', 'spec']) {
+		const r = runCrucibleCalculation({ id: 'noise', cwd: dir, cmd: `node --test --test-reporter=${reporter} noise.test.mjs`, expect: 'fail' });
+		assert.equal(r.pass, 0, reporter);
+		assert.equal(lightCalculation({ results: [r] }).light === 'green', false, `${reporter}: an all-failing run must not read as a caught copy`);
+	}
+	const odd = runCrucibleCalculation({ id: 'odd', cwd: '.', cmd: `printf '# tests 3\\n# pass 1\\n# fail 0\\n'` });
+	assert.equal(odd.verdict, 'could-not-run', 'totals that do not add up');
+});
