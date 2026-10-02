@@ -119,6 +119,31 @@
       ]
     },
     {
+      "id": "HH-boone",
+      "what": "Boone's HH parity battery (5 live-behaviour pins + 4 intended fixes)",
+      "crucibles": [
+        {
+          "id": "battery",
+          "cwd": ".",
+          "cmd": "sh boone-hh-run.sh",
+          "inputs": [
+            "boone-hh",
+            "boone-hh-run.sh"
+          ]
+        },
+        {
+          "id": "district-bypass-caught",
+          "cwd": ".",
+          "cmd": "sh boone-hh-run.sh district",
+          "expect": "fail",
+          "inputs": [
+            "boone-hh",
+            "boone-hh-run.sh"
+          ]
+        }
+      ]
+    },
+    {
       "id": "HH-rewrite",
       "what": "dab's lean rewrite",
       "crucibles": []

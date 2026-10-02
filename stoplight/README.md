@@ -36,6 +36,7 @@ Check it loaded with `claude plugin validate /path/to/lane-stoplight`, which sho
 - `board.ts`: ChainSpot's PxC board. It's copied verbatim from `samuelpmahan/ChainSpot` on branch `lab/s0-viewer` (`packages/alg/src/exec/board.ts`); the only change is local stand-ins for one type import.
 - `stoplight.test.ts`: the stoplight's own tests. They put test results straight onto the board, skipping the running stage, and check the colour. `STOPLIGHT_IMPL=mutant` swaps in a broken light that counts "couldn't run" as a pass, and `STOPLIGHT_IMPL=stale` swaps in a fingerprint that ignores file contents. Both have to be caught.
 - `hh-di/`: Homeroom Heroes teacher rules (register, approve, create profile, Teacher of the Day), written as tests of the same kind. `HH_IMPL=mutantA|B|C` puts back each live-site bug: the district bypass, the unchecked wishlist link and malformed tag, and the Teacher of the Day infinite loop. Each must turn red. This is a spec for the rewrite, not the rewrite itself.
+- `boone-hh/` + `boone-hh-run.sh`: Boone's HH parity battery (from Drive `nctk-claude/test-infra`, written by Boone): 5 tests pinning current live behaviour and 4 for the intended fixes. The runner fetches `pyto` from DiscStudio-staging at a pinned commit, so delta reuse stays honest. `sh boone-hh-run.sh district` puts the district bug back as a broken copy that must be caught. If the fetch fails, the light shows yellow.
 - `.claude-plugin/plugin.json`, `hooks/hooks.json`, `skills/lane/SKILL.md`, `RULES.md`: the plugin wiring.
 
 ## The nctk items
