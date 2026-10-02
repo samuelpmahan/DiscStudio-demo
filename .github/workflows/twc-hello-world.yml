@@ -1,0 +1,35 @@
+name: TWC Hello World
+on:
+  push:
+    branches: [twc-hello-world]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  twc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Chrome for Testing headless shell
+        run: |
+          bash tests/fetch-headless-shell.sh
+          echo "CHROMIUM_EXECUTABLE_PATH=$PWD/.cache/chrome-headless-shell/chrome-headless-shell-linux64/chrome-headless-shell" >> "$GITHUB_ENV"
+      - name: TWC hello world
+        run: |
+          mkdir -p artifacts/twc
+          cat > /tmp/twc-hello.html <<'HTML'
+          <!doctype html><html><body style="font:32px system-ui;padding:48px">
+          <h1 data-testid="hello">TWC Hello World</h1>
+          <p>Chrome for Testing headless-shell is alive.</p>
+          </body></html>
+          HTML
+          "$CHROMIUM_EXECUTABLE_PATH" --headless --no-sandbox --disable-gpu --window-size=1280,720 --screenshot=artifacts/twc/hello-world.png "file:///tmp/twc-hello.html"
+          test -s artifacts/twc/hello-world.png
+          sha256sum artifacts/twc/hello-world.png | tee artifacts/twc/hello-world.sha256
+      - name: Upload TWC receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: twc-hello-world
+          path: artifacts/twc/
+          if-no-files-found: error
+          retention-days: 7
