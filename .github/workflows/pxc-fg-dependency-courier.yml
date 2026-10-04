@@ -1,0 +1,81 @@
+name: PxC FG Dependency Courier
+
+on:
+  push:
+    branches: ['courier/pxc-fg-deps-20261004']
+    paths: ['.github/workflows/pxc-fg-dependency-courier.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Resolve, lock, install and package dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pxc-fg-deps" "$RUNNER_TEMP/courier-out"
+          cd "$RUNNER_TEMP/pxc-fg-deps"
+          cat > package.json <<'JSON'
+          {
+            "name": "pxc-fg-proof",
+            "version": "0.0.0",
+            "private": true,
+            "type": "module",
+            "description": "Disposable FunctionalGuarantee composition probe; not integrated into nctk",
+            "engines": {"node": ">=22"},
+            "scripts": {
+              "test": "node --test test/core.test.mjs",
+              "proof": "node proof.mjs",
+              "test:adapters": "node --test test/adapters.test.mjs"
+            },
+            "devDependencies": {"zod": "4.1.12", "fast-check": "4.3.0"}
+          }
+          JSON
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls --all --json > dependency-tree.json
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { writeFileSync, readFileSync } from 'node:fs';
+          import { z } from 'zod';
+          import fc from 'fast-check';
+          assert.equal(z.number().int().parse(3), 3);
+          fc.assert(fc.property(fc.integer(), x => x + 0 === x), { seed: 20261004, numRuns: 100 });
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          assert.equal(lock.packages['node_modules/zod'].version, '4.1.12');
+          assert.equal(lock.packages['node_modules/fast-check'].version, '4.3.0');
+          writeFileSync('courier.json', JSON.stringify({
+            schema: 'pxc.dependency-courier/v1',
+            repository: process.env.GITHUB_REPOSITORY,
+            commit: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+            node: process.version,
+            platform: process.platform,
+            arch: process.arch,
+            versions: Object.fromEntries(Object.entries(lock.packages).filter(([k]) => k).map(([k, v]) => [k, v.version])),
+            installScriptsExecuted: false,
+            checks: { imports: 'passed', smokeProperty: { seed: 20261004, runs: 100, passed: true } },
+            scope: 'Dependencies only; full PxC proof tests must be run in the receiving workspace.'
+          }, null, 2) + '\n');
+          JS
+          npm --version > npm-version.txt
+          tar -czf "$RUNNER_TEMP/courier-out/pxc-fg-deps.tgz" node_modules package.json package-lock.json dependency-tree.json courier.json npm-version.txt
+          cd "$RUNNER_TEMP/courier-out"
+          sha256sum pxc-fg-deps.tgz > SHA256SUMS
+          cp "$RUNNER_TEMP/pxc-fg-deps/courier.json" .
+          cp "$RUNNER_TEMP/pxc-fg-deps/package-lock.json" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pxc-fg-deps-node22-linux-x64
+          path: ${{ runner.temp }}/courier-out/
+          if-no-files-found: error
+          retention-days: 7
