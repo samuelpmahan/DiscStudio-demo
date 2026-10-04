@@ -25,18 +25,10 @@ jobs:
           cd "$RUNNER_TEMP/pxc-fg-deps"
           cat > package.json <<'JSON'
           {
-            "name": "pxc-fg-proof",
-            "version": "0.0.0",
-            "private": true,
-            "type": "module",
+            "name": "pxc-fg-proof", "version": "0.0.0", "private": true,
+            "type": "module", "engines": {"node": ">=22"},
             "description": "Disposable FunctionalGuarantee composition probe; not integrated into nctk",
-            "engines": {"node": ">=22"},
-            "scripts": {
-              "test": "node --test test/core.test.mjs",
-              "proof": "node proof.mjs",
-              "test:adapters": "node --test test/adapters.test.mjs"
-            },
-            "devDependencies": {"zod": "4.1.12", "fast-check": "4.3.0"}
+            "devDependencies": {"zod": "4.1.12", "fast-check": "4.3.0", "graphology": "0.26.0"}
           }
           JSON
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
@@ -47,24 +39,27 @@ jobs:
           import { writeFileSync, readFileSync } from 'node:fs';
           import { z } from 'zod';
           import fc from 'fast-check';
+          import { MultiDirectedGraph } from 'graphology';
           assert.equal(z.number().int().parse(3), 3);
           fc.assert(fc.property(fc.integer(), x => x + 0 === x), { seed: 20261004, numRuns: 100 });
+          const graph = new MultiDirectedGraph();
+          graph.addNode('claim'); graph.addNode('model');
+          graph.addDirectedEdgeWithKey('satisfies', 'model', 'claim');
+          assert.deepEqual(graph.outNeighbors('model'), ['claim']);
           const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
-          assert.equal(lock.packages['node_modules/zod'].version, '4.1.12');
-          assert.equal(lock.packages['node_modules/fast-check'].version, '4.3.0');
+          for (const [name, version] of Object.entries({zod:'4.1.12','fast-check':'4.3.0',graphology:'0.26.0'}))
+            assert.equal(lock.packages['node_modules/' + name].version, version);
           writeFileSync('courier.json', JSON.stringify({
-            schema: 'pxc.dependency-courier/v1',
+            schema: 'pxc.dependency-courier/v2',
             repository: process.env.GITHUB_REPOSITORY,
             commit: process.env.GITHUB_SHA,
             runId: process.env.GITHUB_RUN_ID,
             runAttempt: process.env.GITHUB_RUN_ATTEMPT,
-            node: process.version,
-            platform: process.platform,
-            arch: process.arch,
+            node: process.version, platform: process.platform, arch: process.arch,
             versions: Object.fromEntries(Object.entries(lock.packages).filter(([k]) => k).map(([k, v]) => [k, v.version])),
             installScriptsExecuted: false,
-            checks: { imports: 'passed', smokeProperty: { seed: 20261004, runs: 100, passed: true } },
-            scope: 'Dependencies only; full PxC proof tests must be run in the receiving workspace.'
+            checks: { imports: 'passed', graphologyEdge: 'passed', smokeProperty: { seed: 20261004, runs: 100, passed: true } },
+            scope: 'Dependencies only; full delta proof tests run in receiving workspace.'
           }, null, 2) + '\n');
           JS
           npm --version > npm-version.txt
@@ -75,7 +70,7 @@ jobs:
           cp "$RUNNER_TEMP/pxc-fg-deps/package-lock.json" .
       - uses: actions/upload-artifact@v4
         with:
-          name: pxc-fg-deps-node22-linux-x64
+          name: pxc-fg-graphology-deps-node22-linux-x64
           path: ${{ runner.temp }}/courier-out/
           if-no-files-found: error
           retention-days: 7
