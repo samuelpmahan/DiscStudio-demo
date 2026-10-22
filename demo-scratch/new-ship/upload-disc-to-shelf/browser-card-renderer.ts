@@ -27,6 +27,24 @@ export function sizeBrowserSticker(image: CanvasImageSource, nativeWidth: number
 const photos = new Map<string,Promise<HTMLImageElement>>();
 function browserImage(source:string) { if(!photos.has(source)){photos.set(source,decodeBrowserImage(source));if(photos.size>8)photos.delete(photos.keys().next().value!);}return photos.get(source)!; }
 
+/** The card faces ship with the build, so every device draws the same letters.
+ * Loaded once per page; a failure is reported instead of silently falling back. */
+let cardFonts: Promise<void> | null = null;
+export function ensureCardFonts(): Promise<void> {
+  if (cardFonts) return cardFonts;
+  if (typeof FontFace === 'undefined' || typeof document === 'undefined') return Promise.resolve();
+  const faces: [string, string, string][] = [
+    ['DS Card Sans', './fonts/DejaVuSans.woff2', '100 550'],
+    ['DS Card Sans', './fonts/DejaVuSans-Bold.woff2', '551 1000'],
+    ['DS Card Sans Condensed', './fonts/DejaVuSansCondensed-Bold.woff2', '100 1000'],
+  ];
+  cardFonts = Promise.all(faces.map(async ([family, file, weight]) => {
+    const face = new FontFace(family, `url(${new URL(file, import.meta.url).href})`, { weight });
+    document.fonts.add(await face.load());
+  })).then(() => undefined, error => { cardFonts = null; throw new Error(`Card fonts could not load: ${String(error)}`); });
+  return cardFonts;
+}
+
 function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Browser could not encode the card PNG.')), 'image/png'));
 }
@@ -37,6 +55,7 @@ export async function renderCardBlob(disc: RendererDisc, orientation: CardOrient
   canvas.width = w; canvas.height = h;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Canvas2D is unavailable in this browser.');
+  await ensureCardFonts();
   await drawCard(context, disc, orientation, preset, { loadImage: browserImage, getMoldDetails, strictPhoto: true,createCanvas:createBrowserCanvas,frameRenderer:browserFrames }, appearance);
   return canvasBlob(canvas);
 }

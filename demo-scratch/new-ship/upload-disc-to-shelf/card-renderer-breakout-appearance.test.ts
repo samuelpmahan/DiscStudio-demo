@@ -33,12 +33,12 @@ test('breakout tile and digit highlighting both render for each preset', async (
   }
 });
 
-test('dark digit accents keep the recipe-neutral tile surface without adapting chosen appearance', async () => {
+test('dark digit accents keep the recipe-neutral tile surface', async () => {
   const canvas = createCanvas(1920, 1080);
   await presetRenderers.b01(canvas.getContext('2d'), resolved, env, {
     discSide: 'right', highlightTarget: 'digits', accentColor: '#000000',
   });
-  // B01 first flight tile starts at (84, 864); sample its clear upper interior.
-  const pixel = canvas.getContext('2d').getImageData(110, 870, 1, 1).data;
+  // B01 first flight tile starts at (84, 914) on the fitted 330px plate; sample its clear upper interior.
+  const pixel = canvas.getContext('2d').getImageData(110, 920, 1, 1).data;
   assert.deepEqual([...pixel], [32,38,35,255]);
 });

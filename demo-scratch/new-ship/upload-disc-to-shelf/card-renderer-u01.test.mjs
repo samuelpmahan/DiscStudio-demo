@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { drawCard, u01AccentContrastOnScorebug } from './card-renderer-core.ts';
+import { drawCard, legibleAccent, u01AccentContrastOnScorebug } from './card-renderer-core.ts';
 import { renderCard } from './card-renderer.ts';
 
 const MINT = '#8fe3ae';
@@ -64,7 +64,7 @@ test('U01 keeps the white-disc photo input and puts manufacturer · plastic belo
   assert.deepEqual(loaded, [photo]);
 
   const rule = calls.find(call => call.type === 'rect' && call.x === 48 && call.y === 700 && call.w === 4);
-  assert.deepEqual(rule, { type: 'rect', x: 48, y: 700, w: 4, h: 360, fill: MINT });
+  assert.deepEqual(rule, { type: 'rect', x: 48, y: 700, w: 4, h: 300, fill: MINT });
 
   const details = calls.find(call => call.type === 'text' && call.text === 'DISCRAFT · ESP');
   const flight = calls.find(call => call.type === 'text' && call.text === '5');
@@ -139,7 +139,7 @@ test('U01 right rail keeps the shipped compact footprint and exact photo placeme
 test('U01 left rail reflects content inside its local footprint without flipping photo pixels or flight order', async () => {
   const { calls, loaded } = await renderU01(disc(), { discSide: 'left', highlightTarget: 'digits', accentColor: '#336699' });
   assert.deepEqual(loaded, [photo]);
-  const rule = calls.find(call => call.type === 'rect' && call.y === 700 && call.h === 360 && call.w === 4);
+  const rule = calls.find(call => call.type === 'rect' && call.y === 700 && call.h === 300 && call.w === 4);
   assert.equal(rule.x, 504);
   assert.equal(rule.fill, '#336699');
   const photoDraw = calls.find(call => call.type === 'image');
@@ -149,7 +149,7 @@ test('U01 left rail reflects content inside its local footprint without flipping
   assert.equal(title.x, 480);
   const tiles = calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text));
   assert.deepEqual(tiles.map(call => call.text), ['5', '4', '-1', '1']);
-  assert.ok(tiles.every(call => call.align === 'center' && call.fill === '#336699'));
+  assert.ok(tiles.every(call => call.align === 'center' && call.fill === legibleAccent('#336699', '#38413e')), 'dark accent digits are lifted just enough to read');
   assert.ok(calls.some(call => call.type === 'stroke' && call.stroke === 'rgba(51,102,153,0.9)'), 'photo rim follows the selected accent');
 });
 
@@ -161,7 +161,7 @@ test('U01 tile highlight colors the four blocks and chooses a readable contrasti
   assert.equal(calls.filter(call => call.type === 'fill' && call.fill === '#888888').length, 4);
 });
 
-test('U01 keeps chosen digit hue and recipe-neutral backing for dark/mid/light accents', async () => {
+test('U01 keeps recipe-neutral backing and lifts dark digit accents just enough to read', async () => {
   const dark = await renderU01(disc(), { discSide: 'right', highlightTarget: 'digits', accentColor: '#333333' });
   const mid = await renderU01(disc(), { discSide: 'right', highlightTarget: 'digits', accentColor: '#777777' });
   const brick = await renderU01(disc(), { discSide: 'right', highlightTarget: 'digits', accentColor: '#cc5533' });
@@ -171,7 +171,8 @@ test('U01 keeps chosen digit hue and recipe-neutral backing for dark/mid/light a
   assert.deepEqual(tileFills(mid).slice(0, 4), ['#38413e', '#38413e', '#38413e', '#38413e']);
   assert.deepEqual(tileFills(brick).slice(0, 4), ['#38413e', '#38413e', '#38413e', '#38413e']);
   assert.deepEqual(tileFills(light).slice(0, 4), ['#38413e', '#38413e', '#38413e', '#38413e'], 'default MINT keeps the shipped dark tile blocks');
-  for (const [result, accent] of [[dark, '#333333'], [mid, '#777777'], [brick, '#cc5533'], [light, '#8fe3ae']]) assert.ok(result.calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text)).every(call => call.fill === accent));
+  for (const [result, accent] of [[dark, '#333333'], [mid, '#777777'], [brick, '#cc5533'], [light, '#8fe3ae']]) assert.ok(result.calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text)).every(call => call.fill === legibleAccent(accent, '#38413e')));
+  assert.equal(legibleAccent('#8fe3ae', '#38413e'), '#8fe3ae', 'readable accents are used exactly');
   const grayBlocks = await renderU01(disc(), { discSide: 'left', highlightTarget: 'tiles', accentColor: '#777777' });
   assert.ok(grayBlocks.calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text)).every(call => call.fill === '#000000'), 'pure black closes the #777777 threshold gap');
 });

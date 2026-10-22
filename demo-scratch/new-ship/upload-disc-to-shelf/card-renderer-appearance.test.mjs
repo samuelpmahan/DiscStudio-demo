@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { drawCard, cardFrameSnapshot } from './card-renderer-core.ts';
+import { drawCard, cardFrameSnapshot, legibleAccent } from './card-renderer-core.ts';
 
 const photo = 'data:image/png;base64,eyJ3aGl0ZS1kaXNjLXBob3RvLWJ5dGVzIjoiZXhhY3QifQ==';
 const sample = {
@@ -72,9 +72,10 @@ test('U03/U04 apply selected accents and readable digit or tile emphasis', async
     scene.layers.find(layer => layer.id === 'card-label').draw(drawn.ctx);
     const values = drawn.calls.filter(c => c.type === 'text' && ['5', '4', '-1', '1'].includes(c.text));
     assert.deepEqual(values.map(c => c.text), ['5', '4', '-1', '1'], preset);
-    if (target === 'digits') assert.ok(values.every(c => c.fill === '#336699'), preset);
+    const readable = legibleAccent('#336699', '#38413e');
+    if (target === 'digits') assert.ok(values.every(c => c.fill === readable), `${preset} lifts a dark digit accent just enough to read`);
     else assert.ok(values.every(c => c.fill !== '#336699'), preset);
-    assert.ok(drawn.calls.some(c => c.fill === '#336699'), `${preset} uses chosen accent`);
+    assert.ok(drawn.calls.some(c => c.fill === (target === 'digits' ? readable : '#336699')), `${preset} uses chosen accent`);
   }
   const u04Left = await cardFrameSnapshot(sample, 'u04', env, { discSide: 'left', highlightTarget: 'digits', accentColor: '#336699' });
   const u04Right = await cardFrameSnapshot(sample, 'u04', env, { discSide: 'right', highlightTarget: 'digits', accentColor: '#336699' });

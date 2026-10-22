@@ -1,0 +1,1763 @@
+{
+ "name": "thro-cards-6.6.1-3ca8886f5b58164b",
+ "version": "6.6.1",
+ "buildId": "3ca8886f5b58164b",
+ "base": {
+  "version": "6.6.0",
+  "buildId": "a9ba3f6b86f5fb1e",
+  "folder": "baseline-6.6.0"
+ },
+ "tests": {
+  "tests": 242,
+  "pass": 240,
+  "fail": 1,
+  "skipped": 1,
+  "failing": [
+   "experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs"
+  ],
+  "baselineFailing": [
+   "experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs"
+  ]
+ },
+ "changedFiles": [
+  "source/vendor/discstudio/disc/browser-card-renderer.ts",
+  "source/vendor/discstudio/disc/build.mjs",
+  "source/vendor/discstudio/disc/card-fixes.test.mjs",
+  "source/vendor/discstudio/disc/card-renderer-appearance.test.mjs",
+  "source/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts",
+  "source/vendor/discstudio/disc/card-renderer-core.ts",
+  "source/vendor/discstudio/disc/card-renderer-u01.test.mjs",
+  "source/vendor/discstudio/disc/export-queue-core.ts",
+  "source/vendor/discstudio/disc/export-ui.ts",
+  "source/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt",
+  "source/vendor/discstudio/disc/mold-runtime-manifest.ts",
+  "source/vendor/discstudio/disc/package.json",
+  "source/vendor/discstudio/disc/transform-geometry.mjs",
+  "source/version.json"
+ ],
+ "binaryFilesNotInPatch": [
+  "source/vendor/discstudio/disc/fonts/DejaVuSans-Bold.woff2",
+  "source/vendor/discstudio/disc/fonts/DejaVuSans.woff2",
+  "source/vendor/discstudio/disc/fonts/DejaVuSansCondensed-Bold.woff2"
+ ],
+ "artifacts": {
+  "thro-cards-6.6.1-3ca8886f5b58164b-source.patch": "d815459a6cf886990cb7fd59787f625d6a4cf223e01ed0ae9ef673bc2861431d",
+  "thro-cards-6.6.1-3ca8886f5b58164b-source.zip": "f918030c0b1434d3ced43c2d8eb103a5a3d7b0921f4f7a49fcf1663c237ed0f1",
+  "thro-cards-6.6.1-3ca8886f5b58164b-pages.zip": "8e09ff2affe9085d0c7d7758b7a438c3c0e5a387c0ef8902ca4b8defe95ef5e3"
+ },
+ "sourceFiles": [
+  {
+   "path": "source/DiscStudio-ellipse-fit-integration-receipt.json",
+   "sha256": "85f28c80d798c7a8b50afe595cc8dc36e6caec64fda9fab3ef254cae50264c84",
+   "bytes": 17110
+  },
+  {
+   "path": "source/DiscStudio-weight-details-012-pages-root.zip",
+   "sha256": "0f4524f2cd634acd7eff48636b0f2e1eb58026bb64f06218d2a19d789a3604b9",
+   "bytes": 1402927
+  },
+  {
+   "path": "source/DiscStudio-weight-details-012-publication-receipt.json",
+   "sha256": "e0a7611eb3e759193ffaf3320c4dd5788238895a113ffb8ee2a9579af65faa7a",
+   "bytes": 11696
+  },
+  {
+   "path": "source/DiscStudio-weight-details-012-receipt.json",
+   "sha256": "ceb351b1b1cb3216bace6511b73527634508fbdd3d48aaf10c20280bff1f9b66",
+   "bytes": 5715
+  },
+  {
+   "path": "source/DiscStudio-weight-details-012-source-build.zip",
+   "sha256": "5e344c6cf071368917716153689087d61aee2302d40a003bd475988400af10fe",
+   "bytes": 4843227
+  },
+  {
+   "path": "source/README.md",
+   "sha256": "984ab56bce1449b64db9172d8956b60b042bd32513f0dded30ab4773120ccf42",
+   "bytes": 33540
+  },
+  {
+   "path": "source/bases/discstudio-photo-card.json",
+   "sha256": "77854d1748320935fe6801567a4d237e887c7613a3b37c59daece5ac85e86b5b",
+   "bytes": 343
+  },
+  {
+   "path": "source/bases/discstudio-photo-card/nctk.json",
+   "sha256": "5cfb7c79dca0f8dde0d975713b9738d413e05b27f09716d04452beae3ab23622",
+   "bytes": 469
+  },
+  {
+   "path": "source/bases/house-cut.json",
+   "sha256": "dd9d3d6f9a2717c1144882698e4318541be10e5ddd52fd18baf0a541b94c3090",
+   "bytes": 190
+  },
+  {
+   "path": "source/bases/house-cut/nctk.json",
+   "sha256": "2b4bc55d802f44be9951ae936e8dac325bcd21f527984d73ebcdd360bb820467",
+   "bytes": 423
+  },
+  {
+   "path": "source/bases/nctk.json",
+   "sha256": "7ec4809be4d0ddc43d191259fbe7be581450f0868d2fb094bc7863a39039ec8f",
+   "bytes": 389
+  },
+  {
+   "path": "source/calculations/composite-discstudio/calculate.mjs",
+   "sha256": "6e54802f87d8b84de97b81ceb4292adc1cec2b00856da9b4e0eaef3ea887f240",
+   "bytes": 1931
+  },
+  {
+   "path": "source/calculations/composite-discstudio/calculation.json",
+   "sha256": "00b34bb0ff47da7d67cdc6d1a57f9b899a779ee5ea37bd431c1bc7883faede02",
+   "bytes": 214
+  },
+  {
+   "path": "source/calculations/composite-discstudio/nctk.json",
+   "sha256": "2f2502560b917a417b341d86b58a201cec74d497c8b6715422f36b132fa13360",
+   "bytes": 542
+  },
+  {
+   "path": "source/calculations/cut/calculate.mjs",
+   "sha256": "4fb50094b4759d8e25884ba0161d693b44eba7dcb9aa44e72afdf4a6a09a522b",
+   "bytes": 1684
+  },
+  {
+   "path": "source/calculations/cut/calculation.json",
+   "sha256": "5664ecf1332281ebe7b0044b57d78ef45c9fdbd7cfad8d8d946204b13b1fe013",
+   "bytes": 200
+  },
+  {
+   "path": "source/calculations/cut/nctk.json",
+   "sha256": "78291a10a637f31007a066fc2ce0cbb69cba4667d0b9a9b929bd0a80966c590b",
+   "bytes": 471
+  },
+  {
+   "path": "source/calculations/declare-discstudio-crop/calculate.mjs",
+   "sha256": "c0872337474f6d92377a4472e4462fa7913a634c49fac6461278662f883232e3",
+   "bytes": 805
+  },
+  {
+   "path": "source/calculations/declare-discstudio-crop/calculation.json",
+   "sha256": "2d24b10e7d0698bd968d8a5be99c767729aab03b0a017a267166785b26b9b5e8",
+   "bytes": 174
+  },
+  {
+   "path": "source/calculations/declare-discstudio-crop/nctk.json",
+   "sha256": "972d6dd4c823522368299d6dad887efe332acbafeac264fa5cfd9d334075e2fa",
+   "bytes": 501
+  },
+  {
+   "path": "source/calculations/nctk.json",
+   "sha256": "0b6e9a19df96e4bbc1cd1a68dfb903324c9941949055c1e6ae5a775ea5aff703",
+   "bytes": 737
+  },
+  {
+   "path": "source/calculations/prepare-discstudio-photo/calculate.mjs",
+   "sha256": "d2cc4c2ed72b197bda12adc2bd0ade65ca3b208c4726a936c947282291705d69",
+   "bytes": 1506
+  },
+  {
+   "path": "source/calculations/prepare-discstudio-photo/calculation.json",
+   "sha256": "240708bb91170bb231e44f8a850e6e03e567c38af56c351bae339748b3a5cc21",
+   "bytes": 245
+  },
+  {
+   "path": "source/calculations/prepare-discstudio-photo/nctk.json",
+   "sha256": "26ab0bd3a2e559ac7cd111ea8924f080f42f1229594d3ebb747a79e6d096492e",
+   "bytes": 540
+  },
+  {
+   "path": "source/calculations/preview-discstudio/calculate.mjs",
+   "sha256": "37779997f405bc3196da0b39540e622b39ee3d54a529c9d0bc336930e2eb206f",
+   "bytes": 1933
+  },
+  {
+   "path": "source/calculations/preview-discstudio/calculation.json",
+   "sha256": "bb87b0dccc4483de4b4ae1123fce5bebf8104709c96d7d982463ad9083125bd1",
+   "bytes": 212
+  },
+  {
+   "path": "source/calculations/preview-discstudio/nctk.json",
+   "sha256": "72ba541328c0e0464fcf2f259430eb1434b5ae7a3d78bc0cc0aba0a7202cc04f",
+   "bytes": 536
+  },
+  {
+   "path": "source/calculations/probe-source/calculate.mjs",
+   "sha256": "dfdbd7083d8eca89cc505ed597ee7a2a64c8df726da50dc6abba811bac96336b",
+   "bytes": 1091
+  },
+  {
+   "path": "source/calculations/probe-source/calculation.json",
+   "sha256": "16ea85246d40260633e9bab83b07c1fcdb3b93fd89d2752f079e2498b483bfe4",
+   "bytes": 163
+  },
+  {
+   "path": "source/calculations/probe-source/nctk.json",
+   "sha256": "5ade781c23d956fac787a377c868c718d9df7f793d3d9edc5501e0366d8ff8f7",
+   "bytes": 462
+  },
+  {
+   "path": "source/calculations/render-discstudio-card/calculate.mjs",
+   "sha256": "ab81ae815ee6933415ba2836a1a312afdaba6e6af0f6f20f18eb441288c5f7d3",
+   "bytes": 1754
+  },
+  {
+   "path": "source/calculations/render-discstudio-card/calculation.json",
+   "sha256": "f4587ddb9c0ff3f57c62520c58eee39de77c9d6d6467d2c3d9ebd72fd942bce1",
+   "bytes": 651
+  },
+  {
+   "path": "source/calculations/render-discstudio-card/nctk.json",
+   "sha256": "0636d9c4741a648a449a4ba279d82104c8811df0fac7ea52ef599971d20cf6f6",
+   "bytes": 490
+  },
+  {
+   "path": "source/calculations/review/calculate.mjs",
+   "sha256": "312a756c943e74d48104291d48b79d3cb64a86afbc0d64f74c0b545f94c3bfa5",
+   "bytes": 1478
+  },
+  {
+   "path": "source/calculations/review/calculation.json",
+   "sha256": "bd7e166e85ea2250ddd1c8a3338cc0b2839ba4af975140ccf1a7c7546cc5389b",
+   "bytes": 167
+  },
+  {
+   "path": "source/calculations/review/nctk.json",
+   "sha256": "7db0e3e8d738dfd4c8b38228ab60de93c034cddc9fd244a06bad354cde5b0ee0",
+   "bytes": 448
+  },
+  {
+   "path": "source/calculations/save-discstudio/calculate.mjs",
+   "sha256": "083cfa365c385057ceaf83634e17ce2dbb2307945f5734f259e5995ed6195701",
+   "bytes": 2754
+  },
+  {
+   "path": "source/calculations/save-discstudio/calculation.json",
+   "sha256": "789e0948b4a890297d511a5d3d4b43b950ff0d0ccfff5b510060c3a0c0b7c1c2",
+   "bytes": 312
+  },
+  {
+   "path": "source/calculations/save-discstudio/nctk.json",
+   "sha256": "cf45a9f85366a9173efcd7124f34e8cf8aea24aaaba9e90a77f1b706fad61f5a",
+   "bytes": 556
+  },
+  {
+   "path": "source/calculations/uniform-scale/calculate.mjs",
+   "sha256": "ac5e85efd8c8104d2d16260789272aaebe5930b841779b8a79eae3f3db0f96df",
+   "bytes": 2756
+  },
+  {
+   "path": "source/calculations/uniform-scale/calculation.json",
+   "sha256": "9228d44c72b0413bbd1fcbb0087aba17500abc872ac2146db283f6cb16e8909a",
+   "bytes": 175
+  },
+  {
+   "path": "source/calculations/uniform-scale/nctk.json",
+   "sha256": "d2a993e73f5b206255ec36f015fbec86dbb41edf567c95366c84745cb31d763f",
+   "bytes": 473
+  },
+  {
+   "path": "source/calculations/xy-transform/calculate.mjs",
+   "sha256": "75e41de928fc45e571474790daf99a7325cf691abf77c1bedf5e52551b01102d",
+   "bytes": 2372
+  },
+  {
+   "path": "source/calculations/xy-transform/calculation.json",
+   "sha256": "a028f89033716a5462d397ed2980cc696127dd6b3c263741db40d53284cc25c8",
+   "bytes": 183
+  },
+  {
+   "path": "source/calculations/xy-transform/nctk.json",
+   "sha256": "427b270ce7a802fc4c285f5db595e6491cb3ecb1732bf3d966994dae3f51a725",
+   "bytes": 477
+  },
+  {
+   "path": "source/candidate-origin.json",
+   "sha256": "530eea897daee0efeaf189493e4e4c7e88a6aceb07e31e285ede6c36006b1ce5",
+   "bytes": 1186
+  },
+  {
+   "path": "source/capabilities/merge_release.mjs",
+   "sha256": "190ee98730ec6c5be71641f8507726e182f94755d2e42a0225999a35a750a77a",
+   "bytes": 2570
+  },
+  {
+   "path": "source/capabilities/smartsync.mjs",
+   "sha256": "ad049e25b691b46b7e38c233c7590d3ad1300bb31f8f854ba701a1a8aa741904",
+   "bytes": 8720
+  },
+  {
+   "path": "source/capabilities/source_patch_merge.mjs",
+   "sha256": "a387d1c6e05972bed89b0e38a92c38e9e697c11d01c6f835525d6b07620395da",
+   "bytes": 23224
+  },
+  {
+   "path": "source/capabilities/subdirectory_workflow.mjs",
+   "sha256": "2642140135f33fd71d6a47944f900b6a52410f8b0df83dedadf923443facff3a",
+   "bytes": 22965
+  },
+  {
+   "path": "source/examples/salamander-one-frame.json",
+   "sha256": "a3d0b6af98b206564b98bde8188c282eeee743d21bcae35d06b74f964777d26a",
+   "bytes": 644
+  },
+  {
+   "path": "source/facts.mjs",
+   "sha256": "094e886fc0d6ea2559b093fc8aa131120638661aefd1b889359529e2890845f7",
+   "bytes": 6918
+  },
+  {
+   "path": "source/fixtures/derived-contact-sheet-input.png",
+   "sha256": "d751819a1276be73f11d26bbcf2d8489c006fe60a5838264061ab3fc7ff7f0d6",
+   "bytes": 238896
+  },
+  {
+   "path": "source/fixtures/discstudio-sample-background.svg",
+   "sha256": "ba395bb81029258c8ea56f60b1122bfe044be781ebfa4b637914e5b3073976d8",
+   "bytes": 1187
+  },
+  {
+   "path": "source/fixtures/seek/card.png",
+   "sha256": "e19dd5ba44f2b072868328a5fbc0ea4cb37a3e8ffb8254e5742dd84c1d4d7bb5",
+   "bytes": 169372
+  },
+  {
+   "path": "source/fixtures/seek/frame.jpeg",
+   "sha256": "54d08aa84a074421aa7492c33c613219a24f994bf9e39ae52dd2e87e5df6cf50",
+   "bytes": 76111
+  },
+  {
+   "path": "source/maturity-model.json",
+   "sha256": "00f004c6fed4f6b75d7968d75c664e7b471ff9c715e4988af1cef3b3aa0f2b88",
+   "bytes": 9484
+  },
+  {
+   "path": "source/nctk.json",
+   "sha256": "bcb60acbe4341b965532c858a1b9ce3b545ac98622cb208b7514b3c6b9ce069f",
+   "bytes": 563
+  },
+  {
+   "path": "source/overlays/discstudio-photo-card.json",
+   "sha256": "14089dd08282dcb5de664ab3dd79e9e9b5d691411ab000a9ccdca407ead1a243",
+   "bytes": 306
+  },
+  {
+   "path": "source/overlays/discstudio-photo-card/nctk.json",
+   "sha256": "ec9c508c055cea094e8e8371448f0112deb296d91b2f638af2e5fe8d47502fd8",
+   "bytes": 440
+  },
+  {
+   "path": "source/overlays/house-10s.json",
+   "sha256": "9dab8556d0f65879178880151109f51193bb8c770819edded36cf789342ff2fc",
+   "bytes": 157
+  },
+  {
+   "path": "source/overlays/house-10s/nctk.json",
+   "sha256": "16aedce12d11956b9e174fccee5e43615b8c795c5a495b6fbaf9aa7f4e2b3519",
+   "bytes": 404
+  },
+  {
+   "path": "source/overlays/nctk.json",
+   "sha256": "0765e434fb2cf658a47a8e93bdb6113240c3cf678cc50e3152eb3165c4b03b89",
+   "bytes": 398
+  },
+  {
+   "path": "source/parts/card/discstudio/nctk.json",
+   "sha256": "6f1ce32b021ad9b2e3f3bfb69b8170746b78b114dd402b16551f3cbc5d5f595c",
+   "bytes": 375
+  },
+  {
+   "path": "source/parts/card/discstudio/part.json",
+   "sha256": "384545869b857399ce380c243ec667fcb3ca9cb0397dc14f2fe8edd4d6af3aec",
+   "bytes": 124
+  },
+  {
+   "path": "source/parts/card/nctk.json",
+   "sha256": "1ec30be54f5e8bb9cfc884df7a766d06c6e0ad69261c9160a2d40e436242d68b",
+   "bytes": 365
+  },
+  {
+   "path": "source/parts/composite/discstudio/nctk.json",
+   "sha256": "d40a84b3ca48266aec590a62373207138c2f0af78e3957dca8d422c72f764942",
+   "bytes": 385
+  },
+  {
+   "path": "source/parts/composite/discstudio/part.json",
+   "sha256": "9936d516dbdc941647c49c550975aa4a799901b26fbdf9a37153db37d86b2bee",
+   "bytes": 129
+  },
+  {
+   "path": "source/parts/composite/nctk.json",
+   "sha256": "83d1a88896b30a5e54a1424ab6804a9967b612ffa99c96ecc132642d58f5d01b",
+   "bytes": 375
+  },
+  {
+   "path": "source/parts/crop/discstudio/nctk.json",
+   "sha256": "301c4615e236b66feaaf962b220576d4f950ef9f344552e85f8bce5921f8bebf",
+   "bytes": 375
+  },
+  {
+   "path": "source/parts/crop/discstudio/part.json",
+   "sha256": "d862b8e5949ed037c62bd9e499d26ce007a186b1a85ca6f45fb6e7f59261153e",
+   "bytes": 119
+  },
+  {
+   "path": "source/parts/crop/nctk.json",
+   "sha256": "950cb38a49ca1287f6c3c2f820bfe9ad668e9763f96aa64b065380d52305446f",
+   "bytes": 365
+  },
+  {
+   "path": "source/parts/cut/house/nctk.json",
+   "sha256": "1e05904d593dea8cd686134664de525bddbbb8c62f60664a46cdc63183b88f74",
+   "bytes": 363
+  },
+  {
+   "path": "source/parts/cut/house/part.json",
+   "sha256": "5cf6b506ef59f7addf3b64c628b149c92c9616d801a15918f090ec6af17a38eb",
+   "bytes": 104
+  },
+  {
+   "path": "source/parts/cut/nctk.json",
+   "sha256": "6b6a26285b940a6c4cdc0a5c888a62a4c05da1eebf677a7316844c82454532cf",
+   "bytes": 358
+  },
+  {
+   "path": "source/parts/nctk.json",
+   "sha256": "78b09e773d013a4af6a333dc0718d1c50d3af3f5693a0d23dd1e6cfebc65b137",
+   "bytes": 572
+  },
+  {
+   "path": "source/parts/positioned/discstudio/nctk.json",
+   "sha256": "b8e3f50ad86dc5c2a48424c904c3fa813c9e1f3775ec9d190836871d277447bc",
+   "bytes": 387
+  },
+  {
+   "path": "source/parts/positioned/discstudio/part.json",
+   "sha256": "ae17ad4f0e45ea361b6499722092cbd2710de96255de85d5634de46b9ca68b44",
+   "bytes": 145
+  },
+  {
+   "path": "source/parts/positioned/nctk.json",
+   "sha256": "15f922d385d9944e91e69b841a700da31a41513a7a137a532ffaf72d530d6ba2",
+   "bytes": 377
+  },
+  {
+   "path": "source/parts/prepared/discstudio/nctk.json",
+   "sha256": "604cd2cc335894a6be4b29171f498effa04cfb03b1dabae65e8dae8ceef21f60",
+   "bytes": 383
+  },
+  {
+   "path": "source/parts/prepared/discstudio/part.json",
+   "sha256": "06b366e8888eb49b055f8a23e12ace29f01c74d5e15c7e6b892a0ef648d74a88",
+   "bytes": 163
+  },
+  {
+   "path": "source/parts/prepared/nctk.json",
+   "sha256": "b390ab21b9add18be96eaa890cc84733304307c07051c76d80ae722854c83d20",
+   "bytes": 373
+  },
+  {
+   "path": "source/parts/preview/discstudio/nctk.json",
+   "sha256": "e25e3214cb75c03c0796b3d34e146662d0e3f0808db0e18429d1afda5bef5a8d",
+   "bytes": 381
+  },
+  {
+   "path": "source/parts/preview/discstudio/part.json",
+   "sha256": "dc30b4abbf5920ed42669ad72496c5d0cb9db77c5a1b63645e961857adee4912",
+   "bytes": 167
+  },
+  {
+   "path": "source/parts/preview/nctk.json",
+   "sha256": "90d2054c268751f59959f2a2fc7b7aac372ba430b48f3c62d5d5c0cabdf34eeb",
+   "bytes": 371
+  },
+  {
+   "path": "source/parts/probe/house/nctk.json",
+   "sha256": "821790692bb44fbac3fa3e30f0f14fc0a88cdf1a3d19a87c52040d36283e8e89",
+   "bytes": 367
+  },
+  {
+   "path": "source/parts/probe/house/part.json",
+   "sha256": "bcedf345a310ff22a75c13afffa9d746375ac7f1496fd1ac9f356a0694128280",
+   "bytes": 112
+  },
+  {
+   "path": "source/parts/probe/nctk.json",
+   "sha256": "e6f89efdd194894e6e1da8a10dbd28c92d4b180ea533656e22f5c657fef90fee",
+   "bytes": 362
+  },
+  {
+   "path": "source/parts/review/house/nctk.json",
+   "sha256": "82a8fd16b11b8f216e576c59577f2c0b05a94ff76c4ecaed8b475d89216dbc7f",
+   "bytes": 369
+  },
+  {
+   "path": "source/parts/review/house/part.json",
+   "sha256": "606f1571a5f5a86b2f84a8fad87e05a36302f6e6b7c7ef203208fc71d53e7306",
+   "bytes": 102
+  },
+  {
+   "path": "source/parts/review/nctk.json",
+   "sha256": "111ed47677b069d8dc229961fd7e4715f4270a11720504ea76e9003e026e9795",
+   "bytes": 364
+  },
+  {
+   "path": "source/parts/saved/discstudio/nctk.json",
+   "sha256": "bff8d56c8188fa2f61414845eb2519cc163b5c0433cfac79df6af2806c5d0974",
+   "bytes": 377
+  },
+  {
+   "path": "source/parts/saved/discstudio/part.json",
+   "sha256": "13db209ca3192a117eee7902c155bd2241baceaac68b891a4947b299462ae7d8",
+   "bytes": 145
+  },
+  {
+   "path": "source/parts/saved/nctk.json",
+   "sha256": "93f92dc3901daa9ec75affa0139e27525cbd5673da865afe9a161b8af0d555a1",
+   "bytes": 367
+  },
+  {
+   "path": "source/parts/scaled/discstudio/nctk.json",
+   "sha256": "6a298abbe2e8741a439ce84a23d29e9683bc9e9aa9cb89b0b59875d82725deb7",
+   "bytes": 379
+  },
+  {
+   "path": "source/parts/scaled/discstudio/part.json",
+   "sha256": "75cc02ae70b30cd1098ccca4e79eedca09a18065364b30f977bd900b4fcaba70",
+   "bytes": 137
+  },
+  {
+   "path": "source/parts/scaled/nctk.json",
+   "sha256": "03806cd547cb19c1877b9b27476ab1f10dd9a0eabbc1aa98ab65f3f1d9657280",
+   "bytes": 369
+  },
+  {
+   "path": "source/parts/source/discstudio-background/nctk.json",
+   "sha256": "74be58b239b4d8f5b4ee641593fc30f50050bb47cb72457f49c3a70aed490262",
+   "bytes": 401
+  },
+  {
+   "path": "source/parts/source/discstudio-background/part.json",
+   "sha256": "32b02d9871366ef862da2f910a6e83adedf762ec0bca2ce517b1f66c3eee229b",
+   "bytes": 385
+  },
+  {
+   "path": "source/parts/source/discstudio-fixture/nctk.json",
+   "sha256": "304d0d31a3fd2fb845b1b81906954ac55a9eb8c1d2b896e18f45470f28511b68",
+   "bytes": 395
+  },
+  {
+   "path": "source/parts/source/discstudio-fixture/part.json",
+   "sha256": "1c295c002e6628ccd09e1a4f385a70c41ead3ce8baec62cb459b37e99baf6579",
+   "bytes": 404
+  },
+  {
+   "path": "source/parts/source/house/nctk.json",
+   "sha256": "1d7ff97a38256191e0fffc3eeebb29320cb1fb9509b94fdc671ded77f717fcf6",
+   "bytes": 369
+  },
+  {
+   "path": "source/parts/source/house/part.json",
+   "sha256": "be7d6e1d7afadf5cc393b00cf3997f2683707c8049b41405d492c1db08298fd6",
+   "bytes": 939
+  },
+  {
+   "path": "source/parts/source/nctk.json",
+   "sha256": "07a3be792d1a84ffedf18626f484ce7607d295ce64a9b1eb932d8d1f06aca664",
+   "bytes": 445
+  },
+  {
+   "path": "source/policies/candidate.mjs",
+   "sha256": "0778b3d18b3de5f543bcfd4b3a935e5646bd54933a2eddad91b1726d715e3169",
+   "bytes": 2433
+  },
+  {
+   "path": "source/policies/component_version.mjs",
+   "sha256": "187a29422815baa699a231cc607a8202bf43c31042a8f409e08d9f19d7014f63",
+   "bytes": 28247
+  },
+  {
+   "path": "source/policies/crisp.mjs",
+   "sha256": "7c71293c91fdaf7657bff774bb881a098f673570b40fa211e3e28ebf9ecf7db9",
+   "bytes": 7425
+  },
+  {
+   "path": "source/policies/kompoze.mjs",
+   "sha256": "f0ddbcfb87860c7f62f71646703e7b3836c4f5fcf9e5b1fab5510d2c61abd711",
+   "bytes": 10627
+  },
+  {
+   "path": "source/policies/neat.mjs",
+   "sha256": "b49005c265e8b44feb538717c560d731b26a14d31fa733f2aa683af08e022d30",
+   "bytes": 48907
+  },
+  {
+   "path": "source/policies/source_patch.mjs",
+   "sha256": "37a4c3ac7b7647441e04571e13c1f0282295cd4a343be41203dca26f00b99285",
+   "bytes": 64706
+  },
+  {
+   "path": "source/policies/tidy.mjs",
+   "sha256": "dd99336cf460cbe8e9989e53d47ea71df8dacc306cde434ef0699107f5a7e0da",
+   "bytes": 10409
+  },
+  {
+   "path": "source/projections/discstudio-seek.mjs",
+   "sha256": "c833abd14cfa7226c2347280e9cb4540e67e8b258ba1ba7316c3811c15939d75",
+   "bytes": 3220
+  },
+  {
+   "path": "source/projections/seek-plan.mjs",
+   "sha256": "366f3fcecb8befa1d3c4a0889a9c44ddf8219680c1a36e188ef5cc4c343e2cd5",
+   "bytes": 2872
+  },
+  {
+   "path": "source/recipes/discstudio-photo-card.json",
+   "sha256": "b6593b2fdaa3c4c3e2210c05f05e9c0b2ce24ca14a0e0d1680ce2a029b0938cb",
+   "bytes": 301
+  },
+  {
+   "path": "source/recipes/discstudio-photo-card/nctk.json",
+   "sha256": "9a6ed625d6bc5422e056e33ff4cccc141b257c5fa82ea4dd0ae62d471b4d3a19",
+   "bytes": 45693
+  },
+  {
+   "path": "source/recipes/house-cut.json",
+   "sha256": "49ee5ed656a6f4e4dc8fe273510b451eb2420a1f652270f35cce444fc60950ba",
+   "bytes": 198
+  },
+  {
+   "path": "source/recipes/house-cut/nctk.json",
+   "sha256": "8432254e5ed9a12fff758927596b4478b8bc9a6c965e6f03716e05e35f55f999",
+   "bytes": 540
+  },
+  {
+   "path": "source/recipes/nctk.json",
+   "sha256": "ae621c54f12e0cf34734e2b1e030d838d21b03d95a4c8f945d3a76d94ead5ef3",
+   "bytes": 395
+  },
+  {
+   "path": "source/runtime.json",
+   "sha256": "27eaa4a6ead252af098d565ea2151b85ec980cc3182ae2fd31a25a4864cb6d87",
+   "bytes": 548
+  },
+  {
+   "path": "source/scene-framing-origin.json",
+   "sha256": "55e299b5a28030f8a74e79d831975a0a4ea0c71a616c8ae6bf665e145f9d699e",
+   "bytes": 542
+  },
+  {
+   "path": "source/tests/browser-continuous-journey.cjs",
+   "sha256": "42deb7942fc4748dea8d501d0a21d2544e0105c696fb41114e489703e6121a38",
+   "bytes": 21228
+  },
+  {
+   "path": "source/tests/browser-discstudio-frame.README.md",
+   "sha256": "11d76d9f3b8ab97543def4ccb976972a8dd87e893b8e1986bdd5d54428152843",
+   "bytes": 3384
+  },
+  {
+   "path": "source/tests/browser-discstudio-frame.cjs",
+   "sha256": "ff56d589ac1209db08d6f3757d2149fb784b366d504584b533d5a6c711dba065",
+   "bytes": 18461
+  },
+  {
+   "path": "source/tests/browser-photo-refit.cjs",
+   "sha256": "5b5c90a7ae17c3441abe2056cbf5ebb767c4b6eccd4075747a02d246d518cc54",
+   "bytes": 10948
+  },
+  {
+   "path": "source/tests/browser-preview-selection.cjs",
+   "sha256": "3c1de4fbbaf24826e1224643790adf788926f54be924bfc403477b06b9cf5d23",
+   "bytes": 8547
+  },
+  {
+   "path": "source/tests/browser-scene-framing.cjs",
+   "sha256": "02af3191348a749fbd913b21f38c79fc8fab55585840866295d05af6679daf87",
+   "bytes": 23837
+  },
+  {
+   "path": "source/tests/component-version.test.mjs",
+   "sha256": "6db46c0681344a4c74f0dbd14377fc81a294f12a5a5fba4c171ed94970b6d83b",
+   "bytes": 23843
+  },
+  {
+   "path": "source/tests/discstudio-seek.test.mjs",
+   "sha256": "72d0515a6f4d02a43ee287a3ea91fec8ea2d65633364bfeb27bfdf05e34321c6",
+   "bytes": 2164
+  },
+  {
+   "path": "source/tests/discstudio-transform.test.mjs",
+   "sha256": "af24845782680cefe850a68f1c59ebe93d90241d7988157413b771915023d89c",
+   "bytes": 5713
+  },
+  {
+   "path": "source/tests/fetch-headless-shell.sh",
+   "sha256": "dfd04bb229f9c01f51f1bfd3eb5ef1e649436a86b7c62ab72ec6799dfba33866",
+   "bytes": 893
+  },
+  {
+   "path": "source/tests/merge-queue.test.mjs",
+   "sha256": "a60b4cbe73df6fcdec5147bff8a7030961f4b1b6dfddd1606927fd019508f3fd",
+   "bytes": 13615
+  },
+  {
+   "path": "source/tests/mold-search-contract.fixture.json",
+   "sha256": "7690c2c5ecdb3a8f569f5996f89cf215cb7616830b05bade6e748851ecfd7051",
+   "bytes": 13602
+  },
+  {
+   "path": "source/tests/neat-work-state.test.mjs",
+   "sha256": "d86235c7f5cce1bf33f6d3d09c4ad8a2e4f87c900c0a9207e6a0779d844f4d86",
+   "bytes": 14513
+  },
+  {
+   "path": "source/tests/source-patch-merge.test.mjs",
+   "sha256": "bff4f0bf4f495343e588bb1a0f65577e0ec983f4fe19715600c87abc752280e4",
+   "bytes": 20316
+  },
+  {
+   "path": "source/tests/source-patch.test.mjs",
+   "sha256": "07804d535cc8b2d33982ff6448caba9e649a9d5a22f708b4a08917b4fce0fb15",
+   "bytes": 43514
+  },
+  {
+   "path": "source/tests/stage-set.test.mjs",
+   "sha256": "3bbd280869895743f705707616135631a846fff1ffd477c6776c0ce8f0161818",
+   "bytes": 11429
+  },
+  {
+   "path": "source/tests/subdirectory-workflow.test.mjs",
+   "sha256": "e568ce2f3fd7fb0ecfbe6ece9997c8fd4d7e350249d0b62c8689227560e96cde",
+   "bytes": 11800
+  },
+  {
+   "path": "source/tests/tidy-directory.test.mjs",
+   "sha256": "3d3f04d89ec03b9ce47b3e924113ccbe6658e822c24b1c0b625e5178bbdeb833",
+   "bytes": 2356
+  },
+  {
+   "path": "source/toolkit.mjs",
+   "sha256": "bea1ab5a796e982e3eac172a8c4f55a40e5bc66d8f202a213fea2fc323577df7",
+   "bytes": 14763
+  },
+  {
+   "path": "source/transport/discstudio_release.py",
+   "sha256": "7407a893f0e1d11aaaad6490435bbb96ba5e132486217a9cd51f3c0ca03baaab",
+   "bytes": 6469
+  },
+  {
+   "path": "source/transport/localci.py",
+   "sha256": "4e1fa4d745493ec4f95a38bde8376b313b83a7f6e74f0962528b336f604e3a61",
+   "bytes": 3231
+  },
+  {
+   "path": "source/transport/localci_merge.mjs",
+   "sha256": "e7bd611e0f41710cd5868f218d3ed2f341761b08abc2e8dac0ef7aaae8d1f437",
+   "bytes": 6874
+  },
+  {
+   "path": "source/transport/record_localci_observation.mjs",
+   "sha256": "da73bfde0ae154c16259d29cbcb2fd735d82fe4b9fd6e1fa4af737f2a3871b0a",
+   "bytes": 1013
+  },
+  {
+   "path": "source/transport/remote_input.py",
+   "sha256": "9a96fb3468862563c5283a588cd217da03df5233a8bed2244c97fe2a1852df98",
+   "bytes": 2438
+  },
+  {
+   "path": "source/transport/root_sync.py",
+   "sha256": "b2a7b152813bf915b7cb9089fe1aefbda220c60df967ff52d8c7077979168cb2",
+   "bytes": 7816
+  },
+  {
+   "path": "source/transport/root_sync_legacy.py",
+   "sha256": "d899c5bceed3b4f699df97dd8559097c93b7c638f49741de916066a5ef76bbc4",
+   "bytes": 5969
+  },
+  {
+   "path": "source/transport/test_discstudio_release.py",
+   "sha256": "b475b4dfe198a520e90ba5aa97ea27bebb41fe67d2a47d10b6492178018a9d24",
+   "bytes": 2441
+  },
+  {
+   "path": "source/transport/validate_directory_tree.mjs",
+   "sha256": "0989f51ad6b4973add97eb20597c3cbf980b94675379d9e3461dc3d4991fe6c7",
+   "bytes": 299
+  },
+  {
+   "path": "source/vendor/discstudio/disc/.gitignore",
+   "sha256": "9015d89c7b3cef194d1eed74f37f46f048feb97f86152539f75e19d0992f01fb",
+   "bytes": 24
+  },
+  {
+   "path": "source/vendor/discstudio/disc/README.md",
+   "sha256": "d221646ad64b94c0a65c95e6ac17645e60be010e5f6321707b90d17e9e331b7c",
+   "bytes": 4224
+  },
+  {
+   "path": "source/vendor/discstudio/disc/SOURCE_LINEAGE.md",
+   "sha256": "54bebe3328f557d23ac1cfe2f3e8385914ead8f87af0c9279e5f42a33c7b7c4c",
+   "bytes": 1866
+  },
+  {
+   "path": "source/vendor/discstudio/disc/app.ts",
+   "sha256": "7737ccdb5acb95cb2c958767e27d5377f1d33f9a9b934fc39bd1c2119f9508fa",
+   "bytes": 4131
+  },
+  {
+   "path": "source/vendor/discstudio/disc/approval-identity.ts",
+   "sha256": "0aa52e30e80a2cf507a3cd8ccfc060faf22e2ff45d6629bcf87c147852c46143",
+   "bytes": 1250
+  },
+  {
+   "path": "source/vendor/discstudio/disc/background-cover.mjs",
+   "sha256": "c9e55250598ef90bfb0a911ee8dcc417ff4f9f37d0533b9b722e1051788def5b",
+   "bytes": 2284
+  },
+  {
+   "path": "source/vendor/discstudio/disc/background-cover.test.mjs",
+   "sha256": "a5352183f4d8cd3e9f265c88a27aaadcc518b7431b910b3393d66ffb2b0c7b77",
+   "bytes": 2883
+  },
+  {
+   "path": "source/vendor/discstudio/disc/bag-current-version.test.ts",
+   "sha256": "c8b67cdcc3bf66cb20715452d572b3e689e74f75f90530eabf698250ba04f50a",
+   "bytes": 876
+  },
+  {
+   "path": "source/vendor/discstudio/disc/bags.test.ts",
+   "sha256": "074b31762755ae90ab7f290b8f152a514c4aa9251f8b73da4675062db83d65c1",
+   "bytes": 3189
+  },
+  {
+   "path": "source/vendor/discstudio/disc/bags.ts",
+   "sha256": "0445427685a5bcb55563db485ca3de3a61a6702de18d8f9a02e74b00be4540ea",
+   "bytes": 5781
+  },
+  {
+   "path": "source/vendor/discstudio/disc/batch-review.test.ts",
+   "sha256": "3b49d96d4f50e87aa1c3ac8250147646877f85f3d5b3c91f9a1dbb36d74cab67",
+   "bytes": 3138
+  },
+  {
+   "path": "source/vendor/discstudio/disc/batch-review.ts",
+   "sha256": "fc28b55ee4a58e89baee007053fd3276adc919614181e010ef81be6cc7ef436d",
+   "bytes": 3548
+  },
+  {
+   "path": "source/vendor/discstudio/disc/boundary-paint.mjs",
+   "sha256": "780b4e1a53bf8e2408c9ea97e6a55b88dab35f5f8bd2727cb5c22f35e01d5e77",
+   "bytes": 1715
+  },
+  {
+   "path": "source/vendor/discstudio/disc/boundary-paint.test.mjs",
+   "sha256": "8d27e7778272afb0f7c99d542ccc2fd9be21a643778a00d15c88d5b17dea0b4c",
+   "bytes": 2916
+  },
+  {
+   "path": "source/vendor/discstudio/disc/brand-mark.svg",
+   "sha256": "b1b7549dadd5ef7cdf5ed91d4326f7a3b1ea4ef3a94018da9358d177b84f0d31",
+   "bytes": 326
+  },
+  {
+   "path": "source/vendor/discstudio/disc/browser-card-renderer.ts",
+   "sha256": "5a866a9566c92d1422db14012a1a43eb46c85b90334bc59d182323e56af038cd",
+   "bytes": 6000
+  },
+  {
+   "path": "source/vendor/discstudio/disc/browser-export.ts",
+   "sha256": "e84d21bab4ca62dabd1bbebc29a31f6947690126bce3fecbe4ff838f0249c664",
+   "bytes": 1516
+  },
+  {
+   "path": "source/vendor/discstudio/disc/build-input-identity.mjs",
+   "sha256": "7949369e2d45fc3cd7e49b7e96e1ebaf08a048236046f3326cdf3a34e512d7d0",
+   "bytes": 2296
+  },
+  {
+   "path": "source/vendor/discstudio/disc/build-output-identity.mjs",
+   "sha256": "198a9163df6bf15a52a59db8d415a8be8ea33e461cf87ee091095c169f2948a3",
+   "bytes": 673
+  },
+  {
+   "path": "source/vendor/discstudio/disc/build-version.mjs",
+   "sha256": "2bf84bb3db9bfea022c5ef3816c9b7adeaf8efd423083b18b1e3f81efeb799a5",
+   "bytes": 1007
+  },
+  {
+   "path": "source/vendor/discstudio/disc/build-version.test.mjs",
+   "sha256": "8ff1df8040dcf17606a09f4a5b519f2ae021374e096cb64c320b5753535826c2",
+   "bytes": 3009
+  },
+  {
+   "path": "source/vendor/discstudio/disc/build.mjs",
+   "sha256": "6f91d81a7f2167133ac9b9ce34a7ff93323a1d84b4343207f9da4e791cf703ed",
+   "bytes": 8800
+  },
+  {
+   "path": "source/vendor/discstudio/disc/calculation-select.test.ts",
+   "sha256": "460b5a2bdb6b03426561ac1c690e23fbe89893cefd2207a6f89098a125a555ba",
+   "bytes": 2989
+  },
+  {
+   "path": "source/vendor/discstudio/disc/calculation-select.ts",
+   "sha256": "7495f31f4ef523ff237a951fcc1518a998fa54e4d76e602981a57c3db2167c81",
+   "bytes": 2924
+  },
+  {
+   "path": "source/vendor/discstudio/disc/capture-initial-scenario.mjs",
+   "sha256": "bc8fca5e01573635ebc321e62d688724ddb687660a4270ce15818a7f6d880f27",
+   "bytes": 360
+  },
+  {
+   "path": "source/vendor/discstudio/disc/capture-output.mjs",
+   "sha256": "1271dab053938c509c481bf41021d23a66d1e1bd0ba6ef0fbda46b0ec3e9c8dc",
+   "bytes": 681
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-fixes.test.mjs",
+   "sha256": "b02bb8e4d78e2a38e1fe8407cb6cb5b80f2c8b5f0b095382ec8146e43237ebb8",
+   "bytes": 7911
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-renderer-appearance.test.mjs",
+   "sha256": "c61aa676869e68acb4075d8697057caed61f60ba8eca5271b1f032eb5f6313b5",
+   "bytes": 5876
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts",
+   "sha256": "22c5a6e02dbf52394b9f165c872a8fc0d6cd09599cf430ce87b4e296e923c9af",
+   "bytes": 2292
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-renderer-core.ts",
+   "sha256": "b8b1920653f06af2bf28bd92dbdf46338a7324f8c4f0eb179c0e51b15965ff48",
+   "bytes": 42394
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-renderer-u01.test.mjs",
+   "sha256": "63dbf240754ff2d999f41d07479cf1dd15e270f377ccd88eac10d4bbdee68101",
+   "bytes": 10536
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-renderer.test.ts",
+   "sha256": "ee8de34a3939ba701bb1fba680b31e2ee30f38bd1b1ffb3ddb90461c15d84ba5",
+   "bytes": 8034
+  },
+  {
+   "path": "source/vendor/discstudio/disc/card-renderer.ts",
+   "sha256": "0579be030115baf6ae08676494abe6ae307536440e8a1e2cfc7658301e457731",
+   "bytes": 2190
+  },
+  {
+   "path": "source/vendor/discstudio/disc/catalog-lite.ts",
+   "sha256": "1d774d095dcd6b9e93b5792654f1af2166c33ae6282e2031f2394264d9ac8a4d",
+   "bytes": 49557
+  },
+  {
+   "path": "source/vendor/discstudio/disc/catalog.test.ts",
+   "sha256": "67da39ed32a22f1b1c1eba4372b71ca61d3319921ff8acda996c08de9d31d18c",
+   "bytes": 3326
+  },
+  {
+   "path": "source/vendor/discstudio/disc/catalog.ts",
+   "sha256": "40c30c8599e9d7b396de23bb07a722ae20812e03ea0b18a9cf2d228feecdfa6c",
+   "bytes": 544569
+  },
+  {
+   "path": "source/vendor/discstudio/disc/circle-candidates.test.ts",
+   "sha256": "de92adcee8cab423b19a5eb5698b77461be14189d0c03827b8395a56232cf34a",
+   "bytes": 10068
+  },
+  {
+   "path": "source/vendor/discstudio/disc/circle-candidates.ts",
+   "sha256": "85b37bd7a7c7aa35a8171d429352791fac893e57c832a13b9d68358a44a017e0",
+   "bytes": 15361
+  },
+  {
+   "path": "source/vendor/discstudio/disc/circle-fit.ts",
+   "sha256": "21761c6fd31c0210570d05ab980e832c245325e49b842dc4504c3a4be29ac928",
+   "bytes": 14607
+  },
+  {
+   "path": "source/vendor/discstudio/disc/cold-bootstrap-v4-replay.md",
+   "sha256": "0dcbb7f2494cbe6bc2eff5dfdca81949b37041665fba8749aae6ed1fc8030551",
+   "bytes": 1549
+  },
+  {
+   "path": "source/vendor/discstudio/disc/creator-review.html",
+   "sha256": "84b3e139eda05f10c8ed9874d51681a52b2585121822bc121cafcd67ee7a7e03",
+   "bytes": 559
+  },
+  {
+   "path": "source/vendor/discstudio/disc/creator-review.ts",
+   "sha256": "2581f3edd289352707300e59fc9a71c3b96c21608f619786186e8164b2ec0e9e",
+   "bytes": 1304
+  },
+  {
+   "path": "source/vendor/discstudio/disc/creator-selection.test.ts",
+   "sha256": "bab52d9d059de44980f303f305637c88c33ec7fd51a98a9b0c7fe8271fea8024",
+   "bytes": 1550
+  },
+  {
+   "path": "source/vendor/discstudio/disc/creator-selection.ts",
+   "sha256": "ead48e14e1bb97ad44452bf3494b75011721672bcd57c1e0141e4ce33497f087",
+   "bytes": 1324
+  },
+  {
+   "path": "source/vendor/discstudio/disc/creator-walkthrough.md",
+   "sha256": "b48bc4876dd6b0a06d6597b1440af9f9a09f87008bdbfe20758848574684bb53",
+   "bytes": 1453
+  },
+  {
+   "path": "source/vendor/discstudio/disc/creator-walkthrough.ts",
+   "sha256": "cd82253e466a08a179e04ed1b5adfdb4fb2dbd42741f1acd019866d5ce961d42",
+   "bytes": 9227
+  },
+  {
+   "path": "source/vendor/discstudio/disc/crisp-recompose.mjs",
+   "sha256": "914ea728a585a825ca0b1729068480cfe73cbf52ecc443f06e463051b51eb506",
+   "bytes": 3908
+  },
+  {
+   "path": "source/vendor/discstudio/disc/crop-geometry.ts",
+   "sha256": "71434ca0b5e2572583f0c6e1f0e57b73c095305e34d1089425481dfad1a5ee6c",
+   "bytes": 2038
+  },
+  {
+   "path": "source/vendor/discstudio/disc/devtools-data.mjs",
+   "sha256": "ad2d76d679c4f26022a6f15a54c121df5fff85630f0afd412c1955d5e84909bf",
+   "bytes": 7270
+  },
+  {
+   "path": "source/vendor/discstudio/disc/devtools.css",
+   "sha256": "97f3968cf560f85be4debd9807f16047f65dfef5b9634b66db16b8b4626ff467",
+   "bytes": 1783
+  },
+  {
+   "path": "source/vendor/discstudio/disc/devtools.mjs",
+   "sha256": "74295db712b4473d173dc9f31c2c1dc2cedf4f3faca1af373478803ecf478b63",
+   "bytes": 16825
+  },
+  {
+   "path": "source/vendor/discstudio/disc/devtools.test.mjs",
+   "sha256": "7cf05612baf5e2000de62d8775f2efc0fc9a9481e0b321278b5d5c722c6c2988",
+   "bytes": 5606
+  },
+  {
+   "path": "source/vendor/discstudio/disc/disc-view.ts",
+   "sha256": "a35cc65e6f9b4e31b989ab0cef8c0272d047c79e0df6719cc5520517c056289b",
+   "bytes": 1807
+  },
+  {
+   "path": "source/vendor/discstudio/disc/discstudio-painted-creator-attempt-v5-receipt.md",
+   "sha256": "4a54ccb5c9b12a0b8a2e7ae60a44ffa3596371bf0775ec2918817514c1e2d65f",
+   "bytes": 2208
+  },
+  {
+   "path": "source/vendor/discstudio/disc/discstudio-painted-creator-attempt-v6-receipt.md",
+   "sha256": "85b175e5bc5d9ca89b263ab4d711653f15850cf625b09566acc6ef37ddd94a53",
+   "bytes": 1784
+  },
+  {
+   "path": "source/vendor/discstudio/disc/discstudio-painted-creator-attempt-v7-receipt.md",
+   "sha256": "230c412991048a71d91a9704fb4a607631ace66b843589481f7bc22565f4707b",
+   "bytes": 3231
+  },
+  {
+   "path": "source/vendor/discstudio/disc/discstudio-painted-creator-attempt-v8-receipt.md",
+   "sha256": "efdd15641f400e08b7c319b7251ce694b0d37f55dac1a8d54b34cdde2fc443c0",
+   "bytes": 2577
+  },
+  {
+   "path": "source/vendor/discstudio/disc/discstudio-painted-creator-attempt-v9-receipt.md",
+   "sha256": "476eb8acc69badcc0628695dbaac2fa9d2c500973fb49bd081dfc69881466635",
+   "bytes": 2409
+  },
+  {
+   "path": "source/vendor/discstudio/disc/drive-real-ui.mjs",
+   "sha256": "fc2cba2105a01e6c89d37e569f722ea82b40de0b216e780315d4dfec4fbd4553",
+   "bytes": 6353
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experience-fixtures.ts",
+   "sha256": "348fa8e25a20bb4518dede84da2fab3cd05ebfd19a131c1571067a755e6aba68",
+   "bytes": 1659
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experience-page.ts",
+   "sha256": "3c89c34ffc6b73d57dfebb1d4644da6ee35ce9b588806ad2175513cf585f858d",
+   "bytes": 7094
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experiences.test.ts",
+   "sha256": "4ca10ee15e38e6883c0970d492df78a86803345a347c44600f1239342983c92f",
+   "bytes": 2787
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experiences.ts",
+   "sha256": "4d9af5bdcb39657fe65f36a2152106577db869fec52d734cb5c30bb108dc926c",
+   "bytes": 1838
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/ellipse-crop.mjs",
+   "sha256": "7a2652617a55c416f57578d1eb73125766ef071307ca109bba15d92cb4d496b5",
+   "bytes": 3520
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/ellipse-geometry.mjs",
+   "sha256": "7a786ada3007b86c200a23657d1dfcef38648a55ab0d0651028161a84234f8db",
+   "bytes": 1692
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/ellipse-review-flow.mjs",
+   "sha256": "0518e722503ad646962e0951cdb46f4e7258caff537c0cb4230299c214d5c56d",
+   "bytes": 2868
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/ellipse-review-flow.test.mjs",
+   "sha256": "23049a6ba9fef2fce853ad1a83c6dfe2baa7885a2f03234dad632d8cf2360b74",
+   "bytes": 5058
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/fit-adapter.mjs",
+   "sha256": "2672c5e004fd43e50a42a53ae5ab10a31608eb9194687b51629083a85f9ac50f",
+   "bytes": 10522
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/fit-adapter.test.mjs",
+   "sha256": "0ebff10cf95a2838c2a7199c463077f2de51e4489a2d798e52d0cf4ec6becda1",
+   "bytes": 5310
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/rim-aware-refinement.mjs",
+   "sha256": "cd296f24561a3ec33d89e330ce19eaddd58eae3684279c96f2ca69e8f5003b3a",
+   "bytes": 27902
+  },
+  {
+   "path": "source/vendor/discstudio/disc/experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs",
+   "sha256": "db0cf4317e533c227b9b6be25d5dbed1835114682ad6c43c5d7ded76ac69f093",
+   "bytes": 12949
+  },
+  {
+   "path": "source/vendor/discstudio/disc/export-queue-core.ts",
+   "sha256": "02c77b2bcfedb41a12cc9159708ab4bfecfcec9f8c42c400ac9af2d0d659e9fd",
+   "bytes": 11242
+  },
+  {
+   "path": "source/vendor/discstudio/disc/export-queue.test.ts",
+   "sha256": "8685285d264bcbef2eb53e81ec17fa54b644dd8645542c0f184f438d285da198",
+   "bytes": 14101
+  },
+  {
+   "path": "source/vendor/discstudio/disc/export-queue.ts",
+   "sha256": "c0020b0cbb5395d943cd3583cb4f3238b5720b686cf8f8fcf9be0bb1060e05ac",
+   "bytes": 2533
+  },
+  {
+   "path": "source/vendor/discstudio/disc/export-ui.ts",
+   "sha256": "24971f1808111619eafd906d6d25993423a4266f851a776e6c34fbec4d8308ee",
+   "bytes": 56047
+  },
+  {
+   "path": "source/vendor/discstudio/disc/feature-implementation-maturity.json",
+   "sha256": "dd218249511902cbca9cc73f96efb69d6df54c8bbd0b6a96ff5fffd8328b961a",
+   "bytes": 18655
+  },
+  {
+   "path": "source/vendor/discstudio/disc/feature-maturity-erratum.json",
+   "sha256": "0b1510e0049652bb0c9a13f77b67adfaf7afe9169f9e1053ed2908b7964e8cb4",
+   "bytes": 733
+  },
+  {
+   "path": "source/vendor/discstudio/disc/feature-maturity.mjs",
+   "sha256": "cab4020fada1e6b8be18513eecca25f1301e35101c9494d453d5d806dce3a6d5",
+   "bytes": 9601
+  },
+  {
+   "path": "source/vendor/discstudio/disc/feature-version-decision.md",
+   "sha256": "0dccb49a685ba7625bde3713e8c03be42663db95b7873dcd5a4a0d9d29bbb171",
+   "bytes": 10297
+  },
+  {
+   "path": "source/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt",
+   "sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9",
+   "bytes": 3859
+  },
+  {
+   "path": "source/vendor/discstudio/disc/fonts/DejaVuSans-Bold.woff2",
+   "sha256": "31600fc95c6849491dce6edf920e2b9451235e21fdd3a6e89680ded846164a9e",
+   "bytes": 21716
+  },
+  {
+   "path": "source/vendor/discstudio/disc/fonts/DejaVuSans.woff2",
+   "sha256": "fc03bf96b7e8723d8cc022c17339b73b763277df3ad7217b1446d610d03dc1b6",
+   "bytes": 23436
+  },
+  {
+   "path": "source/vendor/discstudio/disc/fonts/DejaVuSansCondensed-Bold.woff2",
+   "sha256": "74c79084c300ea189d2faf6a5b7488074646add2f67a0d368a7d1b6948b0a5e0",
+   "bytes": 13120
+  },
+  {
+   "path": "source/vendor/discstudio/disc/frame-seek.mjs",
+   "sha256": "8cdfa3dc52a0f966262143b96f93f3cebae96eda2df56f67acacb6ae971e4625",
+   "bytes": 3242
+  },
+  {
+   "path": "source/vendor/discstudio/disc/frame-seek.test.mjs",
+   "sha256": "a0a06c8f02a5b0f55ae160fea3d721ce10fb02e2bcba20dce1c8b14d0010210a",
+   "bytes": 6414
+  },
+  {
+   "path": "source/vendor/discstudio/disc/import-integration.test.ts",
+   "sha256": "01b2787e5f1164ba422a99e5823b34cc714fca60addb39c947265fd7cc68c9a6",
+   "bytes": 8027
+  },
+  {
+   "path": "source/vendor/discstudio/disc/index.html",
+   "sha256": "8b64a82c2fcde872ff277d7ee13b6c5d310a8d2e223ec23106ad107561bb6d32",
+   "bytes": 24507
+  },
+  {
+   "path": "source/vendor/discstudio/disc/instrumented-run.mjs",
+   "sha256": "c78ac450f5f6ce70cee4f19a84c8a0356b5de02d8cdee756eafe33545eae1ded",
+   "bytes": 5277
+  },
+  {
+   "path": "source/vendor/discstudio/disc/kompoze-materialize.mjs",
+   "sha256": "946f1a1577aecbf2062fe0a95889b77da446903a6b5c027d479dca52e7725bb1",
+   "bytes": 1184
+  },
+  {
+   "path": "source/vendor/discstudio/disc/kompoze-resolve.mjs",
+   "sha256": "6d95e18302a470145237c5305b29d4a66299bf3015bd30729c0c36bd643ffc16",
+   "bytes": 1499
+  },
+  {
+   "path": "source/vendor/discstudio/disc/kompozition.test.ts",
+   "sha256": "6d3e53ad59f5a41efff21d5b91f69fd5d6a2346815c24402a49f7483c45de6c3",
+   "bytes": 1720
+  },
+  {
+   "path": "source/vendor/discstudio/disc/kompozition.ts",
+   "sha256": "d931e320423d7351adede33a9af7610b41a0c586b1ee4c0d76d1230a935ef833",
+   "bytes": 347
+  },
+  {
+   "path": "source/vendor/discstudio/disc/legacy-archive.test.ts",
+   "sha256": "5f7208cf958b105bcc5660afb7660ca1e5dce94b6925bdb540cfee3c2e55d3f7",
+   "bytes": 5718
+  },
+  {
+   "path": "source/vendor/discstudio/disc/model.test.ts",
+   "sha256": "618c6d264b909255ae106a68079d8de7414f7ae273be4fbccba1148676e3e512",
+   "bytes": 21483
+  },
+  {
+   "path": "source/vendor/discstudio/disc/model.ts",
+   "sha256": "7ad6a0f8000c4e24e74284b86a84cdcebb7105f5b0a4d3dcb66eaef651294688",
+   "bytes": 41091
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-library.ts",
+   "sha256": "367cc51d78e34121df7bb0dd966b41ad4cdb0f9056ebedd2811898cc26f99328",
+   "bytes": 997
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-runtime-build.mjs",
+   "sha256": "94d8aa8783e073d6be4a63b68211acddc5fa8774dffeb6980fa48defeb189bf5",
+   "bytes": 10426
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-runtime-index.ts",
+   "sha256": "ae2d4cd1bdffe737c60927ac11b0bc01867d52d1b36949ba77a76b1c1f950e86",
+   "bytes": 18249
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-runtime-manifest.ts",
+   "sha256": "2734659ddef0549d92c590e41dcff92398857a50fabcb80af3e11ed72479818e",
+   "bytes": 729
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-runtime.bin",
+   "sha256": "03fd92167969f79398119f0917fb52c683908a9bcca25dba1615dabeae25c1fc",
+   "bytes": 45688
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-runtime.test.ts",
+   "sha256": "0f8c498c10947c9300972fafc12e22bf06c2124848b25b8238f6f891c94e17bc",
+   "bytes": 13289
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-search.baseline-receipt.json",
+   "sha256": "eb049e65b6ffd2cd354fa829d6bc4648c42f81b687bee01803d26cda10ee83e6",
+   "bytes": 2062
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-search.component-contract.json",
+   "sha256": "b5a9f401b16ea7c65d263a29e60d6091cd4666120ca940f839729375c5f9d848",
+   "bytes": 13602
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-search.test.ts",
+   "sha256": "bdfe20eb155f4c6c229399e6c62607849506f5453d705a7ef2045f1ea81ffa85",
+   "bytes": 1034
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-search.ts",
+   "sha256": "db9c8d3ac2b22adfb90da07ae22d94c70fd9b3100407e4e6637efbec43c64447",
+   "bytes": 1735
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-search.validation-receipt.json",
+   "sha256": "acfb30e4ff6ca98b58d13ed67388b6cd0d7ad9acb48cd461309ad9b044d8e17a",
+   "bytes": 9540
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-wildcard-trie.test.ts",
+   "sha256": "a9ad6fc0252aeeb947d5034977a0876f422e65be19702985294a67fd9183c9eb",
+   "bytes": 5193
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mold-wildcard-trie.ts",
+   "sha256": "d799f4bac66f4ba7a9219542dc1a2f06e5dc801b11500ab3bf5b521b41d9e3ca",
+   "bytes": 16210
+  },
+  {
+   "path": "source/vendor/discstudio/disc/mvp-run.mjs",
+   "sha256": "b9071b1c14f9b0f41bc612c0b45baebfe25d3015addf7cd735a9f71fc0a99d6d",
+   "bytes": 2202
+  },
+  {
+   "path": "source/vendor/discstudio/disc/operations.test.ts",
+   "sha256": "38fff371ed8944c55b22ceaa0a9bb2a7c224b74849212f2401ddd82e8582a46b",
+   "bytes": 4544
+  },
+  {
+   "path": "source/vendor/discstudio/disc/operations.ts",
+   "sha256": "b30eabeb43904a643ff4cbef5c1a8e6081cb9284006d254d5540a4adf3da3ab3",
+   "bytes": 1488
+  },
+  {
+   "path": "source/vendor/discstudio/disc/overlays/painted-discs.overlay.json",
+   "sha256": "7dc3661af2c487e83c3ba354d2e7befb0a126b7edbd969ade55c1f83b2ccc82e",
+   "bytes": 1113
+  },
+  {
+   "path": "source/vendor/discstudio/disc/package-lock.json",
+   "sha256": "7ad8591182c6a11cbce5223ceede2c1d7f6311b285f0c62bc26a42da061f0369",
+   "bytes": 12798
+  },
+  {
+   "path": "source/vendor/discstudio/disc/package.json",
+   "sha256": "d7496e5321c68bfc303a2e03d77858dfea145de2aa5ad9e2490049e707a0f023",
+   "bytes": 1629
+  },
+  {
+   "path": "source/vendor/discstudio/disc/paint-recipe.test.ts",
+   "sha256": "c4e34c0f95b42037fbaf7553a64b9a0fd5e7538d82711277a284056c7512fea0",
+   "bytes": 5360
+  },
+  {
+   "path": "source/vendor/discstudio/disc/paint-recipe.ts",
+   "sha256": "d8d73b53f7affd84f979ef242e0b07c98e1c0853df17177f2015b94422c84d77",
+   "bytes": 3406
+  },
+  {
+   "path": "source/vendor/discstudio/disc/paint.ts",
+   "sha256": "0f90e093682329925a704eac6efd4f9f7c9455978b59d418ffc6d6bf2fbbdec2",
+   "bytes": 2596
+  },
+  {
+   "path": "source/vendor/discstudio/disc/painted-card-evidence.mjs",
+   "sha256": "bc4cfdcba3841378a1a8884b094068a36d6e0f0eb4f82c61db4ac00cb92e4757",
+   "bytes": 2321
+  },
+  {
+   "path": "source/vendor/discstudio/disc/painted-overlay.test.ts",
+   "sha256": "cdaebb593f70e52543baa4657c9740c98ac625c2d4f7b920b915c061bdb61f73",
+   "bytes": 5552
+  },
+  {
+   "path": "source/vendor/discstudio/disc/painted-return-probe.mjs",
+   "sha256": "709c90eeaf95bbde68d6074c197f359239a06548164ad6d7d5fce68f8af32108",
+   "bytes": 2341
+  },
+  {
+   "path": "source/vendor/discstudio/disc/paired-capture.mjs",
+   "sha256": "31378df10717aaf1906b0dcd12392df42cda34163d19a09458a9e89da8e51e95",
+   "bytes": 2202
+  },
+  {
+   "path": "source/vendor/discstudio/disc/paired-capture.test.mjs",
+   "sha256": "cc22c4e811dd03785b58564867b9eb41c06350c10a35f33711834eb424828ef0",
+   "bytes": 2191
+  },
+  {
+   "path": "source/vendor/discstudio/disc/persistence.test.ts",
+   "sha256": "70b84c6e6df274d2cf7db2f0a738b8e1e78cb53a5140bc5052ea2fd4f2896cd3",
+   "bytes": 20264
+  },
+  {
+   "path": "source/vendor/discstudio/disc/persistence.ts",
+   "sha256": "426d5a68047f13ffc97e091299a1b87e62d555ecac30e92c3c1fa084e61b4062",
+   "bytes": 11661
+  },
+  {
+   "path": "source/vendor/discstudio/disc/persistent-experience.ts",
+   "sha256": "4a410013ed5573d169e82a6e265dfadc8346a21ec2bad47f3cf06a6c7c1027d0",
+   "bytes": 5171
+  },
+  {
+   "path": "source/vendor/discstudio/disc/photo-bag-two-card-evidence.mjs",
+   "sha256": "34fe97345bf8b90a74938ee6b7b06824555d0a5420e5621abde553f914bb54e5",
+   "bytes": 7468
+  },
+  {
+   "path": "source/vendor/discstudio/disc/photo-crop.test.ts",
+   "sha256": "e96b37dd40398af859979278278b1bc365b533a889248d70087b12f61c70192d",
+   "bytes": 9547
+  },
+  {
+   "path": "source/vendor/discstudio/disc/photo-refit.test.ts",
+   "sha256": "5d2560eacf116a51ffe241e1d3d49f4dce4d29e5a1ee524096e165e56ee658f3",
+   "bytes": 11489
+  },
+  {
+   "path": "source/vendor/discstudio/disc/photo-refit.ts",
+   "sha256": "1dc3bef6421f638461b04a714ae0c943870a68990b5999d8b3e55ec1e7e3309a",
+   "bytes": 10100
+  },
+  {
+   "path": "source/vendor/discstudio/disc/plastics.ts",
+   "sha256": "8f48b1e5be6c2e09e9444c4c5fc9a4fe2bb171d0d15d0a0bbd819cac05dcb3df",
+   "bytes": 10037
+  },
+  {
+   "path": "source/vendor/discstudio/disc/preset-gallery-standalone.html",
+   "sha256": "ae4410123bfab03d7f19119fdca34c0ea0f5ddd584cd85f81f328e8a269db083",
+   "bytes": 1309091
+  },
+  {
+   "path": "source/vendor/discstudio/disc/preset-gallery-upright.html",
+   "sha256": "61e879f5165b7210f3072355f1264690e039438df0227e0e628722a7a695b97c",
+   "bytes": 670396
+  },
+  {
+   "path": "source/vendor/discstudio/disc/preset-gallery.html",
+   "sha256": "564f984db7668434e2f04479bb189856c1071e3e62771b51233bdaa3b55a1792",
+   "bytes": 3322
+  },
+  {
+   "path": "source/vendor/discstudio/disc/preview-draw-scheduler.mjs",
+   "sha256": "18941f19f9f70528445009d997f159e29c18ec88fd83b4e65a186f29b4dab9bc",
+   "bytes": 1401
+  },
+  {
+   "path": "source/vendor/discstudio/disc/preview-draw-scheduler.test.mjs",
+   "sha256": "e8527a8a0b194960fabd53160ab9ef136272815a786ed10041543e195c154e75",
+   "bytes": 2218
+  },
+  {
+   "path": "source/vendor/discstudio/disc/preview-placement.test.ts",
+   "sha256": "7621ee1522ee780081d4569b455f02a121d4b96256e125c62db1e74d39c12ceb",
+   "bytes": 3028
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-dot-status.mjs",
+   "sha256": "0c9d9399431fec2f32dd7ba85dc2e79c287183b5de7ee84831f307bc2cc03602",
+   "bytes": 1693
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-dot-status.test.mjs",
+   "sha256": "d4528ea2ff2904e5265278e64b8bcdca0257e078c5d2d1fc6679a4eb93e80f01",
+   "bytes": 3156
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-drag.mjs",
+   "sha256": "d4efd676253a526be02c21b6e3f76721b3e61db1e15498cb90cc443acc0d8180",
+   "bytes": 2930
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-drag.test.mjs",
+   "sha256": "9157cd5b1ef127c59345e92e9df532a250e075407a5519b98a345cbdd16e9ba7",
+   "bytes": 4662
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-ellipse-adjust.mjs",
+   "sha256": "37f281417d1ae957e8cf4f3c259ec17907d0d6d3cad46a1f6e92d8e5b886d83c",
+   "bytes": 8849
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-ellipse-adjust.test.mjs",
+   "sha256": "a60b6ff94b58ddf7b0ac353167fe4f9e4395351a934f6d3eda80cf5bcacbb983",
+   "bytes": 4692
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-view.mjs",
+   "sha256": "d54969f55c7dd82f01de7af0d12a97ab1da54ba6021ebc255ca825dd08cac754",
+   "bytes": 4193
+  },
+  {
+   "path": "source/vendor/discstudio/disc/refinement-view.test.mjs",
+   "sha256": "6f6f50ebd3efde3cc22b9b2da0c38d878247ff847126bdb5412bc0b525e3ed62",
+   "bytes": 3504
+  },
+  {
+   "path": "source/vendor/discstudio/disc/release-notes.ts",
+   "sha256": "ab678af8083449f6f03d102154fe45d09ff40c8b3b93a443aab10483500ac162",
+   "bytes": 754
+  },
+  {
+   "path": "source/vendor/discstudio/disc/render-breakout.mjs",
+   "sha256": "6138dd13882f3a108a92ee41c915db8d35093eafa26125de1171c6e135458aef",
+   "bytes": 2354
+  },
+  {
+   "path": "source/vendor/discstudio/disc/render-presets.mjs",
+   "sha256": "5074b948f1a7a808bb0159b1978aed224530a1f5809f2012b91a594b2cdbe2b9",
+   "bytes": 4839
+  },
+  {
+   "path": "source/vendor/discstudio/disc/rimfit-persistence.test.ts",
+   "sha256": "0376a8294b160ac5d7566290db2c540828512f8eb56532c5291670b703e43506",
+   "bytes": 2487
+  },
+  {
+   "path": "source/vendor/discstudio/disc/rimfit-v3/numeric.mjs",
+   "sha256": "6f1c45ad3a19df6f28012c7efe56faaa971084b0454058b1b08a00967dbd042a",
+   "bytes": 5373
+  },
+  {
+   "path": "source/vendor/discstudio/disc/rimfit-v3/powell.mjs",
+   "sha256": "434bcdc6f8905b54aac917d486a92724fa14f3f1537a2d735d9293784d2ff1f4",
+   "bytes": 14739
+  },
+  {
+   "path": "source/vendor/discstudio/disc/rimfit-v3/recover.mjs",
+   "sha256": "7617e179efa5e3c6101ab2644ccef3fb5a588b22901c4c5c12f5e62d53876f83",
+   "bytes": 20241
+  },
+  {
+   "path": "source/vendor/discstudio/disc/rimfit-v3/worker-client.mjs",
+   "sha256": "70573b9477e1ff390b886317a525dc58ce8f1dc87baf798211e97fa6b06e090a",
+   "bytes": 3139
+  },
+  {
+   "path": "source/vendor/discstudio/disc/rimfit.ts",
+   "sha256": "f2fc393c2520714042fe46cfc37e2de55ce97733c328e8182c1ddb7ca08c0c37",
+   "bytes": 7469
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sample-background-horizontal.svg",
+   "sha256": "72b548e8a5a1492cefc67a0524acd48ef77addc95fa5f4981ff894cf35423802",
+   "bytes": 590
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sample-background.svg",
+   "sha256": "3ccfd1db18e8221b23ca5fdb177617a1d18b2a40a1559982ec2360aa7c3e102c",
+   "bytes": 573
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sample-discs.ts",
+   "sha256": "94fb3884c363da28b3dd84b5c5a2cb635ca057b1b0aeb31c573beaa0e6915a62",
+   "bytes": 576
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sample-discs/anchor.jpg",
+   "sha256": "d1f149a9cabd30c144105f9eafe92c1b7f88b2a631df2a97315be712d4dcb4d0",
+   "bytes": 354763
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sample-discs/buzzz-ss.jpg",
+   "sha256": "cc82666da67b91e4d74c938cb5b6377ecd2f1c9bb0c9eef00bcb91289b9bbada",
+   "bytes": 403016
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sample-discs/servo.jpg",
+   "sha256": "1d6c7ad370b2fe8896a0bf10d0b31f83df6c3c03d2540ccc8350b67ec075ec27",
+   "bytes": 405261
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sandbox-cases.test.ts",
+   "sha256": "ba337fcce0015530cafa91ad075347e3e54099bbc33da6f0176d1ef31e24ad38",
+   "bytes": 3406
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sandbox-cases.ts",
+   "sha256": "65867ec56e299134363ecc878fb3e7d49ca88a250c9f4782edaec58729a1f77e",
+   "bytes": 8436
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sandbox-ui.ts",
+   "sha256": "4b662c33b9f7781c0359c2b999a6904d9267d9278987e00af32a039109a4780b",
+   "bytes": 6326
+  },
+  {
+   "path": "source/vendor/discstudio/disc/serve.mjs",
+   "sha256": "e6fcd1bca575c106a0172a0825ae7e8b0205a1f0709d3f03446ff10d623ef8e9",
+   "bytes": 1126
+  },
+  {
+   "path": "source/vendor/discstudio/disc/session-storage.test.ts",
+   "sha256": "bb4a972ac63118b1f8bb970ac7611bff50764a191ab4f7a972237758a09d88be",
+   "bytes": 4189
+  },
+  {
+   "path": "source/vendor/discstudio/disc/session-storage.ts",
+   "sha256": "5b0fb807c60a88389efd68041b112aa3e8ea108bfe2657aaddbd77ffab85c1b6",
+   "bytes": 3185
+  },
+  {
+   "path": "source/vendor/discstudio/disc/shelf-query.test.ts",
+   "sha256": "6f3bfbf49fafabb8fb11b9225d145538194689f8da0db7f227c4d67a426f793b",
+   "bytes": 3753
+  },
+  {
+   "path": "source/vendor/discstudio/disc/shelf-query.ts",
+   "sha256": "f601db7fae500a2a9dd21af279ac1eea7c17de4a3761ab5462af50d34eee3230",
+   "bytes": 5466
+  },
+  {
+   "path": "source/vendor/discstudio/disc/shelf-ui.ts",
+   "sha256": "200c0b634b89824625af5d3c560863cab3cef3761e1aebc32ae8d4ad12254073",
+   "bytes": 21563
+  },
+  {
+   "path": "source/vendor/discstudio/disc/shelf.test.ts",
+   "sha256": "3436ba6c022168fad2b8046fed2f0b8571828a2704f98dd2f8d228f563ceb6fc",
+   "bytes": 4327
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sticker-raster.mjs",
+   "sha256": "077b78dc9e031a4eb3d5022fdf4a4bad026d2e91470256e91c0a60aa7ac770b7",
+   "bytes": 3560
+  },
+  {
+   "path": "source/vendor/discstudio/disc/sticker-raster.test.mjs",
+   "sha256": "1b45117fbf1bc0fd7b4cac9fe574909f3cd2ded28e050fc1548e0b72464ffdad",
+   "bytes": 3425
+  },
+  {
+   "path": "source/vendor/discstudio/disc/style.css",
+   "sha256": "658081041dcb6c30551e14af8d1682fe93aa62f7b5bbe341e563904dfae298c4",
+   "bytes": 52718
+  },
+  {
+   "path": "source/vendor/discstudio/disc/test-page-iife.html",
+   "sha256": "2eef9df03a98f7a2151ea91b52ca31bc20c54d9442e38097b4607909bff04dc6",
+   "bytes": 7049
+  },
+  {
+   "path": "source/vendor/discstudio/disc/test-page.html",
+   "sha256": "73221fa0663b0120fcbc2c4f83cf38a826e745e157a0f5b5d17c7af2bfd1d9d6",
+   "bytes": 7063
+  },
+  {
+   "path": "source/vendor/discstudio/disc/transform-geometry.mjs",
+   "sha256": "82818c2b09bc12eb9caadce7b3c8c54fa37b970a8ed085215b3eaee47d00705b",
+   "bytes": 4501
+  },
+  {
+   "path": "source/vendor/discstudio/disc/transform-geometry.test.mjs",
+   "sha256": "e049c90e8b298d8820437d5f5c842654fa10cb7fe8055fa74a926cfab5dbfc9c",
+   "bytes": 2459
+  },
+  {
+   "path": "source/vendor/discstudio/disc/upload-ui.ts",
+   "sha256": "1baa3b64023a21727f37b76fcd4b7d765cf6456cbcadceb2db1147106cb33577",
+   "bytes": 102488
+  },
+  {
+   "path": "source/vendor/discstudio/disc/url-free-materializer.mjs",
+   "sha256": "1be08fe81a4eba0e9891e4ed255c3c9cf54ca7b264b2c791d1a567cba12bf152",
+   "bytes": 2298
+  },
+  {
+   "path": "source/vendor/discstudio/disc/url-free-materializer.test.mjs",
+   "sha256": "2cddf35f54fd7dd8d9aac23924c789d62697debc4e761c6ee2824ff379b7cdb3",
+   "bytes": 1872
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/neat/tick-part-checklist.js",
+   "sha256": "aac0774065e3657cd06bdf6bae921318d98956e2dc19532629dcc59d99f27801",
+   "bytes": 5924
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/painter/core.mjs",
+   "sha256": "c0fc0bdc37c3c5ad420f736ca8f4bb082b150fddd388cd4e35fa52e45538fff4",
+   "bytes": 20837
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/painter/families/botanical.mjs",
+   "sha256": "b66c179e84956b1d300bbe66ef8b291d0a556c5cc8373424e1bcaafcc753b786",
+   "bytes": 24303
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/painter/families/cartography.mjs",
+   "sha256": "46b5fe9b45d141c881b9930e633c3b8b8e2596f23276349e5abaa55e810c4baa",
+   "bytes": 24553
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/painter/families/foundry.mjs",
+   "sha256": "a68b5517197986ba741bb9740a49bf92225d2b2753260722cbbca31127855660",
+   "bytes": 14392
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/painter/families/signal.mjs",
+   "sha256": "a795c1a7be4b72990401328c22b43dee25d6eda4af29d6dfdacaf45607b9ae6b",
+   "bytes": 15110
+  },
+  {
+   "path": "source/vendor/discstudio/disc/vendor/painter/painter.mjs",
+   "sha256": "fecfa16b78a3e2f90547a754283e30d15a9caad848aba9a43c51511d120aa3ba",
+   "bytes": 8297
+  },
+  {
+   "path": "source/vendor/discstudio/disc/weight-details-browser-smoke-receipt.json",
+   "sha256": "8dbced7659b201ca1007f41625ce3245294bcedafba44d40f9c9c2890b4c3597",
+   "bytes": 1225
+  },
+  {
+   "path": "source/vendor/discstudio/disc/weight-details-browser-smoke.cjs",
+   "sha256": "af6705366f39a1bd79a47c20335df2094fd81d9d62e86503ebcef1e00486811d",
+   "bytes": 8789
+  },
+  {
+   "path": "source/vendor/discstudio/disc/weight-details-browser-smoke.png",
+   "sha256": "455bc6186900bd1981a8788e4a5545cef50dabe2e65dcb94b98046c628bd8837",
+   "bytes": 253350
+  },
+  {
+   "path": "source/vendor/discstudio/disc/weight-details-shelf-browser.png",
+   "sha256": "abbd3f51b16fe99fbabf8e4fa1f6e25dd9f5eee3617f556f930c6c03405c8a5d",
+   "bytes": 220806
+  },
+  {
+   "path": "source/vendor/discstudio/disc/zip.ts",
+   "sha256": "d6bcec748e1abccea9ae8de5415ffe11d99b07d58c43cff3c333678c7252f2e0",
+   "bytes": 2231
+  },
+  {
+   "path": "source/vendor/discstudio/part-first-kernel/src/pxc.mjs",
+   "sha256": "1b280236336522fd0568e9e7c0fc652b88c259c65f7db4efcd5b23f04ee88af9",
+   "bytes": 2869
+  },
+  {
+   "path": "source/version.json",
+   "sha256": "7307265584803fea11a4a865b0188a601247680d35a9ca7afe865ad3e321c646",
+   "bytes": 97
+  }
+ ],
+ "deploy": {
+  "deployed": true,
+  "project": "thro-disc",
+  "urls": {
+   "b-3ca8886f5b58164b": "https://b-3ca8886f5b58164b.thro-disc.pages.dev",
+   "main": "https://e6294191.thro-disc.pages.dev"
+  }
+ }
+}

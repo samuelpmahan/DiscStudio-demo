@@ -27,7 +27,7 @@ export const CARD_SIZE: Record<CardOrientation, { w: number; h: number }> = {
 const CARD_BG = 'rgba(14,18,22,0.94)';
 const INK = '#ffffff';
 const MINT = '#8fe3ae';
-const FONT_STACK = '"DejaVu Sans", "Nimbus Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+const FONT_STACK = '"DS Card Sans", "DejaVu Sans", "Nimbus Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
 
 type ResolvedDisc = {
   moldName: string;      // e.g. "Buzzz"
@@ -267,9 +267,13 @@ const Z_BOT = VH * 0.75;   // caption/controls dead zone
 const Z_RAIL = VW * 0.88;  // action rail starts here (right 12%)
 const NIGHT92 = 'rgba(5,7,6,0.92)';
 const NIGHT94 = 'rgba(5,7,6,0.94)';
+/** Plate fill: the layout's own see-through dark unless the card asks for a solid plate. */
+const plateFill = (appearance: U01Appearance | undefined, seeThrough: string) => appearance?.plate === 'solid' ? PLATE : seeThrough;
+/** B03's thin frame, offered on B01. */
+function drawFrame(ctx: any, x: number, y: number, w: number, h: number) { ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h); }
 const ACID = '#c8f23d';
 const CORAL = '#ff5c47';
-const DISPLAY = '"DejaVu Sans Condensed", "Nimbus Sans Narrow", "DejaVu Sans", sans-serif';
+const DISPLAY = '"DS Card Sans Condensed", "DejaVu Sans Condensed", "Nimbus Sans Narrow", "DejaVu Sans", sans-serif';
 const SCOREBUG_SURFACE = '#1a1b1a';
 
 function luminance(hex: string): number {
@@ -328,10 +332,24 @@ function contrastInk(hex: string): string {
   return contrastRatio(hex, '#000000') >= contrastRatio(hex, '#ffffff') ? '#000000' : '#ffffff';
 }
 
+/** Accent used as TEXT on a dark surface: keep the sponsor colour when it already
+ * reads at 4.5:1, otherwise lift it toward white just far enough to read.
+ * Fills (tiles, rims, rules) keep the exact chosen colour. */
+export function legibleAccent(accent: string, surface: string): string {
+  if (contrastRatio(accent, surface) >= 4.5) return accent;
+  const rgb = [1, 3, 5].map(i => Number.parseInt(accent.slice(i, i + 2), 16));
+  for (let t = 0.05; t <= 1.0001; t += 0.05) {
+    const hex = '#' + rgb.map(c => Math.round(c + (255 - c) * t).toString(16).padStart(2, '0')).join('');
+    if (contrastRatio(hex, surface) >= 4.5) return hex;
+  }
+  return '#ffffff';
+}
+const PLATE = '#050706';
+
 function drawU01FlightValues(ctx: any, nums: string[], x: number, y: number, align: 'left' | 'right', highlightTarget: 'tiles' | 'digits', accent: string) {
   const defaultTile = '#38413e';
   const digitTile = defaultTile;
-  drawTilesRow(ctx, nums, x, y, 64, 10, 38, align, highlightTarget === 'tiles' ? accent : digitTile, highlightTarget === 'digits' ? accent : contrastInk(accent));
+  drawTilesRow(ctx, nums, x, y, 64, 10, 38, align, highlightTarget === 'tiles' ? accent : digitTile, highlightTarget === 'digits' ? legibleAccent(accent, digitTile) : contrastInk(accent));
 }
 
 /** Law 4: one display voice for the name. */
@@ -358,7 +376,7 @@ async function renderU01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   // New creator layouts mirror the contents only within the existing 460px
   // scorebug footprint; the photo pixels and flight glyph order never flip.
   const discSide = appearance?.discSide ?? 'right';
-  const cardX = 48, cardW = 460, cardY = 700, cardH = 360;
+  const cardX = 48, cardW = 460, cardY = 700, cardH = 300;
   const align: 'left' | 'right' = discSide === 'left' ? 'right' : 'left';
   const accent = appearance?.accentColor ?? MINT;
   const highlightTarget = appearance?.highlightTarget ?? 'digits';
@@ -368,7 +386,7 @@ async function renderU01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   await drawPhotoCircle(environment, ctx, rd.photoSrc, discSide === 'left' ? 246 : 310, 600, d, accent);
 
   // Scorebug block: dark protection behind type only.
-  ctx.fillStyle = NIGHT92;
+  ctx.fillStyle = plateFill(appearance, NIGHT92);
   ctx.fillRect(cardX, cardY, cardW, cardH);
   ctx.fillStyle = accent;
   ctx.fillRect(discSide === 'left' ? cardX + cardW - 4 : cardX, cardY, 4, cardH);
@@ -383,7 +401,7 @@ async function renderU01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
 
   const details = manufacturerPlasticLine(rd);
   if (details) {
-    ctx.fillStyle = accent;
+    ctx.fillStyle = legibleAccent(accent, PLATE);
     fitFont(ctx, details, supportMaxWidth, 600, 28);
     // Canvas's maxWidth also protects the column at fitFont's minimum size.
     ctx.textAlign = align;
@@ -410,7 +428,7 @@ async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
 
   // Name band: dark with the same mint accent as the photo rim.
   const bandY = 830, bandH = 340;
-  ctx.fillStyle = NIGHT92;
+  ctx.fillStyle = plateFill(appearance, NIGHT92);
   ctx.fillRect(cardX, bandY, cardW, bandH);
   ctx.fillStyle = appearance ? accent : MINT;
   if (appearance) ctx.fillRect(appearance.discSide === 'right' ? cardX + cardW - 4 : cardX, bandY, 4, bandH);
@@ -424,12 +442,12 @@ async function renderU02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const tilesY = 990;
   if (appearance) drawTilesRow(ctx, nums, align === 'right' ? cardX + cardW - 28 : nameX, tilesY, 68, 12, 40, align,
     highlightTarget === 'tiles' ? accent : '#38413e',
-    highlightTarget === 'digits' ? accent : contrastInk(accent), true);
+    highlightTarget === 'digits' ? legibleAccent(accent, '#38413e') : contrastInk(accent), true);
   else drawTilesRow(ctx, nums, nameX, tilesY, 68, 12, 40, 'left', '#38413e', MINT);
 
   const details = manufacturerPlasticLine(rd);
   if (details) {
-    ctx.fillStyle = appearance ? accent : 'rgba(143,227,174,0.78)';
+    ctx.fillStyle = appearance ? legibleAccent(accent, PLATE) : 'rgba(143,227,174,0.78)';
     fitFont(ctx, details, cardW - 56, 600, 30);
     ctx.textAlign = align;
     ctx.fillText(details, nameX, tilesY + 138, cardW - 56);
@@ -484,12 +502,12 @@ export async function cardFrameSnapshot(disc: RendererDisc, preset: CardPreset, 
   const text = { id: 'card-label', identity: JSON.stringify([preset === 'u04'?'kinetic-v3':'spine-v2',mirrored,rd.moldName,preset === 'u04'?rd.manufacturer:'',rd.flights,accent,highlightTarget,u04Shift]), draw(ctx: any) {
     if(preset === 'u04') {
       drawPresetName(ctx,rd.moldName,u04Center,728,410,112,'center');
-      ctx.textAlign='center';ctx.fillStyle=accent;fitFont(ctx,rd.manufacturer.toUpperCase(),400,600,52);ctx.fillText(rd.manufacturer.toUpperCase(),u04Center,622);
-      drawTilesRow(ctx,flightTiles(rd),u04Center,770,72,10,44,'center',highlightTarget === 'tiles' ? accent : (appearance ? ('#38413e') : accent),highlightTarget === 'digits' ? (appearance ? accent : contrastInk(accent)) : contrastInk(accent),true);
+      ctx.textAlign='center';ctx.fillStyle=legibleAccent(accent,'#181818');fitFont(ctx,rd.manufacturer.toUpperCase(),400,600,52);ctx.fillText(rd.manufacturer.toUpperCase(),u04Center,622);
+      drawTilesRow(ctx,flightTiles(rd),u04Center,770,72,10,44,'center',highlightTarget === 'tiles' ? accent : (appearance ? ('#38413e') : accent),highlightTarget === 'digits' ? (appearance ? legibleAccent(accent,'#38413e') : contrastInk(accent)) : contrastInk(accent),true);
     } else {
       const cx=mirrorX(124);ctx.save();ctx.translate(cx,744);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=INK;fitFont(ctx,rd.moldName.toUpperCase(),286,800,76,DISPLAY);ctx.fillText(rd.moldName.toUpperCase(),0,0);ctx.restore();
       ctx.textBaseline='alphabetic';ctx.font=`600 42px ${FONT_STACK}`;ctx.textAlign='center';
-      for(const [i,value] of flightTiles(rd).entries()){const y=920+i*72;const tileFill=appearance && highlightTarget==='digits'?('#38413e'):accent;ctx.fillStyle=tileFill;ctx.fillRect(mirrorX(140)-32,y,64,64);ctx.fillStyle=appearance?(highlightTarget==='tiles'?contrastInk(accent):accent):contrastInk(accent);fitFont(ctx,value,52,600,42);ctx.fillText(value,mirrorX(140),y+47);}
+      for(const [i,value] of flightTiles(rd).entries()){const y=920+i*72;const tileFill=appearance && highlightTarget==='digits'?('#38413e'):accent;ctx.fillStyle=tileFill;ctx.fillRect(mirrorX(140)-32,y,64,64);ctx.fillStyle=appearance?(highlightTarget==='tiles'?contrastInk(accent):legibleAccent(accent,'#38413e')):contrastInk(accent);fitFont(ctx,value,52,600,42);ctx.fillText(value,mirrorX(140),y+47);}
     }
   } };
   const layers = preset === 'u04' || !preset.includes('behind') ? [surface,text,photo] : [photo,surface,text];
@@ -512,7 +530,7 @@ async function renderU05(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   await drawPhotoCircle(environment, ctx, rd.photoSrc, gx + gw / 2, 640, d, accent);
 
   const gy = 800, gh = 320;
-  ctx.fillStyle = 'rgba(10,14,12,0.62)';
+  ctx.fillStyle = appearance?.plate === 'solid' ? '#0a0e0c' : 'rgba(10,14,12,0.62)';
   roundRect(ctx, gx, gy, gw, gh, 24);
   ctx.fill();
   ctx.strokeStyle = appearance ? accentRgba(accent, 0.58) : 'rgba(255,255,255,0.28)';
@@ -531,10 +549,10 @@ async function renderU05(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const nums = flightTiles(rd);
   drawTilesRow(ctx, nums, nameX, gy + 154, 64, 10, 38, align,
     appearance ? (highlightTarget === 'tiles' ? accent : '#38413e') : MINT,
-    appearance ? (highlightTarget === 'digits' ? accent : contrastInk(accent)) : '#0e1216', true);
+    appearance ? (highlightTarget === 'digits' ? legibleAccent(accent, '#38413e') : contrastInk(accent)) : '#0e1216', true);
   const details = manufacturerPlasticLine(rd);
   if (details) {
-    ctx.fillStyle = appearance ? accent : MINT;
+    ctx.fillStyle = appearance ? legibleAccent(accent, '#0a0e0c') : MINT;
     fitFont(ctx, details, gw - 72, 600, 30);
     ctx.textAlign = align;
     ctx.fillText(details, nameX, gy + 280, gw - 72);
@@ -609,14 +627,14 @@ async function drawHeroDisc(environment: CardRenderEnvironment, ctx: any, src: s
 }
 
 /** Flat bounded dark support behind a horizontal recipe's information. */
-function scrimH(ctx: any, x: number, y: number, w: number, h: number, flip = false) {
-  ctx.fillStyle = NIGHT(0.82);
+function scrimH(ctx: any, x: number, y: number, w: number, h: number, flip = false, appearance?: U01Appearance) {
+  ctx.fillStyle = plateFill(appearance, NIGHT(0.82));
   ctx.fillRect(x, y, w, h);
 }
 
 /** Flat bounded dark support behind a horizontal recipe's information. */
-function scrimV(ctx: any, x: number, y: number, w: number, h: number) {
-  ctx.fillStyle = NIGHT(0.82);
+function scrimV(ctx: any, x: number, y: number, w: number, h: number, appearance?: U01Appearance) {
+  ctx.fillStyle = plateFill(appearance, NIGHT(0.82));
   ctx.fillRect(x, y, w, h);
 }
 
@@ -638,7 +656,7 @@ function drawAppearanceTiles(ctx: any, nums: string[], x: number, y: number, til
     drawTilesRow(ctx, nums, x, y, tile, gap, fontPx, align, accent, contrastInk(accent));
   } else {
     const tileFill = '#202623';
-    drawTilesRow(ctx, nums, x, y, tile, gap, fontPx, align, tileFill, accent);
+    drawTilesRow(ctx, nums, x, y, tile, gap, fontPx, align, tileFill, legibleAccent(accent, tileFill));
   }
 }
 
@@ -649,9 +667,10 @@ function drawAppearanceTiles(ctx: any, nums: string[], x: number, y: number, til
 async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment, appearance?: U01Appearance) {
   // Card footprint: bottom-left, 620x380.
   const right = (appearance?.discSide ?? 'right') === 'left';
-  const cx0 = right ? HW - 48 - 620 : 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
+  const cx0 = right ? HW - 48 - 620 : 48, cy0 = HH - 48 - 330, cw = 620, ch = 330;
   // Defended type zone: scrim behind the card only, fading right.
-  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right);
+  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right, appearance);
+  if (appearance?.frame) drawFrame(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch);
   ctx.fillStyle = appearance?.accentColor ?? ACID;
   ctx.fillRect(right ? cx0 + cw - 6 : cx0, cy0, 6, ch);
   // Hero breaks out: 12-degree tilt, crossing the card's top-right corner.
@@ -662,7 +681,7 @@ async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   drawPresetName(ctx, rd.moldName, nx, cy0 + 132, cw - 220, 104, right ? 'right' : 'left');
   const pw = plasticLine(rd);
   if (pw) drawQuietLine(ctx, pw, nx, cy0 + 182, 34, right ? 'right' : 'left', cw - 220); // typed plastic stays in the name lane
-  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 212, 62, 14, 36, appearance, right ? 'right' : 'left');
+  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 212, 74, 14, 44, appearance, right ? 'right' : 'left');
 }
 presetRenderers.b01 = renderB01;
 
@@ -673,9 +692,9 @@ presetRenderers.b01 = renderB01;
 async function renderB02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment, appearance?: U01Appearance) {
   // Card footprint: bottom-left, 600x360.
   const right = (appearance?.discSide ?? 'right') === 'left';
-  const cx0 = right ? HW - 48 - 600 : 48, cy0 = HH - 48 - 360, cw = 600, ch = 360;
+  const cx0 = right ? HW - 48 - 600 : 48, cy0 = HH - 48 - 315, cw = 600, ch = 315;
   // Layer 1: smoky gradient slab, card-sized, fading up and right.
-  scrimV(ctx, cx0 - 20, cy0 - 60, cw + 160, ch + 60);
+  scrimV(ctx, cx0 - 20, cy0 - 60, cw + 160, ch + 60, appearance);
   const nx = right ? cx0 + cw - 36 : cx0 + 36;
   // Layer 2: hero at the card's top-right, beyond the name's reading lane.
   ctx.font = `800 120px ${DISPLAY}`;
@@ -688,7 +707,7 @@ async function renderB02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   drawPresetName(ctx, rd.moldName, nx, cy0 + 118, cw - 72, 120, right ? 'right' : 'left');
   const pw = plasticLine(rd);
   if (pw) drawQuietLine(ctx, pw, nx, cy0 + 168, 34, right ? 'right' : 'left', Math.max(260, nameW + 100)); // ends before the disc's near edge (nameW + 120)
-  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 198, 62, 14, 36, appearance, right ? 'right' : 'left');
+  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 198, 74, 14, 44, appearance, right ? 'right' : 'left');
 }
 presetRenderers.b02 = renderB02;
 
@@ -699,8 +718,8 @@ presetRenderers.b02 = renderB02;
 async function renderB03(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment, appearance?: U01Appearance) {
   // Card footprint: bottom-left plate, 580x340.
   const right = (appearance?.discSide ?? 'right') === 'left';
-  const px = right ? HW - 48 - 580 : 48, py = HH - 48 - 340, pw = 580, ph = 340;
-  ctx.fillStyle = 'rgba(5,7,6,0.82)';
+  const px = right ? HW - 48 - 580 : 48, py = HH - 48 - 325, pw = 580, ph = 325;
+  ctx.fillStyle = plateFill(appearance, 'rgba(5,7,6,0.82)');
   ctx.fillRect(px, py, pw, ph);
   ctx.strokeStyle = 'rgba(255,255,255,0.55)';
   ctx.lineWidth = 2;
@@ -709,19 +728,12 @@ async function renderB03(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const d = 340;
   await drawHeroDisc(environment, ctx, rd.photoSrc, right ? px : px + pw, py, d,
     { rim: 'rgba(255,255,255,0.9)', rimWidth: 8 });
-  // Acid pin: the rule-break, made deliberate.
-  ctx.save();
-  ctx.translate(right ? px : px + pw, py);
-  ctx.rotate(Math.PI / 4);
-  ctx.fillStyle = appearance?.accentColor ?? ACID;
-  ctx.fillRect(-8, -8, 16, 16);
-  ctx.restore();
   // Type stays disciplined inside the plate, clear of the disc.
   const nx = right ? px + pw - 36 : px + 36;
   drawPresetName(ctx, rd.moldName, nx, py + 128, pw - 220, 100, right ? 'right' : 'left');
   const q = plasticLine(rd);
   if (q) drawQuietLine(ctx, q, nx, py + 178, 34, right ? 'right' : 'left', pw - 220); // typed plastic stays in the name lane
-  drawAppearanceTiles(ctx, flightTiles(rd), nx, py + 208, 62, 14, 36, appearance, right ? 'right' : 'left');
+  drawAppearanceTiles(ctx, flightTiles(rd), nx, py + 208, 74, 14, 44, appearance, right ? 'right' : 'left');
 }
 presetRenderers.b03 = renderB03;
 
@@ -735,7 +747,7 @@ async function renderB04(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const right = (appearance?.discSide ?? 'right') === 'left';
   const cx0 = right ? HW - 48 - 620 : 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
   // Defended type zone: scrim behind the card only.
-  scrimH(ctx, right ? cx0 - 120 : cx0, cy0, cw + 120, ch, right);
+  scrimH(ctx, right ? cx0 - 120 : cx0, cy0, cw + 120, ch, right, appearance);
   // The motif: one small S-curve with a peak, inside the card.
   const mirror = (localX: number) => right ? cx0 + cw - (localX - cx0) : localX;
   // Keep both arc tails above the defended title lane, including its longest
@@ -755,12 +767,11 @@ async function renderB04(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   const d = 280;
   await drawHeroDisc(environment, ctx, rd.photoSrc, peakX, peakY - d / 2 + 18, d,
     { rim: 'rgba(255,255,255,0.9)', rimWidth: 7 });
-  // Name station: bottom-left. Stats station: bottom-right.
+  // Numbers row under the arc, then the name along the bottom with the full
+  // plate width to grow into (Sam, 21 Oct 2026: numbers on top, name below).
   const nx = right ? cx0 + cw - 36 : cx0 + 36;
-  drawPresetName(ctx, rd.moldName, nx, cy0 + ch - 108, cw * 0.52, 88, right ? 'right' : 'left');
-  const nums = flightTiles(rd);
-  const total = nums.length * 62 + (nums.length - 1) * 14;
-  drawAppearanceTiles(ctx, nums, right ? cx0 + 36 : cx0 + cw - 36 - total, cy0 + ch - 96, 62, 14, 36, appearance);
+  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + ch - 186, 62, 14, 36, appearance, right ? 'right' : 'left');
+  drawPresetName(ctx, rd.moldName, nx, cy0 + ch - 44, cw - 72, 88, right ? 'right' : 'left');
 }
 presetRenderers.b04 = renderB04;
 
@@ -773,22 +784,23 @@ async function renderB05(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvi
   // Card footprint: bottom-left, 600x380.
   const right = (appearance?.discSide ?? 'right') === 'left';
   const cx0 = right ? HW - 48 - 600 : 48, cy0 = HH - 48 - 380, cw = 600, ch = 380;
-  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right);
+  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right, appearance);
   // Name: horizontal, top of card. Leave a readable lane beside the hero.
   const nx = right ? cx0 + cw - 36 : cx0 + 36;
   // Hero: right side, breaking out top and right.
   const d = 340;
   await drawHeroDisc(environment, ctx, rd.photoSrc, right ? cx0 - 40 : cx0 + cw + 40, cy0 + 130, d,
     { rim: 'rgba(255,255,255,0.9)', rimWidth: 8 });
-  drawPresetName(ctx, rd.moldName, nx, cy0 + 108, cw - 220, 96, right ? 'right' : 'left');
-  // Macro coin: same subject at 2.6x, overlapping the card's lower-left.
-  await drawHeroDisc(environment, ctx, rd.photoSrc, right ? cx0 + cw - 120 : cx0 + 120, cy0 + ch - 90, 150,
-    { rim: appearance?.accentColor ?? ACID, rimWidth: 5, macro: { zoom: 2.6, fx: 0.62, fy: 0.38 } });
-  // Stats: bottom, clear of the coin.
-  const sx = right ? cx0 + cw - 210 : cx0 + 210;
+  // Numbers on top with the macro coin beside them; the name runs along the
+  // bottom where it has the most room (Sam, 21 Oct 2026).
+  const side = right ? 'right' : 'left';
+  const along = (offset: number) => right ? cx0 + cw - offset : cx0 + offset;
+  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 36, 58, 12, 34, appearance, side);
+  await drawHeroDisc(environment, ctx, rd.photoSrc, along(36 + 4 * 58 + 3 * 12 + 24 + 60), cy0 + 92, 120,
+    { rim: appearance?.accentColor ?? ACID, rimWidth: 5, macro: { zoom: 2.6, fx: appearance?.zoomFocus?.x ?? 0.62, fy: appearance?.zoomFocus?.y ?? 0.38 } });
   const q = plasticLine(rd);
-  if (q) drawQuietLine(ctx, q, nx, cy0 + 162, 32, right ? 'right' : 'left', cw - 220);
-  drawAppearanceTiles(ctx, flightTiles(rd), sx, cy0 + ch - 88, 58, 12, 34, appearance, right ? 'right' : 'left');
+  if (q) drawQuietLine(ctx, q, nx, cy0 + ch - 128, 32, side, cw - 220);
+  drawPresetName(ctx, rd.moldName, nx, cy0 + ch - 44, cw - 116, 96, side);
 }
 presetRenderers.b05 = renderB05;
 

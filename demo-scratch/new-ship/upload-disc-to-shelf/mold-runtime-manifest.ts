@@ -1,6 +1,6 @@
 export const moldRuntimeManifest = Object.freeze({
   "schema": 1,
-  "catalogVersion": "6.6.0",
+  "catalogVersion": "6.6.1",
   "sourceCatalogSha256": "40c30c8599e9d7b396de23bb07a722ae20812e03ea0b18a9cf2d228feecdfa6c",
   "dictionarySha256": "a76ad385fbf1ae830c4f37beb521a0b61ac1e5be4c2aa1f78e746f6d8d7b653d",
   "payloadSha256": "4299c011d4293d12dac6f833dffce119724f4fd2e3568fbb43c77a998b8cf2e9",

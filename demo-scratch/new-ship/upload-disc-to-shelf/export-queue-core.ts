@@ -5,7 +5,7 @@ import { identityTransform } from './transform-geometry.mjs';
 export type CardOrientation = 'horizontal' | 'vertical';
 export const orientations: readonly CardOrientation[] = ['horizontal', 'vertical'];
 export interface CardTransform { scale: number; dx: number; dy: number; }
-export interface U01Appearance { discSide: 'left' | 'right'; highlightTarget: 'tiles' | 'digits'; accentColor: string; }
+export interface U01Appearance { discSide: 'left' | 'right'; highlightTarget: 'tiles' | 'digits'; accentColor: string; /** B05 zoom circle centre, as fractions of the disc photo (0..1). */ zoomFocus?: { x: number; y: number }; /** Plate behind the type: the layout's own see-through dark, or solid. */ plate?: 'see-through' | 'solid'; /** Thin white frame round the plate (B01; B03's frame). */ frame?: boolean; }
 export const DEFAULT_U01_APPEARANCE: U01Appearance = Object.freeze({ discSide: 'right', highlightTarget: 'digits', accentColor: '#8fe3ae' });
 export type CardAppearance = U01Appearance;
 export function defaultCardAppearance(preset: string): CardAppearance {
@@ -15,7 +15,16 @@ export interface QueuedCard { disc: Disc; orientation: CardOrientation; cardDesi
 export function validateU01Appearance(value: unknown): U01Appearance {
   const appearance = value as any;
   if (!appearance || !['left', 'right'].includes(appearance.discSide) || !['tiles', 'digits'].includes(appearance.highlightTarget) || typeof appearance.accentColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(appearance.accentColor)) throw new Error('invalid U01 appearance.');
-  return Object.freeze({ discSide: appearance.discSide, highlightTarget: appearance.highlightTarget, accentColor: appearance.accentColor.toLowerCase() });
+  const base = { discSide: appearance.discSide, highlightTarget: appearance.highlightTarget, accentColor: appearance.accentColor.toLowerCase() };
+  const extra: Partial<U01Appearance> = {};
+  if (appearance.zoomFocus !== undefined) {
+    const { x, y } = appearance.zoomFocus ?? {};
+    if (![x, y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error('invalid U01 appearance.');
+    extra.zoomFocus = Object.freeze({ x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
+  }
+  if (appearance.plate !== undefined) { if (!['see-through', 'solid'].includes(appearance.plate)) throw new Error('invalid U01 appearance.'); if (appearance.plate === 'solid') extra.plate = 'solid'; }
+  if (appearance.frame !== undefined) { if (typeof appearance.frame !== 'boolean') throw new Error('invalid U01 appearance.'); if (appearance.frame) extra.frame = true; }
+  return Object.freeze({ ...base, ...extra });
 }
 export function validateCardAppearance(value: unknown): CardAppearance {
   try { return validateU01Appearance(value); } catch { throw new Error('invalid card appearance.'); }

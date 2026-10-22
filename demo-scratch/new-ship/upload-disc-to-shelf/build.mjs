@@ -37,7 +37,7 @@ function copyTree(source, relative = '') {
     if (browserSourceOnly.has(rel.split(path.sep).join('/'))) continue;
     if (entry.isDirectory()) { copyTree(from, rel); continue; }
     if (!entry.isFile()) continue;
-    if (!/\.(?:ts|mjs|css|html|svg|jpe?g)$/.test(entry.name)) continue;
+    if (!/\.(?:ts|mjs|css|html|svg|jpe?g|woff2)$/.test(entry.name)) continue;
     const targetRel = entry.name.endsWith('.ts') ? rel.slice(0, -3) + '.js' : rel;
     const to = path.join(dist, targetRel); fs.mkdirSync(path.dirname(to), { recursive: true });
     if (entry.name.endsWith('.ts')) fs.writeFileSync(to, rewriteImports(stripTypeScriptTypes(fs.readFileSync(from, 'utf8'))));
@@ -99,6 +99,7 @@ fs.copyFileSync(path.join(here, 'vendor/neat/tick-part-checklist.js'), path.join
 // Native-only adapters have bare Node imports and are deliberately absent from
 // the Pages graph. The shared Canvas2D renderer is browser-card-renderer.js.
 for (const file of ['card-renderer.js', 'export-queue.js']) fs.rmSync(path.join(dist, file), { force: true });
+fs.copyFileSync(path.join(here, 'fonts/DEJAVU-LICENSE.txt'), path.join(dist, 'fonts/DEJAVU-LICENSE.txt'));
 fs.mkdirSync(path.join(dist, 'kernel'), { recursive: true });
 fs.copyFileSync(path.join(here, '../part-first-kernel/src/pxc.mjs'), path.join(dist, 'kernel/pxc.mjs'));
 const index = path.join(dist, 'index.html');

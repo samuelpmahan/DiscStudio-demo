@@ -37,6 +37,22 @@ export function maxCardScale({ width, height, alphaBounds, limit = 1.5 }) {
   return Math.min(limit, width / (right - left), height / (bottom - top));
 }
 
+/** Default size for a freshly shown card. Per axis: a card that hugs a frame
+ * edge (within 15% of it) shrinks toward that edge, so a lower-third card stays
+ * in its corner. Otherwise it shrinks around its own centre, except vertically
+ * in a portrait frame, where it keeps its own bottom edge so it settles a
+ * little toward the bottom corner (Sam, 21 Oct 2026). Never toward the middle. */
+export function anchoredDefaultPlacement({ width, height, alphaBounds, scale, edgeBand = 0.15 }) {
+  transformedBounds({ width, height, alphaBounds, scale });
+  const [left, top, right, bottom] = alphaBounds;
+  const anchor = (low, high, size) => low <= size * edgeBand ? low : size - high <= size * edgeBand ? high : (low + high) / 2;
+  const anchorX = anchor(left, right, width);
+  const anchorY = height > width && top > height * edgeBand && height - bottom > height * edgeBand ? bottom : anchor(top, bottom, height);
+  const dx = (anchorX - width / 2) * (1 - scale) / width;
+  const dy = (anchorY - height / 2) * (1 - scale) / height;
+  return clampTransform({ width, height, alphaBounds, scale, dx, dy });
+}
+
 /** Derive a new explicit transform. Retain the visible card's center until the
  * frame boundary requires clamping. `current` is the caller-held resize anchor;
  * repeated sizes should reuse it until a card or actual placement change.
