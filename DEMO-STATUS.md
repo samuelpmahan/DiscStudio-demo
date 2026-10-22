@@ -1,11 +1,11 @@
 # DiscStudio demo status
 
-## 6.6.1 thro card fixes (build `3ca8886f5b58164b`)
+## 6.6.1 thro card fixes (build `28ac2b39fab85255`)
 
-- Live on Cloudflare Pages: https://thro-disc.pages.dev (this build is also pinned at https://b-3ca8886f5b58164b.thro-disc.pages.dev).
+- Live on Cloudflare Pages: https://thro-disc.pages.dev (this build is also pinned at https://b-28ac2b39fab85255.thro-disc.pages.dev).
 - `pages-artifact.zip` is that exact build. Rebuilding this commit's source reproduces it file for file (97 files) and the same build id.
 - Tests: 242, of which 240 pass. The one failure (`experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs`) failed identically on the untouched 6.6.0 baseline.
-- What changed and why: see `handoff/thro-cards-6.6.1-3ca8886f5b58164b-source.patch` (diff against the 6.6.0 baseline commit) and the manifest beside it (SHA-256 of every source file).
+- What changed and why: see `handoff/thro-cards-6.6.1-28ac2b39fab85255-source.patch` (diff against the 6.6.0 baseline commit) and the manifest beside it (SHA-256 of every source file).
 
 ## Earlier checkpoint
 

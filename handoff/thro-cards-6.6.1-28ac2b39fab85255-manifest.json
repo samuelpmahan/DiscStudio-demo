@@ -1,7 +1,7 @@
 {
- "name": "thro-cards-6.6.1-3ca8886f5b58164b",
+ "name": "thro-cards-6.6.1-28ac2b39fab85255",
  "version": "6.6.1",
- "buildId": "3ca8886f5b58164b",
+ "buildId": "28ac2b39fab85255",
  "base": {
   "version": "6.6.0",
   "buildId": "a9ba3f6b86f5fb1e",
@@ -27,6 +27,7 @@
   "source/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts",
   "source/vendor/discstudio/disc/card-renderer-core.ts",
   "source/vendor/discstudio/disc/card-renderer-u01.test.mjs",
+  "source/vendor/discstudio/disc/creator-walkthrough.ts",
   "source/vendor/discstudio/disc/export-queue-core.ts",
   "source/vendor/discstudio/disc/export-ui.ts",
   "source/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt",
@@ -41,9 +42,9 @@
   "source/vendor/discstudio/disc/fonts/DejaVuSansCondensed-Bold.woff2"
  ],
  "artifacts": {
-  "thro-cards-6.6.1-3ca8886f5b58164b-source.patch": "d815459a6cf886990cb7fd59787f625d6a4cf223e01ed0ae9ef673bc2861431d",
-  "thro-cards-6.6.1-3ca8886f5b58164b-source.zip": "f918030c0b1434d3ced43c2d8eb103a5a3d7b0921f4f7a49fcf1663c237ed0f1",
-  "thro-cards-6.6.1-3ca8886f5b58164b-pages.zip": "8e09ff2affe9085d0c7d7758b7a438c3c0e5a387c0ef8902ca4b8defe95ef5e3"
+  "thro-cards-6.6.1-28ac2b39fab85255-source.patch": "a72d3def0ffe5d81f565e164a2666df630fed9f1aa656e27fa4e3161bb6a651a",
+  "thro-cards-6.6.1-28ac2b39fab85255-source.zip": "c3c7c2c61b87eafab27ab1c521ca5c03992be493d8d5e98f917a4441cd94e653",
+  "thro-cards-6.6.1-28ac2b39fab85255-pages.zip": "8fb0e20d7fac7937578bbf341a966050722792b924572058a803bfdd136ea042"
  },
  "sourceFiles": [
   {
@@ -1013,8 +1014,8 @@
   },
   {
    "path": "source/vendor/discstudio/disc/creator-walkthrough.ts",
-   "sha256": "cd82253e466a08a179e04ed1b5adfdb4fb2dbd42741f1acd019866d5ce961d42",
-   "bytes": 9227
+   "sha256": "9fdc3bfa4fb91d94268a44cc1eaa310ac6d9bad81ced62e49e92e06ad1d8643c",
+   "bytes": 12537
   },
   {
    "path": "source/vendor/discstudio/disc/crisp-recompose.mjs",
@@ -1756,8 +1757,8 @@
   "deployed": true,
   "project": "thro-disc",
   "urls": {
-   "b-3ca8886f5b58164b": "https://b-3ca8886f5b58164b.thro-disc.pages.dev",
-   "main": "https://e6294191.thro-disc.pages.dev"
+   "b-28ac2b39fab85255": "https://b-28ac2b39fab85255.thro-disc.pages.dev",
+   "main": "https://9b71e595.thro-disc.pages.dev"
   }
  }
 }
