@@ -23,7 +23,8 @@ test('demo upload surface does not mount the catalog review workflow', () => {
 test('isolated Upload and Shelf fixtures have independent stores and explicit starting material', async () => {
   const upload = await startSandbox('upload'), shelf = await startSandbox('shelf');
   assert.equal(upload.shelf().length, 0); assert.equal(shelf.shelf().length, 3);
-  assert.notEqual(upload.pxc.get(initialDraft().mold), shelf.pxc.get(initialDraft().mold));
+  const [uploadSeed, shelfSeed] = await Promise.all([upload.hydrateSeed(initialDraft().mold), shelf.hydrateSeed(initialDraft().mold)]);
+  assert.notEqual(upload.pxc.get(uploadSeed.address), shelf.pxc.get(shelfSeed.address));
   const start = inspectExperience(shelf), original = shelf.shelf()[0].address;
   const edit = await shelf.updateDisc(original, { turn: 0 }); await shelf.keepDisc(original, edit);
   assert.equal(start.discs[0].resolved.turn, -1);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inflateSync } from 'node:zlib';
 import JSZip from 'jszip';
 import { exportBrowserZip } from './browser-export.ts';
-import { prepareExport } from './export-queue-core.ts';
+import { prepareExport, pngPixelDimensions } from './export-queue-core.ts';
 import {
   queueCards, cardFilename, cardDimensions, moldSlug,
   encodeTransparentPng, pngDimensions, stubCardRenderer, exportZip,
@@ -68,6 +68,38 @@ test('placement is frozen with the approved card and appears in export testimony
   const { manifest } = await prepareExport(held, async () => encodeTransparentPng(1080,1920), async () => 'sha256:test');
   assert.deepEqual(manifest.cards[0].placement, { scale: 1.2, dx: 0.03, dy: -0.02 });
   assert.equal(manifest.cards[0].backgroundIncluded, false);
+});
+
+test('U01 appearance is frozen into approval metadata and the export manifest', async () => {
+  const appearance = { discSide: 'left' as const, highlightTarget: 'digits' as const, accentColor: '#336699' };
+  const source = card({ orientation: 'vertical', cardDesign: 'u01', u01Appearance: appearance });
+  const held = queueCards([source]);
+  appearance.accentColor = '#000000';
+  assert.deepEqual(held[0].u01Appearance, { discSide: 'left', highlightTarget: 'digits', accentColor: '#336699' });
+  assert.ok(Object.isFrozen(held[0].u01Appearance));
+  const { manifest } = await prepareExport(held, async () => encodeTransparentPng(1080,1920), async () => 'sha256:test');
+  assert.deepEqual(manifest.cards[0].u01Appearance, { discSide: 'left', highlightTarget: 'digits', accentColor: '#336699' });
+  assert.throws(() => queueCards([card({ orientation: 'vertical', cardDesign: 'u01', u01Appearance: { discSide: 'outside', highlightTarget: 'tiles', accentColor: '#8fe3ae' } as any })]), /invalid U01 appearance/);
+  assert.throws(() => queueCards([card({ u01Appearance: appearance as any })]), /only valid for vertical u01/);
+});
+
+test('card appearance is immutable for horizontal and vertical approved cards', async () => {
+  const appearance = { discSide: 'left' as const, highlightTarget: 'tiles' as const, accentColor: '#fa7c28' };
+  const held = queueCards([card({ orientation: 'vertical', cardDesign: 'u05', cardAppearance: appearance }), card({ cardDesign: 'b02', cardAppearance: appearance })]);
+  appearance.accentColor = '#000000';
+  assert.equal(held[0].cardAppearance?.accentColor, '#fa7c28');
+  assert.equal(held[1].cardAppearance?.accentColor, '#fa7c28');
+  assert.ok(Object.isFrozen(held[0].cardAppearance));
+  const { manifest } = await prepareExport(held, async () => encodeTransparentPng(1920,1080), async () => 'sha256:test');
+  assert.deepEqual(manifest.cards.map(item => item.cardAppearance), [{ discSide: 'left', highlightTarget: 'tiles', accentColor: '#fa7c28' }, { discSide: 'left', highlightTarget: 'tiles', accentColor: '#fa7c28' }]);
+  assert.throws(() => queueCards([card({ cardAppearance: { ...appearance, accentColor: 'red' } })]), /invalid card appearance/);
+});
+
+test('legacy U01 queue defaults to the 6.2.1 style in export metadata', async () => {
+  const legacy = queueCards([card({ orientation: 'vertical', cardDesign: 'u01' })]);
+  assert.equal(legacy[0].u01Appearance, undefined, 'old approval snapshots stay byte-compatible');
+  const { manifest } = await prepareExport(legacy, async () => encodeTransparentPng(1080,1920), async () => 'sha256:test');
+  assert.deepEqual(manifest.cards[0].u01Appearance, { discSide: 'right', highlightTarget: 'digits', accentColor: '#8fe3ae' });
 });
 
 test('queueCards rejects bad input', () => {
@@ -183,7 +215,7 @@ test('exportZip holds the queued snapshot through rendering and ZIP metadata', a
 
 test('exportZip uses the injected renderer', async () => {
   const seen: QueuedCard[] = [];
-  const fake = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // PNG magic, enough for the pipeline
+  const fake = encodeTransparentPng(461, 692); // Renderer owns the actual sticker dimensions
   const bytes = await exportZip(queueCards([card()]), {
     renderCard: async (c) => { seen.push(c); return fake; },
   });
@@ -209,4 +241,18 @@ test('browser export returns inspectable manifest and ZIP identities', async () 
   const manifestText = await zip.file('manifest.json')!.async('string');
   const { createHash } = await import('node:crypto');
   assert.equal(result.manifestId, `sha256:${createHash('sha256').update(manifestText).digest('hex')}`);
+});
+
+
+test('sticker manifest uses actual PNG dimensions and rejects invalid renderer output', async () => {
+  const q=queueCards([card({orientation:'vertical',placement:{scale:1.25,dx:.2,dy:-.1}})]);
+  const {manifest}=await prepareExport(q,async()=>encodeTransparentPng(576,865),async()=> 'sha256:actual');
+  assert.equal(manifest.cards[0].width,576);assert.equal(manifest.cards[0].height,865);
+  assert.equal(manifest.cards[0].backgroundIncluded,false);
+  assert.deepEqual(manifest.cards[0].placement,{scale:1.25,dx:.2,dy:-.1});
+  await assert.rejects(prepareExport(q,async()=>new Uint8Array([137,80,78,71]),async()=> 'bad'),/PNG/);
+  const invalid=encodeTransparentPng(1,1);invalid.writeUInt32BE(0,16);
+  assert.throws(()=>pngPixelDimensions(invalid),/dimensions/);
+  const offset=new Uint8Array(encodeTransparentPng(7,9).length+5);offset.set(encodeTransparentPng(7,9),5);
+  assert.deepEqual(pngPixelDimensions(offset.subarray(5)),{width:7,height:9});
 });

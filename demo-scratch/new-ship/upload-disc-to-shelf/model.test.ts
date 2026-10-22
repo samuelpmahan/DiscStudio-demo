@@ -1,8 +1,33 @@
+import { prepareExport } from './export-queue-core.ts';
+import { encodeTransparentPng } from './export-queue.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createExperience, initialDraft, flightFields } from './model.ts';
+import { Part } from '../part-first-kernel/src/pxc.mjs';
+import { moldRuntimeManifest } from './mold-runtime-manifest.ts';
 
 const testPhoto = { kind: 'photo' as const, src: 'data:image/png;base64,iVBORw0KGgo=', name: 'test-photo.png' };
+
+test('UploadDiscToShelf composes catalog suggestions and materializes only a selected Part', async () => {
+  const app = createExperience(() => {});
+  const seedParts = () => app.pxc.entries().filter(([name]: [string, unknown]) => name.startsWith('ds.px.seed.'));
+  assert.equal(app.catalogAvailable, true);
+  assert.deepEqual(seedParts(), [], 'fresh PxC does not preload the 724 source rows');
+
+  const suggestions = app.seedOptions('Buz');
+  assert.ok(suggestions.some(row => row.seed.id === 'buzzz'), 'the composed search resolves a real catalog mold');
+  assert.deepEqual(seedParts(), [], 'querying suggestions does not write catalog rows into PxC');
+
+  const selected = await app.hydrateSeed(suggestions.find(row => row.seed.id === 'buzzz')!.address);
+  assert.equal(selected.address, 'ds.px.seed.buzzz', 'a fresh selection keeps the stable source address');
+  assert.deepEqual(flightFields.map(field => selected.seed[field]), [5, 4, -1, 1]);
+  assert.deepEqual(selected.seed.provenance, {
+    stableId: 'buzzz', catalogVersion: moldRuntimeManifest.catalogVersion,
+    catalogSourceSha256: '40c30c8599e9d7b396de23bb07a722ae20812e03ea0b18a9cf2d228feecdfa6c',
+    sourceRowIdentity: 'buzzz',
+  });
+  assert.deepEqual(seedParts().map(([name]: [string, unknown]) => name), [selected.address], 'only the selected catalog row is materialized');
+});
 
 async function appWithPhoto() {
   const app = createExperience(() => {});
@@ -13,22 +38,69 @@ async function appWithPhoto() {
 
 test('save composes a disc and a shelf, retaining inputs and readback evidence', async () => {
   const { app, depiction } = await appWithPhoto();
-  const draft = { ...initialDraft(), nickname: 'Minty', plastic: 'ESP', weight: 177 };
+  const selectedSeed = await app.hydrateSeed(initialDraft().mold);
+  const draft = { ...initialDraft(), mold: selectedSeed.address, nickname: 'Minty', plastic: 'ESP', weight: 177, turn: 0, glide: null };
   const address = await app.save(draft, depiction);
   const part = app.pxc.get(address);
   assert.equal(part.composition.calculation, app.pxc.get('oc.create'));
-  assert.equal(app.pxc.get(`ds.px.resolved.${part.value.id}`).composition.inputs.base, app.pxc.get(draft.mold));
+  const resolvedAddress = `ds.px.resolved.${part.value.id}`, resolved = app.pxc.get(resolvedAddress);
+  const selection = app.pxc.get(`ds.px.receipt.select.${part.value.id}`).value;
+  assert.equal(resolved.composition.calculation, app.pxc.get('fn.disc.resolveFacts.complete'));
+  assert.equal(resolved.composition.inputs.seed, app.pxc.get(draft.mold));
+  assert.equal(resolved.composition.inputs.draft, app.pxc.get(`ds.px.draft.${part.value.id}`));
+  assert.equal(resolved.value.speed, 5, 'absent override inherits the full seed value');
+  assert.equal(resolved.value.turn, 0, 'zero is a real override');
+  assert.equal(resolved.value.glide, null, 'explicit null overrides a known seed value');
+  assert.equal(resolved.value.flightFactSources.speed, 'seed');
+  assert.equal(resolved.value.flightFactSources.glide, 'draft-override');
+  assert.equal(selection.clause, 'complete-seed-flight-facts');
+  assert.equal(selection.calculationAddress, 'fn.disc.resolveFacts.complete');
+  assert.deepEqual(selection.inputPartAddresses, { seed: draft.mold, draft: `ds.px.draft.${part.value.id}` });
+  assert.equal(selection.outputAddress, resolvedAddress);
+  assert.equal(selection.calculationInvoked, true);
+  assert.equal(app.pxc.get(`ds.px.binding.${part.value.id}.resolvedFacts`), resolved.composition.calculation);
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
   assert.equal(app.shelf()[0].disc.depiction.src, depiction.src);
-  // Lite-first: full flights are explicitly hydrated before UI selection/save.
-  const hydrated = await app.hydrateSeed(draft.mold);
-  assert.deepEqual(flightFields.map(field => hydrated.seed[field]), [5, 4, -1, 1]);
+  assert.deepEqual(flightFields.map(field => selectedSeed.seed[field]), [5, 4, -1, 1]);
   assert.equal(app.pxc.get(app.shelfAddress).composition.inputs.disc, part);
   assert.equal(app.pxc.get(part.value.paintRecipe).value, null); // photo-only save does not stage a duplicate recipe write
   assert.equal(app.events.at(-1)?.event, 'disc.save.completed');
   assert.equal(app.events.at(-1)?.shelfContainsDisc, true);
+  assert.equal(app.events.at(-1)?.expectedShelfHead, 'ds.px.shelf.0');
+  assert.equal(app.events.at(-1)?.expectedBagHead, 'ds.px.bag.0');
+  assert.equal(app.events.at(-1)?.storage, 'session-memory');
   draft.nickname = 'Later edit';
   assert.equal(app.shelf()[0].disc.nickname, 'Minty');
+});
+test('UploadDiscToShelf does not publish either collection head when the commit write fails', async () => {
+  const app = createExperience(() => {}, { persist() { throw Error('fixture commit failure'); } });
+  await app.addDraftPhoto(testPhoto);
+  const depiction = await app.selectDraftDepiction();
+  await assert.rejects(app.save(initialDraft(), depiction), /fixture commit failure/);
+  assert.deepEqual(app.pxc.get(app.shelfAddress).value, []);
+  assert.deepEqual(app.pxc.get(app.bagAddress).value, []);
+  assert.equal(app.events.some(event => event.event === 'disc.save.completed'), false);
+  assert.equal((await app.selectDraftDepiction()).src, depiction.src, 'draft stays retryable');
+});
+
+test('SELECT binds and executes the sparse resolver, normalizing missing facts while preserving overrides', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const mold = 'ds.px.seed.test-sparse';
+  app.pxc.set(mold, new Part(Object.freeze({ id: 'test-sparse', manufacturer: 'Fixture', name: 'Sparse Mold' })));
+  const draft = { ...initialDraft(), mold, turn: 0, fade: null };
+  const address = await app.save(draft, depiction), id = app.pxc.get(address).value.id;
+  const resolved = app.pxc.get(`ds.px.resolved.${id}`), receipt = app.pxc.get(`ds.px.receipt.select.${id}`).value;
+  assert.equal(resolved.composition.calculation, app.pxc.get('fn.disc.resolveFacts.sparse'));
+  assert.deepEqual(flightFields.map(field => resolved.value[field]), [null, null, 0, null]);
+  assert.deepEqual(resolved.value.factResolution.missingSeedFlights, [...flightFields]);
+  assert.equal(resolved.value.flightFactSources.speed, 'missing-seed');
+  assert.equal(resolved.value.flightFactSources.turn, 'draft-override');
+  assert.equal(resolved.value.flightFactSources.fade, 'draft-override');
+  assert.equal(receipt.clause, 'sparse-seed-flight-facts');
+  assert.equal(receipt.calculationAddress, 'fn.disc.resolveFacts.sparse');
+  assert.equal(resolved.composition.inputs.seed, app.pxc.get(draft.mold));
+  assert.equal(resolved.composition.inputs.draft, app.pxc.get(`ds.px.draft.${id}`));
+  assert.equal(app.events.find(event => event.event === 'pxc.select.completed')?.outputAddress, `ds.px.resolved.${id}`);
 });
 test('two specimens share a seed without replacing each other or prior shelf', async () => {
   const { app, depiction: image } = await appWithPhoto();
@@ -49,6 +121,25 @@ test('invalid inputs do not publish a shelf or a success receipt', async () => {
   assert.equal(app.shelf().length, 0);
   assert.equal(app.events.filter(e => e.event === 'disc.save.completed').length, 0);
   assert.equal(app.events.length, 3);
+});
+test('a SELECT with no structural match fails before shelf publication or success testimony', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const invalidSeeds = [
+    ['invalid-shape', { id: 'invalid-shape', manufacturer: 'Fixture', name: 'Invalid', speed: 'fast' }],
+    ['empty-manufacturer', { id: 'empty-manufacturer', manufacturer: '  ', name: 'No Manufacturer', speed: 5, glide: 4, turn: -1, fade: 1 }],
+  ] as const;
+  for (const [id, facts] of invalidSeeds) {
+    const mold = `ds.px.seed.${id}`;
+    app.pxc.set(mold, new Part(facts));
+    await assert.rejects(app.save({ ...initialDraft(), mold }, depiction), /SELECT disc\.facts\.resolve found no matching clause/);
+  }
+  assert.deepEqual(app.pxc.get(app.shelfAddress).value, []);
+  assert.deepEqual(app.pxc.get(app.bagAddress).value, []);
+  assert.equal(app.pxc.entries().some(([name]) => name.startsWith('ds.px.disc.save-')), false);
+  assert.equal(app.pxc.entries().some(([name]) => name.startsWith('ds.px.resolved.save-')), false);
+  assert.equal(app.pxc.entries().some(([name]) => name.startsWith('ds.px.receipt.select.')), false);
+  assert.equal(app.events.some(event => event.event === 'disc.save.completed' || event.event === 'pxc.select.completed'), false);
+  assert.equal(app.events.at(-1)?.event, 'disc.save.failed');
 });
 test('photo depiction stays with the disc and logs never contain image bytes', async () => {
   const app = createExperience(() => {});
@@ -191,4 +282,53 @@ test('a prepared ZIP cannot borrow a later queue approval', async () => {
   assert.notEqual(preparedFor, app.latestOutputApproval!.outputQueueSnapshotId);
   await assert.rejects(app.recordOutputExport({ manifest: { cards: [{ discId: 'First' }] }, manifestId: 'sha256:old-manifest', zipId: 'sha256:old-zip', expectedOutputQueueSnapshotId: preparedFor }), /does not match the current approval snapshot/);
   assert.equal(app.latestOutputExport, null);
+});
+
+test('saved seed provenance retains its historical catalog version across fresh current lookups', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const selected = await app.hydrateSeed(initialDraft().mold);
+  const held = Object.freeze({ ...selected.seed, id: 'fixture-held-version', provenance: Object.freeze({ ...selected.seed.provenance!, catalogVersion: '0.0.0' }) });
+  const address = 'ds.px.seed.fixture-held-version';
+  app.pxc.set(address, new Part(held));
+  await app.save({ ...initialDraft(), mold: address }, depiction);
+  const saved = structuredClone(app.shelf()[0].seed.provenance);
+  app.seedOptions('Buz');
+  await app.hydrateSeed(initialDraft().mold);
+  assert.equal(saved!.catalogVersion, '0.0.0');
+  assert.deepEqual(app.shelf()[0].seed.provenance, saved);
+  assert.equal(Object.isFrozen(app.shelf()[0].seed.provenance), true);
+});
+
+test('two identical Add actions retain distinct approval instances and one captured content identity', async () => {
+  const { app, depiction } = await appWithPhoto();
+  const address = await app.save(initialDraft(), depiction);
+  const row = app.bag().find(item => item.address === address)!;
+  const card = { disc: { ...row.disc, depiction: { ...row.disc.depiction } }, orientation: 'vertical' as const, cardDesign: 'u04' };
+  await app.enqueueOutput([card]);
+  const firstCollection = app.latestOutputApproval!.outputQueueSnapshotId as string;
+  await app.enqueueOutput([card]);
+  const [a,b] = app.outputQueue();
+  assert.notEqual(a.approvalId, b.approvalId, 'each Add is a new instance');
+  assert.equal(a.approvalContentId, b.approvalContentId, 'identical captured card state has the same content digest');
+  assert.match(a.approvalContentId!, /^sha256:[a-f0-9]{64}$/);
+  assert.notEqual(firstCollection, app.latestOutputApproval!.outputQueueSnapshotId, 'collection identity changes on append');
+  (card.disc as any).nickname = 'later editor value';
+  assert.notEqual(a.disc.nickname, 'later editor value');
+  const { manifest } = await prepareExport(app.outputQueue(), async () => encodeTransparentPng(31,47), async () => 'sha256:fixture');
+  assert.deepEqual(manifest.cards.map(item => item.approvalId), [a.approvalId,b.approvalId]);
+  assert.deepEqual(manifest.cards.map(item => item.approvalContentId), [a.approvalContentId,b.approvalContentId]);
+  assert.equal(new Set(manifest.cards.map(item => item.filename)).size, 2);
+  await app.removeOutput(0);
+  assert.equal(app.latestOutputApproval, null, 'removal invalidates collection approval');
+  await assert.rejects(app.validateOutputExport(firstCollection), /Approve the current output queue/);
+  await app.approveOutputQueue();
+  assert.equal(app.outputQueue()[0].approvalId, b.approvalId, 'reapproval preserves surviving instance identity');
+});
+
+
+test('reapproval refuses a collection changed after review opened without appending any card', async () => {
+  const { app, depiction } = await appWithPhoto(); await app.save(initialDraft(), depiction); const row=app.bag()[0];
+  const card={disc:{...row.disc},orientation:'vertical' as const,cardDesign:'u01'}; await app.enqueueOutput([card,card]); const before=app.outputQueueAddress;
+  await app.removeOutput(0); await assert.rejects(app.approveOutputQueue(before),/changed during review/); assert.equal(app.outputQueue().length,1); assert.equal(app.latestOutputApproval,null);
+  const surviving=app.outputQueue()[0].approvalId; await app.approveOutputQueue(app.outputQueueAddress); assert.equal(app.outputQueue().length,1); assert.equal(app.outputQueue()[0].approvalId,surviving); assert.equal(app.latestOutputApproval!.addedCount,0);
 });

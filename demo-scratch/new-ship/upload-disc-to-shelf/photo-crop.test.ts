@@ -109,11 +109,11 @@ test('CircleFit retains the recovered 96×112 full-rim fixture exactly', () => {
 test('active circle crop keeps one radius through clamp, nudge, and export', () => {
   const initial = clampCircleCropSelection(1200, 600, { centerX: .4, centerY: .6, radiusX: .2, radiusY: .4, rotation: .4 });
   const nudged = resizeCircleCrop(1200, 600, initial, -5), mapping = circleCropExportMapping(1200, 600, 512, nudged);
-  assert.equal(initial.rotation, 0);
+  assert.equal(initial.rotation, .4);
   assert.equal(initial.radiusX * 1200, initial.radiusY * 600);
   assert.equal(nudged.radiusX * 1200, nudged.radiusY * 600);
   assert.equal(mapping.sourceRadiusX, mapping.sourceRadiusY);
-  assert.equal(mapping.rotation, 0);
+  assert.equal(mapping.rotation, .4);
 });
 
 

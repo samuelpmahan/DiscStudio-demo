@@ -52,6 +52,38 @@ test('reload resumes the current Bag and keeps the legacy archive untouched', as
   assert.equal(storage.getItem(legacyStorageKey), legacy);
 });
 
+test('UploadDiscToShelf archives a durable commit receipt with its expected and new heads', async () => {
+  const storage = memory(), app = await openExperience(storage, () => {});
+  const discAddress = await app.save(initialDraft(), image);
+  const operationId = app.pxc.get(discAddress).value.id;
+  const receiptAddress = `ds.px.receipt.${operationId}`;
+  const live = app.pxc.get(receiptAddress).value;
+  assert.equal(live.storage, 'browser-archive');
+  assert.equal(live.expectedShelfHead, 'ds.px.shelf.0');
+  assert.equal(live.expectedBagHead, 'ds.px.bag.0');
+  assert.equal(live.shelfAddress, app.shelfAddress);
+  assert.equal(live.bagAddress, app.bagAddress);
+  const raw = storage.getItem(sessionKeys(storage)[0])!;
+  const recovered = createExperience(() => {}, { state: await restore(raw, createExperience(() => {}).pxc) });
+  assert.deepEqual(recovered.pxc.get(receiptAddress).value, live);
+  assert.equal(recovered.bag()[0].address, discAddress);
+  assert.equal(recovered.shelf()[0].address, discAddress);
+});
+
+test('an archive write without its active pointer reports durable storage but warns about reopening', async () => {
+  const storage = memory();
+  const app = await openExperience({ ...storage, setItem(key: string, value: string) {
+    if (key === activeSessionKey) throw Error('fixture pointer write failure');
+    storage.setItem(key, value);
+  } }, () => {});
+  const address = await app.save(initialDraft(), image);
+  const receipt = app.pxc.get(`ds.px.receipt.${app.pxc.get(address).value.id}`).value;
+  assert.equal(receipt.storage, 'browser-archive');
+  assert.match(app.persistenceStatus, /automatic reopen is unavailable/);
+  assert.equal(sessionKeys(storage).length, 1);
+  assert.equal(storage.getItem(activeSessionKey), null);
+});
+
 test('a sole archive from before the active pointer resumes without rewriting its bytes', async () => {
   const storage = memory(), first = await openExperience(storage, () => {});
   await first.save({ ...initialDraft(), nickname: 'Earlier visit' }, image);
@@ -100,6 +132,9 @@ test('quota keeps a valid current bag and export queue in memory, preserves prio
   const priorKey = sessionKeys(storage)[0], priorBytes = storage.getItem(priorKey);
   failWrites = true;
   await app.save({ ...initialDraft(), nickname: 'Session-only disc' }, image);
+  const fallback = app.events.at(-1)!;
+  assert.equal(fallback.storage, 'session-memory');
+  assert.equal(app.pxc.get(`ds.px.receipt.${fallback.operationId}`).value.storage, 'session-memory');
   assert.equal(app.shelf().length, 2);
   assert.equal(storage.getItem(priorKey), priorBytes);
   assert.equal(storage.getItem(legacyStorageKey), legacy);
@@ -189,6 +224,27 @@ test('a saved session archive restores directly into a PxC experience with photo
   assert.equal(recovered.pxc.get(row.disc.art).composition.inputs.photo.value.src, image.src);
 });
 
+test('restored SELECT testimony keeps the bound Calculation Part and replays resolved facts', async () => {
+  const storage = memory(), app = await openExperience(storage, () => {});
+  const sparseMold = 'ds.px.seed.archive-sparse';
+  app.pxc.set(sparseMold, new Part(Object.freeze({ id: 'archive-sparse', manufacturer: 'Fixture', name: 'Sparse Mold' })));
+  const draft = { ...initialDraft(), mold: sparseMold, nickname: 'SELECT restore', turn: 0 };
+  const discAddress = await app.save(draft, image), id = app.pxc.get(discAddress).value.id;
+  const raw = storage.getItem(sessionKeys(storage)[0])!;
+  const recovered = createExperience(() => {}, { state: await restore(raw, createExperience(() => {}).pxc) });
+  const selection = recovered.pxc.get(`ds.px.receipt.select.${id}`).value;
+  const output = recovered.pxc.get(selection.outputAddress);
+  const bound = recovered.pxc.get(selection.boundCalculationAddress);
+  assert.equal(selection.event, 'pxc.select.completed');
+  assert.equal(selection.calculationAddress, 'fn.disc.resolveFacts.sparse');
+  assert.equal(output.composition.calculation, bound);
+  assert.equal(bound, recovered.pxc.get(selection.calculationAddress));
+  assert.deepEqual(selection.inputPartAddresses, { seed: draft.mold, draft: `ds.px.draft.${id}` });
+  assert.equal(output.composition.inputs.seed, recovered.pxc.get(draft.mold));
+  assert.equal(output.composition.inputs.draft, recovered.pxc.get(`ds.px.draft.${id}`));
+  assert.deepEqual(['speed', 'glide', 'turn', 'fade'].map(field => output.value[field]), [null, null, 0, null]);
+});
+
 test('v2 archives retain repeated prepared photo bytes once and v1 inline photo archives still restore', async () => {
   const photo = { kind: 'photo' as const, src: `data:image/webp;base64,${'A'.repeat(16_384)}`, name: 'large-fixture' };
   const other = { kind: 'photo' as const, src: `data:image/webp;base64,${'B'.repeat(16_384)}`, name: 'other-fixture' };
@@ -253,4 +309,14 @@ test('tampered produced output is rejected by direct restore', async () => {
   const node = saved.nodes.find((candidate: any) => candidate.calculation !== undefined && candidate.material.object?.some(([key]: any) => key === 'nickname'));
   node.material.object.find(([key]: any) => key === 'nickname')[1] = { scalar: 'Tampered output' };
   await assert.rejects(restore(JSON.stringify(saved), createExperience(() => {}).pxc), /Restored Calculation output differs/);
+});
+
+test('multiple stranded archives expose uncertainty and stay unchanged on opening', async () => {
+  const originalStore = memory(), original = await openExperience(originalStore, () => {}); await original.save(initialDraft(), image);
+  const bytes = originalStore.getItem(sessionKeys(originalStore)[0])!;
+  const a = `${sessionKeyPrefix}prior-a`, b = `${sessionKeyPrefix}prior-b`, store = memory({[a]: bytes, [b]: bytes});
+  const reopened = await openExperience(store, () => {}); assert.equal(reopened.bag().length,0); assert.match(reopened.persistenceStatus,/Several saved Bags.*could not be automatically reopened/);
+  assert.equal(store.getItem(a),bytes); assert.equal(store.getItem(b),bytes); assert.equal(store.getItem(activeSessionKey),null);
+  await reopened.save(initialDraft(), image); assert.equal(store.getItem(a),bytes); assert.equal(store.getItem(b),bytes);
+  assert.equal((await openExperience(store, () => {})).bag().length,1);
 });

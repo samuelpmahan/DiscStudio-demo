@@ -1,8 +1,10 @@
+import { validateRefitSource } from './photo-refit.ts';
 import { Part, PxC } from '../part-first-kernel/src/pxc.mjs';
 import { validatePaintRecipe } from './paint-recipe.ts';
 
 export const storageKey = 'discstudio.pxc.shelf.v1';
-export type State = { pxc: any; serial: number; shelfAddress: string; currentSeeds: [string, string][]; bagsAddress?: string; bagAddress?: string };
+export type CommitReceipt = { address: string; value: Record<string, unknown> };
+export type State = { pxc: any; serial: number; shelfAddress: string; currentSeeds: [string, string][]; bagsAddress?: string; bagAddress?: string; commitReceipt?: CommitReceipt };
 const photoDataUri = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
 // This archive is an OnTop format, not serialization of arbitrary JavaScript.
 export function archive(state: State) {
@@ -42,7 +44,12 @@ export function archive(state: State) {
     && !name.startsWith('ds.px.output.')
     && !/^ds\.px\.receipt\.(?:enqueue|remove-output)-/.test(name))
     .map(([name, part]: any) => [name, visit(part)]);
-  return JSON.stringify({ version: 2, photos, serial: state.serial, shelfAddress: state.shelfAddress, currentSeeds: state.currentSeeds, ...(state.bagsAddress ? { bagsAddress: state.bagsAddress } : {}), ...(state.bagAddress ? { bagAddress: state.bagAddress } : {}), nodes, bindings });
+  // A commit receipt is added to the archive being written. It is not bound
+  // into the live PxC until the write succeeds, so a rejected write cannot
+  // leave behind a false durable receipt in the working tree.
+  const committed = state.commitReceipt;
+  if (committed && (!/^ds\.px\.receipt\.save-\d+$/.test(committed.address) || committed.value.event !== 'disc.save.completed' || committed.value.storage !== 'browser-archive' || committed.value.shelfAddress !== state.shelfAddress || committed.value.bagAddress !== state.bagAddress)) throw Error('Invalid archive commit receipt.');
+  return JSON.stringify({ version: 2, photos, serial: state.serial, shelfAddress: state.shelfAddress, currentSeeds: state.currentSeeds, ...(state.bagsAddress ? { bagsAddress: state.bagsAddress } : {}), ...(state.bagAddress ? { bagAddress: state.bagAddress } : {}), nodes, bindings, ...(committed ? { commitReceipt: committed } : {}) });
 }
 
 export async function restore(raw: string, knownStore: any): Promise<State> {
@@ -54,6 +61,11 @@ export async function restore(raw: string, knownStore: any): Promise<State> {
   for (const [name, id] of data.bindings) {
     if (typeof name !== 'string' || !name.startsWith('ds.px.') || names.has(name)) throw Error('Invalid binding.');
     names.add(name); if (!destinations.has(id)) destinations.set(id, name);
+  }
+  if (data.commitReceipt !== undefined) {
+    const receipt = data.commitReceipt;
+    if (!receipt || typeof receipt !== 'object' || !/^ds\.px\.receipt\.save-\d+$/.test(receipt.address) || !receipt.value || receipt.value.event !== 'disc.save.completed' || receipt.value.storage !== 'browser-archive' || receipt.value.shelfAddress !== data.shelfAddress || receipt.value.bagAddress !== data.bagAddress || names.has(receipt.address)) throw Error('Invalid archive commit receipt.');
+    pxc.set(receipt.address, new Part(Object.freeze(receipt.value)));
   }
   for (const [name, part] of knownStore.entries()) if (/^(fn|oc)\./.test(name)) pxc.set(name, part);
   const part = (id: number) => { if (!parts.has(id)) throw Error('Unread Part link.'); return parts.get(id); };
@@ -96,6 +108,7 @@ export async function restore(raw: string, knownStore: any): Promise<State> {
       if (links.some(link => typeof disc[link] !== 'string')) throw Error('Incomplete depiction sources.');
       const recipe = pxc.get(disc.paintRecipe), photo = pxc.get(disc.photo), choice = pxc.get(disc.choice), art = pxc.get(disc.art);
       if (photo.value !== null && (photo.value?.kind !== 'photo' || typeof photo.value?.src !== 'string' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(photo.value.src))) throw Error('Invalid retained photo.');
+      if (photo.value?.refit !== undefined) validateRefitSource(photo.value.refit);
       if (!['painted', 'photo'].includes(choice.value) || choice.value !== disc.depiction?.kind) throw Error('Invalid depiction choice.');
       if (choice.value === 'photo') {
         // Photo-first saves retain a null recipe. An overlay Disc may retain

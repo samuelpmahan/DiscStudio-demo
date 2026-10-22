@@ -4,6 +4,8 @@ import { Part, PxC } from '../part-first-kernel/src/pxc.mjs';
 import { create, read, update, destroy, runStage } from './operations.ts';
 import { createExperience, initialDraft } from './model.ts';
 
+const photo = { kind: 'photo' as const, src: 'data:image/png;base64,iVBORw0KGgo=', name: 'operations-fixture.png' };
+
 test('one update/read handles specialization, zero, null and inheritance without mutating inputs', () => {
   const base = Object.freeze({ speed: 5, glide: 5, turn: 0, fade: 0 });
   const a = create({ mold: 'fixture.mold' }), b = create({ mold: 'fixture.mold' });
@@ -22,7 +24,10 @@ test('destroy removes membership from a fresh collection, not the retained objec
   assert.equal(collection.disc, object);
 });
 test('actual saved disc holds only its override; generic edits retain prior versions', async () => {
-  const app = createExperience(() => {}), draft = { ...initialDraft(), turn: 0 };
+  const app = createExperience(() => {}), base = initialDraft();
+  const hydrated = await app.hydrateSeed(base.mold);
+  const draft = { ...base, mold: hydrated.address, turn: 0 };
+  await app.addDraftPhoto(photo);
   const address = await app.save(draft, await app.selectDraftDepiction(() => 0));
   const own = app.pxc.get(address).value;
   assert.equal(own.turn, 0); assert.equal(Object.hasOwn(own, 'speed'), false);
@@ -36,12 +41,13 @@ test('actual saved disc holds only its override; generic edits retain prior vers
   await assert.rejects(app.updateDisc(address, { turn: NaN }));
   await assert.rejects(app.updateDisc(address, {}, ['mold']));
 });
-test('save records three ordered boundaries linking the actual produced Parts', async () => {
+test('save records four ordered boundaries linking the actual produced Parts', async () => {
   const app = createExperience(() => {});
+  await app.addDraftPhoto(photo);
   await app.save(initialDraft(), await app.selectDraftDepiction(() => 0));
   const receipt = app.events.at(-1)!;
   const ticks = receipt.ticks as string[];
-  assert.deepEqual(ticks.map(x => x.split('.').at(-1)), ['specialize', 'depict', 'retain']);
+  assert.deepEqual(ticks.map(x => x.split('.').at(-1)), ['selectFacts', 'specialize', 'depict', 'retain']);
   for (const address of ticks) {
     const tick = app.pxc.get(address);
     for (const output of tick.value.outputs) assert.equal(tick.composition.inputs[output], app.pxc.get(output));

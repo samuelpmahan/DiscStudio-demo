@@ -25,3 +25,12 @@ test('invalid scale and non-finite normalized offsets are rejected', () => {
   assert.throws(()=>clampTransform({...frame,scale:1.51}),/Invalid card transform/);
   assert.throws(()=>validateTransform({...frame,dx:NaN}),/finite/);
 });
+
+test('visible-center resizing permits compact cards at 150% and clamps only at frame boundaries',async()=>{
+ const { maxCardScale,resizeCardTransform,transformedBounds }=await import('./transform-geometry.mjs');
+ const frame={width:1080,height:1920,alphaBounds:[48,410,508,1060]},current=Object.freeze({scale:1,dx:.2,dy:.08});
+ assert.equal(maxCardScale(frame),1.5);
+ const before=transformedBounds({...frame,...current}),resized=resizeCardTransform({...frame,current,requestedScale:1.5}),after=transformedBounds({...frame,...resized});
+ assert.equal((after.left+after.right)/2,(before.left+before.right)/2);assert.equal((after.top+after.bottom)/2,(before.top+before.bottom)/2);assert.equal(resized.scale,1.5);assert.deepEqual(current,{scale:1,dx:.2,dy:.08});
+ const atEdge=resizeCardTransform({...frame,current:{scale:1,dx:0,dy:0},requestedScale:1.5});assert.equal(transformedBounds({...frame,...atEdge}).left,0);
+});

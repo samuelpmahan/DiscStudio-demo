@@ -1,0 +1,248 @@
+{
+  "schema": "neat-component-receipt@1",
+  "kind": "validation",
+  "componentId": "DiscStudio.UploadDiscToShelf.mold-search",
+  "workItem": "recipes/discstudio-photo-card.json",
+  "namespace": "component.upload-disc-to-shelf-mold-search@1",
+  "contractSpecSha256": "b36f1926e3a6868e91c9067e8dfc3b1ea30c48f7150d4ca8b880bc409e0f7bb4",
+  "proposedVersion": "0.1.0",
+  "sourcePins": [
+    {
+      "path": "capabilities/smartsync.mjs",
+      "sha256": "ad049e25b691b46b7e38c233c7590d3ad1300bb31f8f854ba701a1a8aa741904"
+    },
+    {
+      "path": "policies/neat.mjs",
+      "sha256": "b49005c265e8b44feb538717c560d731b26a14d31fa733f2aa683af08e022d30"
+    },
+    {
+      "path": "tests/neat-work-state.test.mjs",
+      "sha256": "d86235c7f5cce1bf33f6d3d09c4ad8a2e4f87c900c0a9207e6a0779d844f4d86"
+    },
+    {
+      "path": "vendor/discstudio/disc/app.ts",
+      "sha256": "7737ccdb5acb95cb2c958767e27d5377f1d33f9a9b934fc39bd1c2119f9508fa"
+    },
+    {
+      "path": "vendor/discstudio/disc/build.mjs",
+      "sha256": "6d97c9275550d14435988c9d3c31e3546c15619ae85b773ab545d536059c3a75"
+    },
+    {
+      "path": "vendor/discstudio/disc/catalog.test.ts",
+      "sha256": "67da39ed32a22f1b1c1eba4372b71ca61d3319921ff8acda996c08de9d31d18c"
+    },
+    {
+      "path": "vendor/discstudio/disc/catalog-lite.ts",
+      "sha256": "1d774d095dcd6b9e93b5792654f1af2166c33ae6282e2031f2394264d9ac8a4d"
+    },
+    {
+      "path": "vendor/discstudio/disc/catalog.ts",
+      "sha256": "40c30c8599e9d7b396de23bb07a722ae20812e03ea0b18a9cf2d228feecdfa6c"
+    },
+    {
+      "path": "vendor/discstudio/disc/experiences.test.ts",
+      "sha256": "4ca10ee15e38e6883c0970d492df78a86803345a347c44600f1239342983c92f"
+    },
+    {
+      "path": "vendor/discstudio/disc/experience-page.ts",
+      "sha256": "3ff0fdfc00d36b034983826d9ff37d1f86572aff71ffc2c5532be18d7c4bea8e"
+    },
+    {
+      "path": "vendor/discstudio/disc/index.html",
+      "sha256": "845aaf491c23e2424f283a37fb68649385bcb67e72925f159e08aba12051907c"
+    },
+    {
+      "path": "vendor/discstudio/disc/legacy-archive.test.ts",
+      "sha256": "5f7208cf958b105bcc5660afb7660ca1e5dce94b6925bdb540cfee3c2e55d3f7"
+    },
+    {
+      "path": "vendor/discstudio/disc/model.test.ts",
+      "sha256": "3274ff370f474c65b1a46680eb6739c5757b366272f01122dff78405c58a1bdb"
+    },
+    {
+      "path": "vendor/discstudio/disc/model.ts",
+      "sha256": "7621268bd252149503246051c2dba354262ebb6c71a934f4af1ac0a37b21b4a5"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-library.ts",
+      "sha256": "367cc51d78e34121df7bb0dd966b41ad4cdb0f9056ebedd2811898cc26f99328"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-runtime-build.mjs",
+      "sha256": "94d8aa8783e073d6be4a63b68211acddc5fa8774dffeb6980fa48defeb189bf5"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-runtime-index.ts",
+      "sha256": "ae2d4cd1bdffe737c60927ac11b0bc01867d52d1b36949ba77a76b1c1f950e86"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-runtime.test.ts",
+      "sha256": "0f8c498c10947c9300972fafc12e22bf06c2124848b25b8238f6f891c94e17bc"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-search.test.ts",
+      "sha256": "bdfe20eb155f4c6c229399e6c62607849506f5453d705a7ef2045f1ea81ffa85"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-search.ts",
+      "sha256": "db9c8d3ac2b22adfb90da07ae22d94c70fd9b3100407e4e6637efbec43c64447"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-wildcard-trie.test.ts",
+      "sha256": "a9ad6fc0252aeeb947d5034977a0876f422e65be19702985294a67fd9183c9eb"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-wildcard-trie.ts",
+      "sha256": "d799f4bac66f4ba7a9219542dc1a2f06e5dc801b11500ab3bf5b521b41d9e3ca"
+    },
+    {
+      "path": "vendor/discstudio/disc/package.json",
+      "sha256": "aeab7c83d96a00fd2a4e9ab0b2fef9cc5f1c59768130e9a1e31cc759f87a81fc"
+    },
+    {
+      "path": "vendor/discstudio/disc/persistence.test.ts",
+      "sha256": "e4278f5769a320214b0d1be0d4233086f4044b3073d58a321159614fbdac82ad"
+    },
+    {
+      "path": "vendor/discstudio/disc/persistent-experience.ts",
+      "sha256": "dd4355c619f43bafb4a21dba16fdc75251ed7bff181ef9ee3b7209cb36f84e17"
+    },
+    {
+      "path": "vendor/discstudio/disc/upload-ui.ts",
+      "sha256": "595e9d4d5bbdd4d2ccc974ca6d15d28bdf44ef5b9b69a5dfbe58176969fb065c"
+    },
+    {
+      "path": "vendor/discstudio/disc/style.css",
+      "sha256": "d0efa33464b2ffb0a2aea4566e26cbf4bf409c469e079d9c693677d7ecbcc80b"
+    }
+  ],
+  "checks": [
+    {
+      "id": "packed-wildcard-search",
+      "status": "PASS",
+      "evidence": "mold-runtime.test.ts and mold-wildcard-trie.test.ts; source-order prefix and one-codepoint wildcard results, trailing syntax, invalid interior adjacency."
+    },
+    {
+      "id": "manufacturer-name-search",
+      "status": "PASS",
+      "evidence": "packed-index manufacturer-prefix plus combined manufacturer/name test."
+    },
+    {
+      "id": "single-runtime-catalog-provenance",
+      "status": "PASS",
+      "evidence": "all 724 names/manufacturers/flight tuples and stable IDs round-trip; selected model Part carries exact source pointer."
+    },
+    {
+      "id": "selected-only-world-snapshots",
+      "status": "PASS",
+      "evidence": "model/experiences/persistence tests; fresh PxC has no seed rows until selection/save and a prior saved Disc remains on its captured seed snapshot after correction."
+    },
+    {
+      "id": "asset-integrity-and-failure-capture",
+      "status": "PASS",
+      "evidence": "full/payload/dictionary/trie digest and malformed parser tests; temp built-output copies with missing/corrupt mold-runtime.bin kept module import valid and exposed unavailable catalog."
+    },
+    {
+      "id": "build-source-separation",
+      "status": "PASS",
+      "evidence": "local candidate build regenerated and verified the 45,688-byte runtime asset; dist excludes catalog.js/catalog-lite.js/generator and includes one packed asset."
+    }
+  ],
+  "sourceRecipe": {
+    "result": "PASS",
+    "command": "node toolkit.mjs package --recipe recipes/discstudio-photo-card.json --out /tmp/nctk-stage-mold-search-final",
+    "stagedFileCount": 322,
+    "generatedPayloadIncluded": false,
+    "includes": [
+      "vendor/discstudio/disc/mold-search.component-contract.json",
+      "vendor/discstudio/disc/mold-search.baseline-receipt.json",
+      "vendor/discstudio/disc/mold-search.validation-receipt.json",
+      "vendor/discstudio/disc/mold-runtime-build.mjs",
+      "vendor/discstudio/disc/mold-runtime-index.ts",
+      "vendor/discstudio/disc/mold-wildcard-trie.ts"
+    ],
+    "excludes": [
+      "vendor/discstudio/disc/mold-runtime.bin",
+      "vendor/discstudio/disc/mold-runtime-manifest.ts"
+    ],
+    "freshRebuild": {
+      "result": "PASS",
+      "byteIdentical": true,
+      "sha256": "03fd92167969f79398119f0917fb52c683908a9bcca25dba1615dabeae25c1fc",
+      "bytes": 45688,
+      "localCandidate": true
+    }
+  },
+  "testSuite": {
+    "command": "npm test",
+    "result": "PASS",
+    "passed": 215,
+    "failed": 0,
+    "skipped": 1
+  },
+  "localBuild": {
+    "command": "DISCSTUDIO_LOCAL_CANDIDATE=1 npm run build",
+    "result": "PASS",
+    "buildId": "34766a1857366c7d",
+    "sourceId": "d9be4acfb8cf3e279ad321b766a98726e86ed58aa50b03ed990342a120fd8ec5",
+    "outputId": "1bb9945b16743e7f95f177a65b9a4e6cfad5e45cba512a8c1f43f1638e6cd2cd",
+    "localCandidate": true
+  },
+  "asset": {
+    "sha256": "03fd92167969f79398119f0917fb52c683908a9bcca25dba1615dabeae25c1fc",
+    "rawBytes": 45688,
+    "gzipLevel9Bytes": 26515,
+    "brotliQuality11Bytes": 16716,
+    "wildcardTrieRawBytes": 35864
+  },
+  "nodeOnlyTimings": {
+    "runtime": "Node v24.19.0, Linux",
+    "moduleImportMs": [
+      85.578,
+      115.012
+    ],
+    "experienceCreateMs": [
+      0.611,
+      1.761
+    ],
+    "firstComposedQueryMs": [
+      0.927,
+      1.764
+    ],
+    "warm1000QueriesMs": [
+      18.684,
+      41.938
+    ],
+    "note": "These are Node diagnostics, not browser measurements or approved limits."
+  },
+  "browser": {
+    "status": "PENDING_EXTERNAL_BROWSER_REVIEW",
+    "executable": "system Chromium 151.0.7922.173",
+    "attempt": "headless launch from local workspace",
+    "error": "FATAL process_singleton_posix socket() failed: Operation not permitted; required pinned headless-shell fetch helper was not present in this staged source tree.",
+    "playwrightAvailable": false
+  },
+  "status": {
+    "humanAcceptance": "PENDING_USER_DECISION",
+    "readiness": "PENDING_REQUIREMENTS",
+    "browserRequirement": "PENDING"
+  },
+  "revalidation": {
+    "kind": "ACTUAL_RESOLVED_SOURCE_EXECUTION",
+    "commands": [
+      {
+        "path": "work/subdirectory/commands/0.1.0-from-0.0.0-discstudio-upload-disc-to-shelf-mold-search-packed-wildcard-runtime-r2--1--1d86dcf07e75.json",
+        "sha256": "e22bc5e36e898fc9202d33be3a2cc354ae33b54509509bcf6e1b132498a1f77b"
+      },
+      {
+        "path": "work/subdirectory/commands/0.1.0-from-0.0.0-discstudio-upload-disc-to-shelf-mold-search-packed-wildcard-runtime-r2--2--1d86dcf07e75.json",
+        "sha256": "91dfe1f9021a31edb9514ded12109ff63a60cbd7caa1a4cd643a8998ca879df1"
+      },
+      {
+        "path": "work/subdirectory/commands/0.1.0-from-0.0.0-discstudio-upload-disc-to-shelf-mold-search-packed-wildcard-runtime-r2--3--1d86dcf07e75.json",
+        "sha256": "7e320e28c4c7d60bf9de053df49163d9a97ff70872616e77512844b9725ba898"
+      }
+    ],
+    "note": "Current Node tests/build were executed; original browser timing and human/joint acceptance remain separate pending requirements"
+  }
+}

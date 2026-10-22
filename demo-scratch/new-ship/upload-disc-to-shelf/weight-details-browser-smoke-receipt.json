@@ -1,0 +1,32 @@
+{
+  "schema": "discstudio-weight-details-browser-smoke@1",
+  "verdict": "PASS",
+  "buildId": "47fa46ba73c1842b",
+  "sourceId": "b23eba23ce820caec0fb00cea13fec1f1e0ae2d1e6f9778c546efd0d166f7101",
+  "outputId": "17be2db103ba230dfee554b2f54f7f7b8d24414983f9aa06213ed663fa7db780",
+  "browser": "Chrome for Testing headless shell 154.0.8037.57",
+  "checks": [
+    "normal app restores archived weight and nickname in the saved Disc model",
+    "creator form has no Weight control",
+    "weighted legacy specimens in Shelf show no Weight or Nickname, including selected details",
+    "browser U02 export for archived weight is byte-identical to weightless artwork",
+    "sample fit and save writes weight:null while preserving the old archived weight/nickname"
+  ],
+  "pageErrors": [],
+  "missingResources": [],
+  "screenshots": [
+    {
+      "path": "weight-details-browser-smoke.png",
+      "sha256": "455bc6186900bd1981a8788e4a5545cef50dabe2e65dcb94b98046c628bd8837"
+    },
+    {
+      "path": "weight-details-shelf-browser.png",
+      "sha256": "abbd3f51b16fe99fbabf8e4fa1f6e25dd9f5eee3617f556f930c6c03405c8a5d"
+    }
+  ],
+  "archivedFixture": {
+    "weight": 177,
+    "nickname": "Legacy nickname",
+    "restored": true
+  }
+}

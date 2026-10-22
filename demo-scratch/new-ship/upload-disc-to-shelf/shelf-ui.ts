@@ -4,7 +4,7 @@ import { paintedDiscsEnabled } from './kompozition.ts';
 
 // A lens over the model's shelf references. Selection/draft state is local UI state;
 // only updateDisc and keepDisc retain candidates or change the selected shelf.
-export function mountShelf(experience: ReturnType<typeof createExperience>, discView: Function, inspect: (address: string) => void, { root = document, onAddDisc }: { root?: ParentNode; onAddDisc?: () => void } = {}) {
+export function mountShelf(experience: ReturnType<typeof createExperience>, discView: Function, inspect: (address: string) => void, { root = document, onAddDisc, onRefit }: { root?: ParentNode; onAddDisc?: () => void; onRefit?: (address: string) => void } = {}) {
   const grid = root.querySelector<HTMLElement>('#shelf')!;
   const section = grid.closest<HTMLElement>('.shelf-section')!;
   section.id = 'explore-shelf'; section.classList.add('shelf-experience');
@@ -28,8 +28,8 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
       <div id="shelf-rest"><p class="shelf-kicker">In your hand</p><div class="shelf-rest-mark" aria-hidden="true">↖</div><h3>Pick up a disc.</h3><p>Its own flight and mold defaults will be here, while your place stays on the shelf.</p></div>
       <form id="shelf-editor" hidden>
         <div class="shelf-inspector-heading"><p class="shelf-kicker">In your hand</p><button id="shelf-cancel" type="button">Put back</button></div>
-        <div id="shelf-held-art"></div><h3 id="shelf-selection" tabindex="-1"></h3><p id="shelf-selected-description" class="shelf-note"></p><p id="shelf-nickname" class="shelf-note" hidden></p>
-        <button id="shelf-swap-depiction" type="button" hidden>Switch depiction</button><button id="shelf-bag-add" type="button">Add to bag draft</button>
+        <div id="shelf-held-art"></div><h3 id="shelf-selection" tabindex="-1"></h3><p id="shelf-selected-description" class="shelf-note"></p>
+        <button id="shelf-refit-photo" type="button" hidden>Re-crop</button><button id="shelf-swap-depiction" type="button" hidden>Switch depiction</button><button id="shelf-bag-add" type="button">Add to bag draft</button>
         <p id="shelf-filter-note" class="shelf-selection-note" hidden></p>
         <fieldset><legend>This disc’s flight</legend><p class="shelf-note">Check a field to use your disc’s value. Unchecked uses its mold; checked + blank means unknown.</p>
         <div class="shelf-flight-head" aria-hidden="true"><span>Own value</span><span>This disc</span><span>Mold</span></div>
@@ -56,7 +56,7 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
   function renderBags() {
     el('bag-draft-list').replaceChildren(...bagDraft.map(address => {
       const disc = experience.pxc.get(address).value, mold = experience.seedAt(disc.mold), item = document.createElement('li');
-      const text = document.createElement('span'); text.textContent = `${mold.name} · ${disc.plastic} · ${disc.weight ?? '?'} g`;
+      const text = document.createElement('span'); text.textContent = `${mold.name} · ${disc.plastic || 'Plastic unknown'}`;
       const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remove'; remove.disabled = bagBusy;
       remove.onclick = () => { bagDraft = bagDraft.filter(ref => ref !== address); renderBags(); };
       item.append(text, remove); return item;
@@ -144,10 +144,9 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
     generation++; selected = address; candidate = ''; status('');
     const disc = experience.pxc.get(address).value, mold = experience.seedAt(disc.mold);
     el('shelf-selection').textContent = mold.name;
-    el('shelf-selected-description').textContent = [mold.manufacturer, disc.plastic, disc.weight == null ? '' : `${disc.weight} g`].filter(Boolean).join(' · ');
-    el('shelf-nickname').textContent = disc.nickname ? `Nickname · ${disc.nickname}` : '';
-    el('shelf-nickname').hidden = !disc.nickname;
+    el('shelf-selected-description').textContent = [mold.manufacturer, disc.plastic].filter(Boolean).join(' · ');
     const sources = experience.depictionSources(address);
+    el('shelf-refit-photo').hidden = !onRefit || !sources.photo?.refit;
     el('shelf-swap-depiction').hidden = !paintedDiscsEnabled || !sources.photo;
     el('shelf-swap-depiction').textContent = sources.choice === 'photo' ? 'Use painting · keep photo' : 'Use photo · keep painting';
     const art = experience.shelf().find(row => row.address === address)?.art;
@@ -176,13 +175,13 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
     const view = discView(disc, disc.depiction, art) as HTMLElement;
     const card = document.createElement('article'); card.dataset.address = address; card.className = 'shelf-disc';
     const choose = document.createElement('button'); choose.type = 'button'; choose.className = 'shelf-pick';
-    choose.setAttribute('aria-label', `Pick up ${seed.name}, ${seed.manufacturer}, ${disc.plastic || 'plastic unknown'}, ${disc.weight == null ? 'weight unknown' : `${disc.weight} g`}`);
+    choose.setAttribute('aria-label', `Pick up ${seed.name}, ${seed.manufacturer}, ${disc.plastic || 'plastic unknown'}`);
     choose.setAttribute('aria-controls', 'shelf-editor'); choose.setAttribute('aria-pressed', 'false');
     choose.onclick = () => select(address);
     const image = view.querySelector('.disc-art')!; image.querySelector('img')?.setAttribute('loading','lazy');
     const title = document.createElement('h3'); title.textContent = seed.name;
     const mold = document.createElement('p'); mold.className = 'shelf-mold'; mold.textContent = seed.manufacturer;
-    const spec = document.createElement('p'); spec.className = 'shelf-spec'; spec.textContent = [disc.plastic || 'Plastic unknown', disc.weight == null ? 'Weight unknown' : `${disc.weight} g`].join(' · ');
+    const spec = document.createElement('p'); spec.className = 'shelf-spec'; spec.textContent = disc.plastic || 'Plastic unknown';
     const picked = document.createElement('span'); picked.className = 'shelf-pick-label'; picked.textContent = 'Pick up';
     choose.append(image, title, mold, spec, picked);
     const flight = document.createElement('div'); flight.className = 'shelf-card-flight'; const resolved = experience.resolve(disc);
@@ -215,6 +214,7 @@ export function mountShelf(experience: ReturnType<typeof createExperience>, disc
     }
     bookmark(); renderBags();
   }
+  el('shelf-refit-photo').onclick = () => { if (!keeping && !previewing && currentSelection()) onRefit?.(selected); };
   el('shelf-swap-depiction').onclick = async () => {
     if (!paintedDiscsEnabled || keeping || previewing || !selected || !currentSelection()) return;
     const before = selected, sources = experience.depictionSources(before); keeping = true; buttons();

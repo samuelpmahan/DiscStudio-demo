@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { renderCard, renderCardDataUrl, CARD_SIZE } from './card-renderer.ts';
 import { resolveCardDisc } from './card-renderer-core.ts';
 import type { Disc } from './model.ts';
@@ -155,4 +156,40 @@ test('no-preset vertical still renders the default card', async () => {
   const { w, h } = pngSize(buf);
   assert.equal(w, 1080);
   assert.equal(h, 1920);
+});
+
+test('U01 fits a long manufacturer and plastic line inside its card', async () => {
+  const disc = testDisc({
+    plastic: 'Special Edition Star Plastic Blend',
+    weight: 177,
+    renderer: { moldName: 'Buzzz', manufacturer: 'The Long Disc Manufacturer International', flights: [5, 4, -1, 1] },
+  } as any);
+  const png = await renderCard(disc as any, 'vertical', 'u01');
+  const { w, h } = pngSize(png);
+  assert.equal(w, 1080);
+  assert.equal(h, 1920);
+
+  const image = await loadImage(png);
+  const canvas = createCanvas(w, h), ctx = canvas.getContext('2d');
+  ctx.drawImage(image, 0, 0);
+  const label = ctx.getImageData(0, 920, w, 65).data;
+  for (let y = 0; y < 65; y++) for (let x = 508; x < w; x++) {
+    assert.equal(label[(y * w + x) * 4 + 3], 0, `details pixels must stay inside U01 at (${x}, ${y + 920})`);
+  }
+
+  const supportLine = ctx.getImageData(48, 925, 460, 40).data;
+  assert.ok(Array.from({ length: supportLine.length / 4 }, (_, i) => i * 4).some(i =>
+    supportLine[i] > 50 && supportLine[i + 1] > 150 && supportLine[i + 2] > 60 && supportLine[i + 3] > 0,
+  ), 'manufacturer and plastic line should render below the flight tiles');
+  const supportOutside = ctx.getImageData(508, 925, w - 508, 40).data;
+  assert.equal(Array.from({ length: supportOutside.length / 4 }, (_, i) => i * 4).some(i => supportOutside[i + 3] > 0), false,
+    'details pixels must stay inside U01');
+});
+
+test('legacy saved weight does not appear in U02 card artwork', async () => {
+  const archived = testDisc({ plastic: 'ESP', weight: 177 });
+  const withoutWeight = testDisc({ plastic: 'ESP', weight: null });
+  const weightedPng = await renderCard(archived, 'vertical', 'u02');
+  const unweightedPng = await renderCard(withoutWeight, 'vertical', 'u02');
+  assert.deepEqual(weightedPng, unweightedPng);
 });

@@ -1,8 +1,50 @@
-// Manufacturer suggestions, not a promise that every mold comes in every blend.
-// Retrieved from these manufacturer guides on 2026-09-13. Free text stays valid.
-export const plasticGuides: Record<string, { source: string; values: string[] }> = {
+// Manufacturer suggestions, not a promise that every mold comes in every blend. The plastic box is free text:
+// anything the player types is kept; these lists only fill the suggestions.
+// Discraft, Innova, Kastaplast: retrieved from these manufacturer guides on 2026-09-13.
+// The rest: retrieved on 2026-10-13 from each manufacturer's plastics page where one exists, otherwise its own product
+// listings, otherwise a retailer (sourceKind says which).
+export const plasticGuides: Record<string, { source: string; sourceKind?: string; values: string[] }> = {
   Discraft: { source: 'https://www.team.discraft.com/plastics', values: ['Z', 'ESP', 'Titanium', 'Big Z', 'Jawbreaker', 'Pro D', 'X', 'GLO', 'Z FLX', 'Z Lite'] },
   Innova: { source: 'https://www.innovadiscs.com/home/disc-golf-faq/plastic-types-overview/', values: ['Halo Star', 'Star', 'GStar', 'Champion', 'Metal Flake', 'Blizzard Champion', 'Nexus', 'XT', 'Driver Pro', 'KC Pro', 'R-Pro', 'JK Pro', 'DX'] },
   Kastaplast: { source: 'https://www.kastaplast.com/en-us/pages/plastic-guide', values: ['K1', 'K1 Soft', 'K1 Glow', 'K1 Grind', 'K3', 'K3 Hard', 'K3 Glow', 'K1 Hard', 'K4'] },
+  "ABC": { source: "https://infinitediscs.com/abc-bee-line/platinum", sourceKind: "retailer: Infinite Discs", values: ["Bronze", "Gold", "Platinum"] },
+  "Above Ground Level": { source: "https://www.agldiscs.com/pages/plastic-info", sourceKind: "official plastics page", values: ["Polar", "Alpine", "Woodland"] },
+  "AquaFlight": { source: "https://www.marshallstreetdiscgolf.com/product-category/aquaflight", sourceKind: "retailer: Marshall Street", values: ["AquaFlight", "Glow AquaFlight", "Hemp"] },
+  "Axiom": { source: "https://axiomdiscs.com/plastics", sourceKind: "official plastics page", values: ["Neutron", "Cosmic Neutron", "R2 Neutron", "Proton", "Plasma", "Prism", "Eclipse", "Total Eclipse", "Fission", "Electron", "Cosmic Electron"] },
+  "Crosslap": { source: "https://infinitediscs.com/crosslap-company/platinum-plus", sourceKind: "retailer: Infinite Discs", values: ["Crosslap Advanced", "Crosslap Advanced Grip", "Advanced Soft", "Crosslap Platinum", "Platinum Plus", "Maximum"] },
+  "DGA": { source: "https://store.discgolf.com/pages/disc-plastics", sourceKind: "official plastics page", values: ["ProLine", "Spark", "Atmos", "Stone", "D/Line", "Signature Line"] },
+  "Daredevil": { source: "https://daredevildiscs.com/product-category/discgolf-discs/", sourceKind: "official product listings", values: ["High Performance", "Ultra Performance", "Flex Performance", "Grip Performance", "Elastic Performance"] },
+  "Disc King": { source: "https://infinitediscs.com/ub-ub-lex", sourceKind: "retailer: Infinite Discs", values: ["Chewy"] },
+  "Discmania": { source: "https://www.discmania.net/pages/plastics", sourceKind: "official plastics page", values: ["D-Line", "C-Line", "S-Line", "Glow D-Line", "Color Glow C-Line", "Metal Flake C-Line", "Swirl D-Line", "Swirl S-Line", "Chroma", "Horizon", "Exo", "Extra Soft Exo", "Geo", "Neo", "Lux", "Forge", "Meta", "Active", "Active Soft", "Active Premium", "Active Premium Glow"] },
+  "Dynamic Discs": { source: "https://www.dynamicdiscs.com/pages/disc-golf-plastics", sourceKind: "official plastics page", values: ["Supreme", "Moonshine", "Fuzion", "Lucid", "Lucid Hybrid", "Lucid Air", "Lava", "Fluid", "BioFuzion", "Drift", "Classic Pro", "Classic Supreme", "Classic Super Soft", "Classic Soft", "Classic Blend", "Classic Hybrid", "Classic", "Prime"] },
+  "Element Discs": { source: "https://infinitediscs.com/element-discs-lithium", sourceKind: "retailer: Infinite Discs", values: ["Terra", "Terra Firma", "Hydra", "Element Swirly"] },
+  "Fourth Circle": { source: "https://www.fourthcirclediscs.com/firehawk/", sourceKind: "official product listings", values: ["Ekka", "EX", "Premium", "Ultra", "AU"] },
+  "Full Turn": { source: "https://infinitediscs.com/full-turn-passport/express", sourceKind: "retailer: Infinite Discs", values: ["Express", "Ground", "Priority"] },
+  "Galaxy Disc Golf": { source: "https://infinitediscs.com/galaxy-disc-golf-orbit/e-class", sourceKind: "retailer: Infinite Discs", values: ["C Class", "E Class"] },
+  "Gateway": { source: "https://gatewaydiscsports.com/pages/disc-golf-disc-plastics", sourceKind: "official plastics page", values: ["Diamond", "D-Glow", "Platinum", "Pure White", "Firm", "Hemp", "Super Soft", "Super Stupid Soft", "Super Stupid Silly Soft", "Superglow", "Organic", "Eraser", "Money", "Lunar"] },
+  "Hyzer Bomb": { source: "https://www.golfdisc.com/plastic/hyzerbomb/", sourceKind: "official plastics page", values: ["Base", "Base Soft", "Recon", "Recon Flat Top", "Frontline", "Frontline-X"] },
+  "Infinite Discs": { source: "https://blog.infinitediscs.com/?p=3553471", sourceKind: "official plastics page", values: ["S-Blend", "Swirly S-Blend", "Splatter S-Blend", "Halo S-Blend", "C-Blend", "Metal Flake C-Blend", "Metal Flake Glow C-Blend", "Glow C-Blend", "Gummy C-Blend", "Luster C-Blend", "Concrete", "G-Blend", "I-Blend", "D-Blend", "Glow D-Blend", "P-Blend", "Glow P-Blend", "X-Blend", "N-Blend", "R-Blend"] },
+  "Latitude 64": { source: "https://latitude64.com/collections/all-discs", sourceKind: "official product listings", values: ["Opto", "Opto Air", "Opto Moonshine", "Opto Orbit", "Opto-Ice", "Opto-X", "Gold", "Gold-Ice", "BioGold", "Retro", "Royal Grand", "Royal Sense", "Royal Clear", "Zero Pro", "Zero Medium", "Zero Soft", "Zero Hard", "Zero Gravity", "Eco Zero", "Frost", "Project Grip", "ChainGrip"] },
+  "Legacy": { source: "https://legacydiscs.com/plastics/", sourceKind: "official plastics page", values: ["Icon series", "Pinnacle series", "Skyline series", "Protege Series", "Gravity Series", "Excel", "Honey bee series"] },
+  "Lightning Discs": { source: "https://lightninggolfdiscs.com/collections/lightning-rubber-putters", sourceKind: "official product listings", values: ["Standard", "Sure Grip", "Loonar Glow", "Warbird", "NXT"] },
+  "MVP": { source: "https://mvpdiscsports.com/plastics/", sourceKind: "official plastics page", values: ["Neutron", "Cosmic Neutron", "R2 Neutron", "Proton", "Plasma", "Eclipse", "Fission", "Electron", "Cosmic Electron"] },
+  "Millennium": { source: "https://www.golfdisc.com/plastic/", sourceKind: "official plastics page", values: ["Millennium Standard", "Delta-T", "ET", "SuperSoft", "Quantum", "Quantum Zero-G", "Sirius", "Helio", "Lunar"] },
+  "Mint Discs": { source: "https://mintdiscs.com/collections/mint-discs", sourceKind: "official product listings", values: ["Apex", "Apex Soft", "Apex Lightweight", "Eternal", "Eternal Mega Soft", "Royal", "Royal Soft", "Sublime", "Nocturnal", "Nocturnal Glow"] },
+  "Ozone Discs": { source: "https://infinitediscs.com/ozone-discs-andro-c", sourceKind: "retailer: Infinite Discs", values: ["Blend32", "Hydro M"] },
+  "Plastic Addicts": { source: "https://infinitediscs.com/Plastic-Addicts-Habit", sourceKind: "retailer: Infinite Discs", values: ["Main Line", "Top Line"] },
+  "Prodigy": { source: "https://prodigydisc.com/pages/flight-plastic-info", sourceKind: "official plastics page", values: ["100", "200", "300", "300 Soft", "300 Ultra Soft", "300 Firm", "400", "400 Ultra Soft", "AIR", "500", "500 Ultra Soft", "750", "ReBlend"] },
+  "Prodiscus": { source: "https://prodiscus.fi/en/product-category/discs/", sourceKind: "official product listings", values: ["Platinium FLX", "Platinium", "Ultrium", "Premium", "Basic", "Hard Basic", "Color Glow"] },
+  "Prodiscus Sparta": { source: "https://prodiscus.fi/en/product-category/discs/", sourceKind: "official product listings", values: ["Platinium FLX", "Ultrium", "Premium", "Basic", "Hard Basic"] },
+  "Prodiscus Titan": { source: "https://prodiscus.fi/en/product-category/discs/", sourceKind: "official product listings", values: ["Platinium", "Ultrium", "Premium"] },
+  "RPM Discs": { source: "https://www.rpmdiscs.com/plastic-type/", sourceKind: "official plastics page", values: ["Strata", "Magma", "Cosmic", "Atomic"] },
+  "Reptilian Disc Golf": { source: "https://reptiliandiscgolf.com/pages/our-plastic-blends", sourceKind: "official plastics page", values: ["Amber", "Armor", "Chalk RFF", "Eraser", "Fossil", "Fossil Flex", "Fossil Fuel", "Fossil Super Flex", "Tar Pit"] },
+  "Salient": { source: "https://infinitediscs.com/salient-backdraft/liquid", sourceKind: "retailer: Infinite Discs", values: ["Liquid", "Cryo", "Karbon"] },
+  "Skyquest": { source: "https://infinitediscs.com/skyquest-medusa/skyquest-premium", sourceKind: "retailer: Infinite Discs", values: ["Skyquest Premium"] },
+  "Storm Disc Golf": { source: "https://infinitediscs.com/storm-disc-golf-radar/category-3", sourceKind: "retailer: Infinite Discs", values: ["Category 1 Firm", "Category 1 Glow", "Category 1 Hemp", "Category 1 Medium", "Category 1 Soft", "Category 2", "Category 3", "Category 3 Hemp"] },
+  "Streamline": { source: "https://streamlinediscs.com/plastics", sourceKind: "official plastics page", values: ["Cosmic Electron", "Cosmic Neutron", "Eclipse", "Electron", "Neutron", "Plasma", "Proton"] },
+  "Vibram": { source: "https://infinitediscs.com/vibram-ridge", sourceKind: "retailer: Infinite Discs", values: ["X-Link Firm", "X-Link Medium", "X-Link Soft", "X-Link Float", "X-Link Medium Glow", "Granite Medium"] },
+  "Viking Discs": { source: "https://vikingdiscs.com/products/8-disc-starter-set", sourceKind: "official product listings", values: ["Ground", "Storm", "Armor", "Air"] },
+  "Westside": { source: "https://westsidediscs.com/collections/all", sourceKind: "official product listings", values: ["VIP", "VIP-X", "VIP-Ice", "VIP Hybrid", "Tournament", "Tournament-X", "Origio", "Elasto", "BT Hard", "BT Medium", "BT Soft", "BT Megasoft", "BT Hybrid", "Revive"] },
+  "Yikun": { source: "https://www.marshallstreetdiscgolf.com/product-category/manufacturers/yikun", sourceKind: "retailer: Marshall Street", values: ["Tiger Line", "Dragon Line", "Phoenix Line", "Phoenix Star Line", "Tortoise Line"] },
 };
 // {?} Mold-specific availability is a separate fact; don't turn suggestions into validation.

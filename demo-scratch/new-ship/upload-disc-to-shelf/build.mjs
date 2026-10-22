@@ -7,12 +7,25 @@ import crypto from 'node:crypto';
 import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { buildInputIdentity } from './build-input-identity.mjs';
+import { readBuildVersion } from './build-version.mjs';
+import { readFeatureMaturity } from './feature-maturity.mjs';
 import { buildOutputIdentity } from './build-output-identity.mjs';
+import { encodeMoldRuntime, verifyMoldRuntimeArtifact } from './mold-runtime-build.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(here, 'dist');
+const semanticVersion=readBuildVersion(here);
+const featureMaturity=readFeatureMaturity(here);
+const localCandidate=process.env.DISCSTUDIO_LOCAL_CANDIDATE === '1';
+// Rebuild the compact runtime asset from authoritative source before producing
+// Pages output; verification compares it with this same deterministic recipe.
+const runtime = encodeMoldRuntime(here);
+fs.writeFileSync(path.join(here, 'mold-runtime.bin'), runtime.binary);
+fs.writeFileSync(path.join(here, 'mold-runtime-manifest.ts'), `export const moldRuntimeManifest = Object.freeze(${JSON.stringify(runtime.manifest, null, 2)});\n`);
+verifyMoldRuntimeArtifact(here);
 const ignored = new Set(['node_modules', 'dist', 'renders', 'renders-real', 'mvp-output', 'candidate-evidence']);
-const skip = name => /(?:\.test\.|\.bundle\.js$|^(?:drive-real-ui|paired-capture|capture-output|url-free-materializer|capture-initial-scenario|instrumented-run|mvp-run|render-presets|render-breakout|painted-card-evidence|painted-return-probe|photo-bag-two-card-evidence)\.mjs$|^(?:test-page|preset-gallery))/.test(name);
+const skip = name => /(?:\.test\.|\.bundle\.js$|^(?:build|serve|drive-real-ui|paired-capture|capture-output|url-free-materializer|capture-initial-scenario|instrumented-run|mvp-run|render-presets|render-breakout|painted-card-evidence|painted-return-probe|photo-bag-two-card-evidence)\.mjs$|^(?:test-page|preset-gallery))/.test(name);
+const browserSourceOnly = new Set(['catalog.ts', 'catalog-lite.ts', 'mold-runtime-build.mjs']);
 const rewriteImports = text => text
   .replace(/(from\s*['"][^'"]+)\.ts(['"])/g, '$1.js$2')
   .replace(/(import\s*\(\s*['"][^'"]+)\.ts(['"]\s*\))/g, '$1.js$2')
@@ -21,9 +34,10 @@ function copyTree(source, relative = '') {
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
     if (ignored.has(entry.name) || skip(entry.name)) continue;
     const from = path.join(source, entry.name), rel = path.join(relative, entry.name);
+    if (browserSourceOnly.has(rel.split(path.sep).join('/'))) continue;
     if (entry.isDirectory()) { copyTree(from, rel); continue; }
     if (!entry.isFile()) continue;
-    if (!/\.(?:ts|mjs|css|html|svg)$/.test(entry.name)) continue;
+    if (!/\.(?:ts|mjs|css|html|svg|jpe?g)$/.test(entry.name)) continue;
     const targetRel = entry.name.endsWith('.ts') ? rel.slice(0, -3) + '.js' : rel;
     const to = path.join(dist, targetRel); fs.mkdirSync(path.dirname(to), { recursive: true });
     if (entry.name.endsWith('.ts')) fs.writeFileSync(to, rewriteImports(stripTypeScriptTypes(fs.readFileSync(from, 'utf8'))));
@@ -71,6 +85,13 @@ function verifyVersionedImports(root, buildId) {
 }
 fs.rmSync(dist, { recursive: true, force: true }); fs.mkdirSync(dist, { recursive: true });
 copyTree(here);
+// Generated from catalog.ts at build time; the source catalog itself is never
+// copied to the browser output.
+fs.copyFileSync(path.join(here, 'mold-runtime.bin'), path.join(dist, 'mold-runtime.bin'));
+for (const browserLeak of ['catalog.js', 'catalog-lite.js', 'mold-runtime-build.js']) {
+  if (fs.existsSync(path.join(dist, browserLeak))) throw Error(`Source-only mold catalog file leaked into Pages output: ${browserLeak}`);
+}
+if (!fs.readFileSync(path.join(dist, 'mold-runtime.bin')).equals(runtime.binary)) throw Error('Packed mold runtime asset differs between source and Pages output.');
 // Neat's browser component is a classic script, so it is deliberately copied
 // outside the module-only source whitelist above.
 fs.mkdirSync(path.join(dist, 'vendor', 'neat'), { recursive: true });
@@ -81,6 +102,7 @@ for (const file of ['card-renderer.js', 'export-queue.js']) fs.rmSync(path.join(
 fs.mkdirSync(path.join(dist, 'kernel'), { recursive: true });
 fs.copyFileSync(path.join(here, '../part-first-kernel/src/pxc.mjs'), path.join(dist, 'kernel/pxc.mjs'));
 const index = path.join(dist, 'index.html');
+fs.writeFileSync(index,fs.readFileSync(index,'utf8').replaceAll('@@DISCSTUDIO_VERSION@@',semanticVersion.version).replace('@@DISCSTUDIO_RELEASE_STATUS@@',localCandidate?'Creator review build':'Release notes').replace('@@DISCSTUDIO_FEATURE_VERSIONS@@',featureMaturity.html));
 const buildId = buildIdFor(dist);
 for (const relative of filesIn(dist).filter(file => /\.(?:js|mjs)$/.test(file))) {
   const file = path.join(dist, relative); fs.writeFileSync(file, versionStylesheetHrefs(versionModuleImports(fs.readFileSync(file, 'utf8'), buildId), buildId));
@@ -95,5 +117,5 @@ fs.writeFileSync(reviewGuide, fs.readFileSync(reviewGuide, 'utf8')
   .replace('src="./creator-review.js"', `src="./creator-review.js?v=${buildId}"`));
 verifyVersionedImports(dist, buildId);
 fs.writeFileSync(path.join(dist, '.nojekyll'), '');
-fs.writeFileSync(path.join(dist, 'BUILD_INFO.json'), JSON.stringify({ artifact: 'discstudio-tournament-pages', source: 'new-ship/upload-disc-to-shelf', build: 'node-strip-types', static: true, buildId, sourceId: buildInputIdentity(), outputId: buildOutputIdentity(dist) }, null, 2) + '\n');
+fs.writeFileSync(path.join(dist, 'BUILD_INFO.json'), JSON.stringify({ artifact: 'discstudio-tournament-pages', source: 'new-ship/upload-disc-to-shelf', build: 'node-strip-types', static: true, version:semanticVersion.version, versionManifestSha256:semanticVersion.sha256, localCandidate, buildId, sourceId: buildInputIdentity(semanticVersion.bytes,localCandidate), outputId: buildOutputIdentity(dist), featureMaturity: featureMaturity.binding }, null, 2) + '\n');
 console.log(`Built ${dist} (${buildId})`);

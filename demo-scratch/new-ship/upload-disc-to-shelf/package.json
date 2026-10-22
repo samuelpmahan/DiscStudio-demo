@@ -7,10 +7,10 @@
     "@napi-rs/canvas": "^1.0.9"
   },
   "scripts": {
-    "build": "node build.mjs",
+    "build": "node --experimental-strip-types build.mjs",
     "serve": "node serve.mjs",
     "test": "npm run test:tournament",
-    "test:tournament": "node --experimental-strip-types --test card-renderer.test.ts export-queue.test.ts batch-review.test.ts creator-selection.test.ts model.test.ts bag-current-version.test.ts painted-overlay.test.ts photo-crop.test.ts circle-candidates.test.ts experiences.test.ts persistence.test.ts session-storage.test.ts rimfit-persistence.test.ts transform-geometry.test.mjs",
+    "test:tournament": "node --experimental-strip-types mold-runtime-build.mjs --write && node --experimental-strip-types --test background-cover.test.mjs build-version.test.mjs card-renderer.test.ts frame-seek.test.mjs sticker-raster.test.mjs card-renderer-u01.test.mjs card-renderer-appearance.test.mjs card-renderer-breakout-appearance.test.ts export-queue.test.ts batch-review.test.ts creator-selection.test.ts preview-placement.test.ts preview-draw-scheduler.test.mjs calculation-select.test.ts operations.test.ts model.test.ts catalog.test.ts mold-runtime.test.ts mold-wildcard-trie.test.mjs mold-search.test.ts bag-current-version.test.ts painted-overlay.test.ts photo-crop.test.ts experimental/ellipse-fit-fix/fit-adapter.test.mjs experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs experimental/ellipse-fit-fix/ellipse-review-flow.test.mjs photo-refit.test.ts circle-candidates.test.ts experiences.test.ts persistence.test.ts legacy-archive.test.ts session-storage.test.ts rimfit-persistence.test.ts transform-geometry.test.mjs",
     "test:all-history": "node --experimental-strip-types --test *.test.ts",
     "test:capture": "node --test paired-capture.test.mjs url-free-materializer.test.mjs"
   },

@@ -59,7 +59,7 @@ document.addEventListener('submit', () => setTimeout(showPersistence, 0));
 const devtools = (sandbox || inspector) ? mountDevTools(experience.pxc, { label: sandbox ? (sandbox === 'shelf' ? 'ExploreShelf · sandbox' : 'UploadDiscToShelf · sandbox') : 'DiscStudio · local instrumentation' }) : null;
 const root = document.querySelector('main')!;
 if (sandbox === 'upload') root.querySelector('.shelf-section')!.remove();
-if (sandbox === 'shelf') for (const selector of ['.intro', '.workspace', '.seed-review']) root.querySelector(selector)!.remove();
+if (sandbox === 'shelf') for (const selector of ['.intro', '.workspace', '.seed-review']) root.querySelector(selector)?.remove();
 // Shelf remains retained by PxC, while the tournament path is Today’s Bag.
 const shelf = sandbox && sandbox !== 'upload' ? mountShelf(experience, createDiscView(experience), address => devtools!.open(address), { root }) : null;
 if (!sandbox) root.querySelector<HTMLElement>('.shelf-section')!.hidden = true;

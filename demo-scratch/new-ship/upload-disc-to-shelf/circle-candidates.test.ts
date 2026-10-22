@@ -131,3 +131,20 @@ test('blank evidence abstains without manufacturing proposals', () => {
   assert.strictEqual(refined[0], anchor);
   assert.deepEqual(refineCircleCandidates(blank, { id: 'invalid', circle: { x: Number.NaN, y: 48, radius: 24, confidence: 0 }, score: 0 }, 3), []);
 });
+
+test('Other skips interior circular artwork and still finds a separate disc', () => {
+  const outer = { x: 90, y: 100, radius: 60 }, other = { x: 250, y: 100, radius: 36 };
+  const raster = circlesRaster(320, 200, [outer, other]);
+  for (let y = 0; y < raster.height; y++) for (let x = 0; x < raster.width; x++) {
+    if (Math.hypot(x - outer.x, y - outer.y) < 28) raster.rgba.set([247, 247, 247, 255], (y * raster.width + x) * 4);
+  }
+  const excluded: CircleCandidate = { id: 'accepted-outer', circle: { ...outer, confidence: 1 }, score: 1 };
+  const alternatives = findOtherCircleCandidates(raster, raster, [excluded], 3);
+  assert.ok(alternatives.length > 0, 'another physical disc remains discoverable');
+  assert.ok(alternatives.every(row => Math.hypot(row.circle.x - outer.x, row.circle.y - outer.y) >= outer.radius * .9), 'interior artwork must not be offered as another disc');
+  assert.ok(alternatives.some(row => Math.hypot(row.circle.x - other.x, row.circle.y - other.y) < 5 && Math.abs(row.circle.radius - other.radius) < 5));
+
+  const interior: CircleCandidate = { id: 'selected-artwork', circle: { ...outer, radius: 28, confidence: 1 }, score: 1 };
+  const recoverOuter = findOtherCircleCandidates(raster, raster, [interior], 3);
+  assert.ok(recoverOuter.some(row => Math.hypot(row.circle.x - outer.x, row.circle.y - outer.y) < 5 && Math.abs(row.circle.radius - outer.radius) < 5), 'selecting an interior ring must still allow Other to recover the larger outer disc');
+});
