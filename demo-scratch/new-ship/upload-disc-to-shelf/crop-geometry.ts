@@ -20,7 +20,8 @@ export function drawRotatedCrop(ctx: CanvasRenderingContext2D, source: CanvasIma
   ctx.translate(outputSize / 2, outputSize / 2);
   ctx.rotate(rotation);
   ctx.scale(outputSize / (2 * sourceRadiusX), outputSize / (2 * sourceRadiusY));
-  ctx.rotate(-rotation);
+  // Circle orientation is visible; ellipse orientation also defines its axes.
+  if (Math.abs(sourceRadiusX - sourceRadiusY) > 1e-9) ctx.rotate(-rotation);
   ctx.translate(-sourceCenterX, -sourceCenterY);
   ctx.drawImage(source, 0, 0);
   ctx.restore();

@@ -54,3 +54,25 @@ const detailPath = './mvp-output/preset-u02-with-plastic.png';
 writeFileSync(detailPath, detail);
 console.log('u02 optional detail', detail.length, 'bytes ->', detailPath);
 console.log('done');
+
+// U3 remains a visible Compare, with composition mirrored without flipping
+// photo/glyph pixels. These native assets are reproducible evidence, excluded
+// from SmartSync; only this recipe is retained.
+const { loadImage } = await import('@napi-rs/canvas');
+const { readFileSync } = await import('node:fs');
+const whiteCanvas=createCanvas(640,640),white=whiteCanvas.getContext('2d');white.fillStyle='#fff';white.beginPath();white.arc(320,320,320,0,Math.PI*2);white.fill();white.fillStyle='#1b1b1b';white.font='bold 82px sans-serif';white.textAlign='center';white.fillText('CRAVE →',320,320);white.font='24px sans-serif';white.fillText('WHITE DISC',320,370);
+const whitePhoto=`data:image/png;base64,${whiteCanvas.toBuffer('image/png').toString('base64')}`;
+writeFileSync('./mvp-output/white-disc-photo.png',whiteCanvas.toBuffer('image/png'));
+const sceneBackground=await loadImage(readFileSync('./sample-background.svg'));
+const alphaReceipts=[];
+for (const kind of ['white','green']) {
+ const fixture={...disc,plastic:'ESP',renderer:{moldName:'Crave',manufacturer:'Axiom',flights:[6.5,5,-1,1]},depiction:{kind:'photo',src:kind==='white'?whitePhoto:makeTestPhoto(),name:`${kind}.png`}};
+ for(const preset of ['u03-front','u03-behind','u03-front-mirror','u03-behind-mirror','u04']) {
+  const png=await renderCard(fixture,'vertical',preset);writeFileSync(`./mvp-output/${preset}-${kind}-transparent.png`,png);
+  const overlay=await loadImage(png);
+  const alphaCanvas=createCanvas(1080,1920),alphaCtx=alphaCanvas.getContext('2d');alphaCtx.drawImage(overlay,0,0);const rgba=alphaCtx.getImageData(0,0,1080,1920).data,bounds=[1080,1920,0,0];let visible=0;for(let y=0;y<1920;y++)for(let x=0;x<1080;x++)if(rgba[(y*1080+x)*4+3]){visible++;bounds[0]=Math.min(bounds[0],x);bounds[1]=Math.min(bounds[1],y);bounds[2]=Math.max(bounds[2],x+1);bounds[3]=Math.max(bounds[3],y+1);}if(bounds[0]<=0||bounds[1]<=0||bounds[2]>=1080||bounds[3]>=1920)throw Error('Card alpha hits native canvas boundary');alphaReceipts.push({preset,kind,width:1080,height:1920,alphaBounds:bounds,visiblePixels:visible,transparentPixels:1080*1920-visible});
+  for(const background of ['scene','light','dark']) {const canvas=createCanvas(1080,1920),ctx=canvas.getContext('2d');if(background==='scene')ctx.drawImage(sceneBackground,0,0,1080,1920);else{ctx.fillStyle=background==='light'?'#eee':'#232323';ctx.fillRect(0,0,1080,1920);}ctx.drawImage(overlay,0,0);writeFileSync(`./mvp-output/${preset}-${kind}-${background}.png`,canvas.toBuffer('image/png'));}
+ }
+}
+
+writeFileSync('./mvp-output/u3-u4-alpha-receipt.json',JSON.stringify({schema:'discstudio-u3-u4-alpha-evidence@1',comparison:'Compare',selected:null,frames:alphaReceipts},null,2)+'\n');

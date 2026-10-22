@@ -1,0 +1,398 @@
+{
+  "schema": "discstudio-feature-implementation-maturity@1",
+  "decisionDate": "2026-10-01",
+  "decision": "ACCEPTED_PATCH_PROGRESS",
+  "authority": "Codex Feature implementation-milestone decision under Sam's 2026-10-01 clarification that the third digit advances for added implementation; full release fulfillment remains separate.",
+  "rule": {
+    "contractVersion": "0.1.0 establishes the accepted consumer promise; it does not assert implementation fulfillment.",
+    "firstPatch": "0.1.1 records the first exact, evidenced implementation snapshot under that promise. This first accounting is retrospective; it does not claim every line was authored after contract acceptance.",
+    "laterPatch": "Advance the third digit once for each later, independently bounded behavior change at that Feature, bound to an exact source/build/evidence checkpoint. Coalesce related fixes at a checkpoint.",
+    "noIncrement": "A test rerun, dependency restoration, or receipt alone does not advance a Feature.",
+    "contractAndRelease": "Further consumer-contract changes use the second digit after their own decision; 1.0.0 remains a separate release-readiness acceptance.",
+    "scope": "This is a minimal operational patch rule for this decision. Broader cross-system policy remains for Sam and Dot to refine."
+  },
+  "checkpoints": [
+    {
+      "buildId": "91fb2149197f3ebe",
+      "sourceId": "a04977cbd35b505ccf2c2db5c3ce732ddb7a16fcd8b1338ccee7866db0835686",
+      "outputId": "33e54b64853d810b106eb98f09210275bed6bccddcf3d9fac6b9453b39bbf8ec",
+      "receipt": "https://drive.google.com/file/d/1UQbczmqjINuFK2Dckt-Hoz77oT2_KjW4/view?usp=drivesdk",
+      "decision": "First evidenced implementation checkpoint: all 18 Features advance 0.1.0 \u2192 0.1.1."
+    },
+    {
+      "buildId": "d25cbbdf3395d8e9",
+      "sourceId": "b11c92d1c89f90ce05658bc39acc7c3b171414d96c6eb6e84d08581ac21ce1c1",
+      "outputId": "b41a5b92b5fcf72bf9177c71f3c7c3c76b1fb7d274574ee09ed84cd62bf0ec4c",
+      "receipt": "https://drive.google.com/file/d/1cEj7OxjUgzdkVybzQfvKLHhsOkYUn0JC/view?usp=drivesdk",
+      "decision": "Later distinct Preview scene-framing source change: Preview advances 0.1.1 \u2192 0.1.2. Other 17 Feature versions hold."
+    }
+  ],
+  "demo": {
+    "name": "DiscStudio Demo",
+    "version": "0.0.0",
+    "stages": [
+      {
+        "name": "Save Disc to Bag",
+        "version": "0.0.0",
+        "features": [
+          {
+            "name": "Photo intake",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.5.0",
+            "implementationMilestone": "Prepared and saved photos reopen through Re-crop with retained source, accepted geometry and independent stamp rotation; Cancel and failed reopen preserve the current photo.",
+            "evidence": [
+              "https://drive.google.com/file/d/1nR-On-9VN6bDWhCbODVPhu9EtjuTKagx/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "RimFit",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.5.0",
+            "implementationMilestone": "Best available rim suggestion opens in default eight-dot ellipse refinement. The last placed dot stays aligned while another moves; Undo and Fit view remain available, precise controls are disclosed, and OK explicitly accepts. Source and stamp rotation remain independent; fitting engines and persisted geometry formats are unchanged.",
+            "evidence": [
+              "https://drive.google.com/file/d/139vo9YigVnD4hYXaOfKc3NjfMZq1sfXt/view?usp=drivesdk",
+              "../../../../main/DiscStudio-Servo-teal-dot-visual-pin.json",
+              "experimental/ellipse-fit-fix/rim-aware-refinement.mjs",
+              "experimental/ellipse-fit-fix/ellipse-review-flow.test.mjs"
+            ],
+            "implementationEvidence": "../../../../main/DiscStudio-Servo-teal-dot-visual-pin.json",
+            "implementationEvidenceModule": "experimental/ellipse-fit-fix/rim-aware-refinement.mjs"
+          },
+          {
+            "name": "Crop refinement and rotation",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.5.0",
+            "implementationMilestone": "Best available rim suggestion opens in default eight-dot ellipse refinement. The last placed dot stays aligned while another moves; Undo and Fit view remain available, precise controls are disclosed, and OK explicitly accepts. Source and stamp rotation remain independent; fitting engines and persisted geometry formats are unchanged.",
+            "evidence": [
+              "../../../../lanes/mobile-fit-ux-evidence/evidence/auto-fit-ad9d5259/receipt.json",
+              "../../../../lanes/mobile-fit-ux-evidence/evidence/auto-fit-ec91a0fb/receipt.json"
+            ],
+            "implementationEvidence": "../../../../lanes/mobile-fit-ux-evidence/auto-fit-findings.md"
+          },
+          {
+            "name": "Prepared image creation",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.2",
+            "implementationMilestone": "A manually reviewed ellipse is circularized into a transparent disk while retaining source-photo orientation and v2 source geometry for later correction.",
+            "evidence": [
+              "https://drive.google.com/file/d/1nR-On-9VN6bDWhCbODVPhu9EtjuTKagx/view?usp=drivesdk"
+            ],
+            "implementationEvidence": "DiscStudio-ellipse-fit-integration-receipt.json"
+          },
+          {
+            "name": "Mold and plastic details",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.3",
+            "implementationMilestone": "Focusing the mold field preserves an existing selected mold; suggestions expand only when no mold is selected.",
+            "evidence": [
+              "https://drive.google.com/file/d/1rYQC73QdYI2k2Z4OkEbXf5_LBLjkgJcF/view?usp=drivesdk",
+              "https://drive.google.com/file/d/1JKuif7TnDXm4H9Pez60SuNYYPu499ML5/view?usp=drivesdk"
+            ],
+            "implementationEvidence": "DiscStudio-ellipse-fit-integration-receipt.json"
+          },
+          {
+            "name": "Save to Today\u2019s Bag",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "One Disc identity holds depiction, effective facts and re-fit source",
+            "evidence": [
+              "https://drive.google.com/file/d/1nR-On-9VN6bDWhCbODVPhu9EtjuTKagx/view?usp=drivesdk",
+              "https://drive.google.com/file/d/1_kj5QRdKeR7ahj-hzMTU_ZKUkkAl3o6w/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Shelf persistence",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Same-browser return restores saved Discs and re-fit context",
+            "evidence": [
+              "https://drive.google.com/file/d/1nR-On-9VN6bDWhCbODVPhu9EtjuTKagx/view?usp=drivesdk"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Define Graphics",
+        "version": "0.0.0",
+        "features": [
+          {
+            "name": "Card selection",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Distinct recipes across five portrait and five landscape designs",
+            "evidence": [
+              "https://drive.google.com/file/d/1NYWtlI8dkqvTOMSKrFMf8YMuENHQIWPr/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Card rendering",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.2",
+            "implementationMilestone": "Legacy saved weight remains readable in data but is omitted from visible card artwork",
+            "evidence": [
+              "https://drive.google.com/file/d/1NYWtlI8dkqvTOMSKrFMf8YMuENHQIWPr/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "HighlightColor",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Shared accent and visible dark-color warning with chosen hue preserved",
+            "evidence": [
+              "https://drive.google.com/file/d/1NYWtlI8dkqvTOMSKrFMf8YMuENHQIWPr/view?usp=drivesdk",
+              "https://drive.google.com/file/d/1_kj5QRdKeR7ahj-hzMTU_ZKUkkAl3o6w/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "HighlightOn",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Digits and tiles render as distinct accent targets",
+            "evidence": [
+              "https://drive.google.com/file/d/1NYWtlI8dkqvTOMSKrFMf8YMuENHQIWPr/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Mirrored",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Disc can move to the outside edge with readable upright text",
+            "evidence": [
+              "https://drive.google.com/file/d/1NYWtlI8dkqvTOMSKrFMf8YMuENHQIWPr/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Canvas sizing and placement",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Orientation-aware scale baseline and nondefault held placement",
+            "evidence": [
+              "https://drive.google.com/file/d/1_kj5QRdKeR7ahj-hzMTU_ZKUkkAl3o6w/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Preview",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.2",
+            "implementationMilestone": "Direct scene selection in portrait and landscape, then independent creator-adjustable scene framing",
+            "evidence": [
+              "https://drive.google.com/file/d/13hBNOD6IhyVVCq9wKhQrFLqG7okyOoZP/view?usp=drivesdk",
+              "https://drive.google.com/file/d/1jKKFnL_d8RkQcbhNpsnLD6v0-ufLhzMH/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Approval / Add to Export",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Each deliberate Add holds a distinct approved state and identity",
+            "evidence": [
+              "https://drive.google.com/file/d/16sYsr19qaswSx_CVaASEq87mb52Po6sX/view?usp=drivesdk",
+              "https://drive.google.com/file/d/1_kj5QRdKeR7ahj-hzMTU_ZKUkkAl3o6w/view?usp=drivesdk"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Export Graphics",
+        "version": "0.0.0",
+        "features": [
+          {
+            "name": "Approved graphic rendering",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Earlier held approval reproduces after later editor/Disc changes",
+            "evidence": [
+              "https://drive.google.com/file/d/16sYsr19qaswSx_CVaASEq87mb52Po6sX/view?usp=drivesdk",
+              "https://drive.google.com/file/d/1_kj5QRdKeR7ahj-hzMTU_ZKUkkAl3o6w/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "Transparent PNG export",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "Identified earlier approval exports as tight transparent card",
+            "evidence": [
+              "https://drive.google.com/file/d/16sYsr19qaswSx_CVaASEq87mb52Po6sX/view?usp=drivesdk"
+            ]
+          },
+          {
+            "name": "ZIP packaging",
+            "contractVersion": "0.1.0",
+            "implementationVersion": "0.1.1",
+            "implementationMilestone": "One mapped member per approval, including repeats; no partial ZIP on failure",
+            "evidence": [
+              "https://drive.google.com/file/d/16sYsr19qaswSx_CVaASEq87mb52Po6sX/view?usp=drivesdk"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "NCTK": "0.0.0",
+    "PxC": "0.0.0",
+    "moldSearchCandidate": {
+      "version": "0.0.0",
+      "proposal": "pending; narrower than Mold and plastic details"
+    }
+  },
+  "boundaries": {
+    "historicalBuildVersion": "6.5.2",
+    "featureFulfillmentAcceptedAt1_0_0": [],
+    "stageDemoContractsAccepted": false,
+    "canonicalPromotion": false,
+    "sitePublished": false,
+    "stateScope": "Boundary values record the accepted 2026-10-01 maturity decision; later public Pages deployment is tracked separately and does not revise that decision.",
+    "receiptPolicy": "Frozen build receipts remain statements of versions captured in those builds. This later maturity decision is append-only; the next composition must bind this current ledger rather than rewrite historical receipts."
+  },
+  "historicalErratumSnapshot": {
+    "ledgerSha256": "294c9814205a9d127601523fc40f26a94752db1dd1ea7ce4a8bbad7a7acc9644",
+    "decisionSha256": "3b34b53b567f4bce29567876f83a91a2ee8de6f4a8f201f35a14b79a1c50a2cd",
+    "scope": "Preserve the exact corrected citation snapshot and the original decision byte prefix while this implementation ledger evolves.",
+    "decisionBytes": 6751
+  },
+  "implementationCheckpoint": {
+    "sourceVersion": "6.5.3",
+    "date": "2026-10-01",
+    "status": "LOCAL_CREATOR_REVIEW",
+    "evidenceReceipt": "DiscStudio-ellipse-fit-integration-receipt.json",
+    "transitions": [
+      {
+        "feature": "Crop refinement and rotation",
+        "from": "0.1.1",
+        "to": "0.1.2"
+      },
+      {
+        "feature": "RimFit",
+        "from": "0.1.1",
+        "to": "0.1.2"
+      },
+      {
+        "feature": "Prepared image creation",
+        "from": "0.1.1",
+        "to": "0.1.2"
+      },
+      {
+        "feature": "Mold and plastic details",
+        "from": "0.1.2",
+        "to": "0.1.3"
+      }
+    ],
+    "boundaries": {
+      "contracts": "0.1.0 unchanged",
+      "stages": "0.0.0 unchanged",
+      "demo": "0.0.0 unchanged",
+      "releaseReadiness": "not accepted",
+      "circleFitDefault": "unchanged",
+      "ellipseProposal": "opt-in and requires creator review"
+    },
+    "fitEvidence": {
+      "fullSource384": {
+        "trials": 8,
+        "boundedMaybeProposals": 1,
+        "abstainedFail": 7,
+        "editableAutomaticProposalRatio": "1/8"
+      },
+      "working720WithoutInternalResize": {
+        "trials": 8,
+        "abstainedFail": 8
+      },
+      "boundary": "The observed sample does not establish general automatic-fit acceptance. Every usable proposal remains MAYBE for creator review; no 1.0 readiness is claimed and manual circle placement remains available.",
+      "artifacts": [
+        "../../../../lanes/ellipse/results-fullsource-384-all8/rimfit-v3-ellipsefitfix-receipt.json",
+        "../../../../lanes/ellipse/results-working-720-smoke/rimfit-v3-ellipsefitfix-receipt.json"
+      ]
+    },
+    "uiLimit": "The ellipse editor previews the source photo and ellipse overlay. The circularized prepared output becomes visible after Apply, not while geometry is being adjusted."
+  },
+  "latestImplementationCheckpoint": {
+    "sourceVersion": "6.5.7",
+    "date": "2026-10-02",
+    "status": "RELEASE_BUILD_READY",
+    "authority": "Sam requested Photo intake implementation0.5.0 and Re-crop for prepared and saved photos.",
+    "transitions": [
+      {
+        "feature": "Photo intake",
+        "from": "0.1.1",
+        "to": "0.5.0"
+      }
+    ],
+    "boundaries": {
+      "contracts": "0.1.0 unchanged",
+      "behavior": "Re-crop reuses retained source and accepted geometry; no fitting or persistence format change"
+    }
+  },
+  "historicalImplementationCheckpoints": [
+    {
+      "sourceVersion": "6.5.5",
+      "date": "2026-10-02",
+      "status": "RELEASE_BUILD_READY",
+      "evidence": [
+        "../../../../main/DiscStudio-Servo-teal-dot-visual-pin.json",
+        "experimental/ellipse-fit-fix/rim-aware-refinement.mjs",
+        "experimental/ellipse-fit-fix/ellipse-review-flow.test.mjs",
+        "../../../../lanes/mobile-fit-ux-evidence/evidence/auto-fit-ad9d5259/receipt.json",
+        "../../../../lanes/mobile-fit-ux-evidence/evidence/auto-fit-ec91a0fb/receipt.json"
+      ],
+      "transitions": [
+        {
+          "feature": "RimFit",
+          "from": "0.1.2",
+          "to": "0.1.3"
+        },
+        {
+          "feature": "Crop refinement and rotation",
+          "from": "0.1.2",
+          "to": "0.1.3"
+        }
+      ],
+      "boundaries": {
+        "contracts": "0.1.0 unchanged",
+        "stages": "0.0.0 unchanged",
+        "demo": "0.0.0 unchanged",
+        "releaseReadiness": "not accepted",
+        "circleFitDefault": "unchanged",
+        "ellipseProposal": "best available proposal is selected automatically; MAYBE geometry still requires the explicit Use photo action",
+        "abstain": "the known IMG_6167 abstainer receives a usable CircleFit suggestion without teal dots",
+        "manualCorrection": "Adjust edge remains available as an optional recovery path"
+      },
+      "servoVisualPin": {
+        "sourcePhotoSha256": "1d6c7ad370b2fe8896a0bf10d0b31f83df6c3c03d2540ccc8350b67ec075ec27",
+        "decodedRgbaSha256": "ef107996679f3d2863b95e523ab17e44cbf0678df0e3ab5300390da3aded8d36",
+        "refinerSha256": "cd296f24561a3ec33d89e330ce19eaddd58eae3684279c96f2ca69e8f5003b3a",
+        "status": "MAYBE",
+        "sampleCount": 64,
+        "geometryInlierSamples": 63,
+        "excludedSample": 34,
+        "scope": "The visual pin applies to this Servo photograph only; it is not pixel-exact labeling or automatic crop acceptance."
+      }
+    },
+    {
+      "sourceVersion": "6.5.6",
+      "date": "2026-10-02",
+      "status": "PROVISIONALLY_ACCEPTED",
+      "authority": "Sam explicitly requested overall 6.5.6 and RimFit/refinement implementation 0.5.0 after provisionally accepting the default refinement UI.",
+      "acceptedBehaviorBuildId": "5332eac2f2c9e7fc",
+      "acceptedBehaviorSourceId": "4c8fd8568acac1dfb67aea3f57706b147b149638fb1e1e51518f835af798bf02",
+      "transitions": [
+        {
+          "feature": "RimFit",
+          "from": "0.1.3",
+          "to": "0.5.0"
+        },
+        {
+          "feature": "Crop refinement and rotation",
+          "from": "0.1.3",
+          "to": "0.5.0"
+        }
+      ],
+      "boundaries": {
+        "contracts": "0.1.0 unchanged",
+        "stages": "0.0.0 unchanged",
+        "demo": "0.0.0 unchanged",
+        "releaseReadiness": "not accepted",
+        "behavior": "metadata-only version change; default refinement behavior unchanged"
+      }
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "neat-component-receipt@1",
+  "kind": "baseline-gap",
+  "componentId": "DiscStudio.UploadDiscToShelf.mold-search",
+  "workItem": "recipes/discstudio-photo-card.json",
+  "namespace": "component.upload-disc-to-shelf-mold-search@1",
+  "contractSpecSha256": "b36f1926e3a6868e91c9067e8dfc3b1ea30c48f7150d4ca8b880bc409e0f7bb4",
+  "sourceVersion": "6.5.0",
+  "sourceArchiveSha256": "b9b738e2fad7fe83f62587334be59814eb399c0a53b0be5f618d746ae5a5e218",
+  "sourcePins": [
+    {
+      "path": "vendor/discstudio/disc/catalog-lite.ts",
+      "sha256": "1d774d095dcd6b9e93b5792654f1af2166c33ae6282e2031f2394264d9ac8a4d"
+    },
+    {
+      "path": "vendor/discstudio/disc/model.ts",
+      "sha256": "d0dfb7df5e36bca944562f8c999fba04e3b6186422459843e6051e29ff41563c"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-library.ts",
+      "sha256": "a71ae0034b187e5daa80022e4242c19de8aa1ea440f44df976395805ea9c376a"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-search.ts",
+      "sha256": "db9c8d3ac2b22adfb90da07ae22d94c70fd9b3100407e4e6637efbec43c64447"
+    },
+    {
+      "path": "vendor/discstudio/disc/upload-ui.ts",
+      "sha256": "b333fe6fb4ec607dd245655495a181d4c2551f7588aefc23084f067862a2bf2d"
+    }
+  ],
+  "result": "REPRODUCED_GAP",
+  "runner": {
+    "runtime": "Node v24.19.0",
+    "browserRun": false,
+    "method": "pristine 6.5.0 createExperience.seedOptions compared with legacy fuzzyMoldOptions on the same catalogLite rows"
+  },
+  "catalogRows": 724,
+  "queries": [
+    {
+      "query": "Discraft Buzx",
+      "composedOptions": [],
+      "legacyFuzzyMatches": [
+        "Discraft Buzzz",
+        "Discraft Buzzz OS",
+        "Discraft Buzzz SS"
+      ]
+    },
+    {
+      "query": "Buz Disc",
+      "composedOptions": [],
+      "legacyFuzzyMatches": [
+        "Discraft Buzzz",
+        "Discraft Buzzz OS",
+        "Discraft Buzzz SS"
+      ]
+    }
+  ],
+  "historicalOnly": true,
+  "rebindingNote": "Historical baseline observation preserved; associated with the same semantic contracts and fresh selected implementation pins"
+}

@@ -23,14 +23,14 @@ type BrowserStore = Pick<Storage, 'getItem' | 'setItem'> & Partial<Pick<Storage,
 /** Older releases left every archive intact but did not record which was active.
  * Recover a sole archive; multiple independent sessions require an explicit
  * choice and are never guessed from UUID order. */
-function solePriorSession(storage: BrowserStore): string | null {
-  if (typeof storage.key !== 'function' || typeof storage.length !== 'number') return null;
+function priorSessions(storage: BrowserStore): string[] {
+  if (typeof storage.key !== 'function' || typeof storage.length !== 'number') return [];
   const keys: string[] = [];
   for (let index = 0; index < storage.length; index++) {
     const key = storage.key(index);
     if (key?.startsWith(sessionKeyPrefix)) keys.push(key);
   }
-  return keys.length === 1 ? keys[0] : null;
+  return keys;
 }
 
 export async function openExperience(storage: BrowserStore, log?: (event: Record<string, unknown>) => void) {
@@ -44,7 +44,9 @@ export async function openExperience(storage: BrowserStore, log?: (event: Record
   try {
     const pointer = storage.getItem(activeSessionKey);
     if (pointer !== null && !pointer.startsWith(sessionKeyPrefix)) throw Error('Invalid active Bag pointer.');
-    const candidate = pointer ?? solePriorSession(storage);
+    const prior = pointer === null ? priorSessions(storage) : [];
+    if (prior.length > 1 && session.ok) status = 'Several saved Bags were found and could not be automatically reopened. Prior archives remain unchanged; new work starts in a fresh Bag.';
+    const candidate = pointer ?? (prior.length === 1 ? prior[0] : null);
     if (candidate) {
       const raw = storage.getItem(candidate);
       if (!raw) throw Error('Active Bag archive is missing.');
@@ -74,9 +76,11 @@ export async function openExperience(storage: BrowserStore, log?: (event: Record
         try { storage.setItem(activeSessionKey, currentKey); pointerMatches = true; }
         catch (error) { status = `Bag archive saved, but automatic reopen is unavailable: ${String(error)}. Export before reloading.`; }
       }
+      return { storage: 'browser-archive' as const };
     } catch (error) {
       if (!isRecoverableStorageFailure(error)) { status = `Not saved locally: ${String(error)} Existing session archives were not replaced.`; throw Error(status); }
       status = sessionOnlyStatus(error);
+      return { storage: 'session-memory' as const };
     }
   } });
   return experience;

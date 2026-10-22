@@ -1,9 +1,11 @@
+import { mountReleaseNotes } from './release-notes.ts';
 import { openExperience } from './persistent-experience.ts';
 import { startSandbox } from './experience-fixtures.ts';
 import { mountExperiencePage } from './experience-page.ts';
 import { clearLocalData } from './session-storage.ts';
 
 async function main() {
+mountReleaseNotes();
 const $ = (id: string) => document.getElementById(id)!;
 const clearDataDialog = $('clear-local-data') as HTMLDialogElement;
 const clearDataError = $('clear-local-data-error');

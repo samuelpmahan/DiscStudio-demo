@@ -1,0 +1,928 @@
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/browser-card-renderer.ts source/vendor/discstudio/disc/browser-card-renderer.ts
+--- baseline-6.6.0/vendor/discstudio/disc/browser-card-renderer.ts	2026-10-21 20:37:48.493322100 +0000
++++ source/vendor/discstudio/disc/browser-card-renderer.ts	2026-10-21 20:43:31.414729200 +0000
+@@ -27,6 +27,24 @@
+ const photos = new Map<string,Promise<HTMLImageElement>>();
+ function browserImage(source:string) { if(!photos.has(source)){photos.set(source,decodeBrowserImage(source));if(photos.size>8)photos.delete(photos.keys().next().value!);}return photos.get(source)!; }
+ 
++/** The card faces ship with the build, so every device draws the same letters.
++ * Loaded once per page; a failure is reported instead of silently falling back. */
++let cardFonts: Promise<void> | null = null;
++export function ensureCardFonts(): Promise<void> {
++  if (cardFonts) return cardFonts;
++  if (typeof FontFace === 'undefined' || typeof document === 'undefined') return Promise.resolve();
++  const faces: [string, string, string][] = [
++    ['DS Card Sans', './fonts/DejaVuSans.woff2', '100 550'],
++    ['DS Card Sans', './fonts/DejaVuSans-Bold.woff2', '551 1000'],
++    ['DS Card Sans Condensed', './fonts/DejaVuSansCondensed-Bold.woff2', '100 1000'],
++  ];
++  cardFonts = Promise.all(faces.map(async ([family, file, weight]) => {
++    const face = new FontFace(family, `url(${new URL(file, import.meta.url).href})`, { weight });
++    document.fonts.add(await face.load());
++  })).then(() => undefined, error => { cardFonts = null; throw new Error(`Card fonts could not load: ${String(error)}`); });
++  return cardFonts;
++}
++
+ function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Browser could not encode the card PNG.')), 'image/png'));
+ }
+@@ -37,6 +55,7 @@
+   canvas.width = w; canvas.height = h;
+   const context = canvas.getContext('2d');
+   if (!context) throw new Error('Canvas2D is unavailable in this browser.');
++  await ensureCardFonts();
+   await drawCard(context, disc, orientation, preset, { loadImage: browserImage, getMoldDetails, strictPhoto: true,createCanvas:createBrowserCanvas,frameRenderer:browserFrames }, appearance);
+   return canvasBlob(canvas);
+ }
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/build.mjs source/vendor/discstudio/disc/build.mjs
+--- baseline-6.6.0/vendor/discstudio/disc/build.mjs	2026-10-21 20:37:48.844662500 +0000
++++ source/vendor/discstudio/disc/build.mjs	2026-10-21 20:43:31.426891400 +0000
+@@ -37,7 +37,7 @@
+     if (browserSourceOnly.has(rel.split(path.sep).join('/'))) continue;
+     if (entry.isDirectory()) { copyTree(from, rel); continue; }
+     if (!entry.isFile()) continue;
+-    if (!/\.(?:ts|mjs|css|html|svg|jpe?g)$/.test(entry.name)) continue;
++    if (!/\.(?:ts|mjs|css|html|svg|jpe?g|woff2)$/.test(entry.name)) continue;
+     const targetRel = entry.name.endsWith('.ts') ? rel.slice(0, -3) + '.js' : rel;
+     const to = path.join(dist, targetRel); fs.mkdirSync(path.dirname(to), { recursive: true });
+     if (entry.name.endsWith('.ts')) fs.writeFileSync(to, rewriteImports(stripTypeScriptTypes(fs.readFileSync(from, 'utf8'))));
+@@ -99,6 +99,7 @@
+ // Native-only adapters have bare Node imports and are deliberately absent from
+ // the Pages graph. The shared Canvas2D renderer is browser-card-renderer.js.
+ for (const file of ['card-renderer.js', 'export-queue.js']) fs.rmSync(path.join(dist, file), { force: true });
++fs.copyFileSync(path.join(here, 'fonts/DEJAVU-LICENSE.txt'), path.join(dist, 'fonts/DEJAVU-LICENSE.txt'));
+ fs.mkdirSync(path.join(dist, 'kernel'), { recursive: true });
+ fs.copyFileSync(path.join(here, '../part-first-kernel/src/pxc.mjs'), path.join(dist, 'kernel/pxc.mjs'));
+ const index = path.join(dist, 'index.html');
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/card-fixes.test.mjs source/vendor/discstudio/disc/card-fixes.test.mjs
+--- baseline-6.6.0/vendor/discstudio/disc/card-fixes.test.mjs	1970-01-01 00:00:00.000000000 +0000
++++ source/vendor/discstudio/disc/card-fixes.test.mjs	2026-10-22 00:22:16.979086800 +0000
+@@ -0,0 +1,114 @@
++// thro card fixes 1 (6.6.1): one test per approved finding that has a pure contract.
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { anchoredDefaultPlacement, transformedBounds } from './transform-geometry.mjs';
++import { legibleAccent, presetRenderers } from './card-renderer-core.ts';
++
++function contrast(a, b) {
++  const lum = hex => [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16) / 255)
++    .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
++    .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
++  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
++  return (hi + 0.05) / (lo + 0.05);
++}
++
++test('finding 11: default size shrinks a bottom-left card toward its own corner', () => {
++  const frame = { width: 1920, height: 1080 }, alphaBounds = [48, 378, 922, 1032];
++  const placement = anchoredDefaultPlacement({ ...frame, alphaBounds, scale: 0.66 });
++  const bounds = transformedBounds({ ...frame, alphaBounds, ...placement });
++  assert.ok(Math.abs(bounds.left - 48) < 1e-9, 'left edge stays at the 48px margin');
++  assert.ok(Math.abs(bounds.bottom - 1032) < 1e-9, 'bottom edge stays at the 48px margin');
++  assert.equal(placement.scale, 0.66);
++});
++
++test('finding 11: a vertical card in the safe band keeps its edge and settles toward the bottom', () => {
++  const frame = { width: 1080, height: 1920 }, alphaBounds = [474, 476, 934, 1170];
++  const placement = anchoredDefaultPlacement({ ...frame, alphaBounds, scale: 0.66 });
++  const bounds = transformedBounds({ ...frame, alphaBounds, ...placement });
++  assert.ok(Math.abs(bounds.right - 934) < 1e-9, 'right-rail card stays against the action rail');
++  assert.ok(Math.abs(bounds.bottom - 1170) < 1e-9, 'portrait card keeps its own bottom edge, so it sits lower than a centred shrink');
++});
++
++test('finding 6: dark sponsor accents are lifted to 4.5:1 for text; readable ones are kept exactly', () => {
++  for (const accent of ['#111111', '#1d4ed8', '#d7263d', '#f97316', '#000000'])
++    for (const surface of ['#38413e', '#202623', '#050706']) assert.ok(contrast(legibleAccent(accent, surface), surface) >= 4.5, `${accent} on ${surface}`);
++  for (const accent of ['#8fe3ae', '#c8f23d', '#ffffff']) assert.equal(legibleAccent(accent, '#38413e'), accent);
++});
++
++test('finding 3: B03 no longer stamps a diamond on the disc', async () => {
++  const rects = [];
++  const ctx = new Proxy({ measureText: () => ({ width: 100, actualBoundingBoxAscent: 70 }), createLinearGradient: () => ({ addColorStop() {} }) }, {
++    get(target, key) { if (key in target) return target[key]; if (key === 'fillRect') return (x, y, w, h) => rects.push([w, h]); return () => {}; },
++    set(target, key, value) { target[key] = value; return true; },
++  });
++  const rd = { moldName: 'Anchor', manufacturer: 'Latitude 64', plastic: 'Opto', weight: null, flights: [5, 4, 0, 3], photoSrc: null };
++  await presetRenderers.b03(ctx, rd, { loadImage: async () => { throw Error('no photo'); } }, { discSide: 'right', highlightTarget: 'digits', accentColor: '#c8f23d' });
++  assert.equal(rects.some(([w, h]) => w === 16 && h === 16), false);
++});
++
++test('B05 zoom spot: appearance keeps a valid focus (rounded) and rejects one off the photo', async () => {
++  const { validateCardAppearance } = await import('./export-queue-core.ts');
++  const base = { discSide: 'right', highlightTarget: 'tiles', accentColor: '#C8F23D' };
++  assert.deepEqual(validateCardAppearance({ ...base, zoomFocus: { x: 0.333, y: 0.5 } }).zoomFocus, { x: 0.33, y: 0.5 });
++  assert.equal('zoomFocus' in validateCardAppearance(base), false);
++  for (const zoomFocus of [{ x: 1.2, y: 0.5 }, { x: 0.5 }, { x: NaN, y: 0 }, null]) assert.throws(() => validateCardAppearance({ ...base, zoomFocus }));
++});
++
++test('B05 zoom spot: the coin crops the photo where the focus points, default 0.62/0.38', async () => {
++  const crops = [];
++  const ctx = new Proxy({ measureText: () => ({ width: 100, actualBoundingBoxAscent: 70 }), createLinearGradient: () => ({ addColorStop() {} }) }, {
++    get(target, key) { if (key in target) return target[key]; if (key === 'drawImage') return (...a) => { if (a.length === 9) crops.push(a.slice(1, 4)); }; return () => {}; },
++    set(target, key, value) { target[key] = value; return true; },
++  });
++  const rd = { moldName: 'Anchor', manufacturer: 'Latitude 64', plastic: 'Opto', weight: null, flights: [5, 4, 0, 3], photoSrc: 'photo.png' };
++  const env = { loadImage: async () => ({ width: 1000, height: 1000 }) };
++  const look = { discSide: 'right', highlightTarget: 'tiles', accentColor: '#c8f23d' };
++  const s = 1000 / 2.6;
++  await presetRenderers.b05(ctx, rd, env, look);
++  await presetRenderers.b05(ctx, rd, env, { ...look, zoomFocus: { x: 0.2, y: 0.8 } });
++  await presetRenderers.b05(ctx, rd, env, { ...look, zoomFocus: { x: 0, y: 1 } });
++  const close = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
++  assert.ok(close(crops[0], [620 - s / 2, 380 - s / 2, s]), String(crops[0]));
++  assert.ok(close(crops[1], [200 - s / 2, 800 - s / 2, s]), String(crops[1]));
++  assert.ok(close(crops[2], [0, 1000 - s, s]), 'corner focus clamps inside the photo');
++});
++
++function recorder() {
++  const calls = [];
++  const ctx = new Proxy({ measureText: () => ({ width: 100, actualBoundingBoxAscent: 70 }), createLinearGradient: () => ({ addColorStop() {} }) }, {
++    get(target, key) { if (key in target) return target[key]; if (key === 'fillRect' || key === 'strokeRect') return (...a) => calls.push([key, target.fillStyle, target.strokeStyle, ...a]); return () => {}; },
++    set(target, key, value) { target[key] = value; return true; },
++  });
++  return { ctx, calls };
++}
++const anchor = { moldName: 'Anchor', manufacturer: 'Latitude 64', plastic: 'Opto', weight: null, flights: [5, 4, 0, 3], photoSrc: null };
++const noPhoto = { loadImage: async () => { throw Error('no photo'); } };
++const lime = { discSide: 'right', highlightTarget: 'tiles', accentColor: '#c8f23d' };
++
++test('plate and frame: appearance keeps solid / framed, drops the defaults, rejects junk', async () => {
++  const { validateCardAppearance } = await import('./export-queue-core.ts');
++  const v = validateCardAppearance({ ...lime, plate: 'solid', frame: true });
++  assert.equal(v.plate, 'solid'); assert.equal(v.frame, true);
++  const d = validateCardAppearance({ ...lime, plate: 'see-through', frame: false });
++  assert.equal('plate' in d || 'frame' in d, false);
++  for (const bad of [{ plate: 'clear' }, { frame: 'yes' }]) assert.throws(() => validateCardAppearance({ ...lime, ...bad }));
++});
++
++test('B01 frame: off by default; on draws B03\'s 2 px frame round the plate', async () => {
++  const off = recorder(); await presetRenderers.b01(off.ctx, anchor, noPhoto, lime);
++  assert.equal(off.calls.some(c => c[0] === 'strokeRect'), false);
++  const on = recorder(); await presetRenderers.b01(on.ctx, anchor, noPhoto, { ...lime, frame: true });
++  const plate = on.calls.find(c => c[0] === 'fillRect'), frame = on.calls.find(c => c[0] === 'strokeRect');
++  assert.deepEqual(frame.slice(3), plate.slice(3)); assert.equal(frame[2], 'rgba(255,255,255,0.55)');
++});
++
++test('solid plate: every plated layout fills its plate opaque; see-through stays as it was', async () => {
++  for (const preset of ['u01', 'u02', 'u05', 'b01', 'b02', 'b03', 'b04', 'b05']) {
++    const see = recorder(); await presetRenderers[preset](see.ctx, anchor, noPhoto, lime);
++    const solid = recorder(); await presetRenderers[preset](solid.ctx, anchor, noPhoto, { ...lime, plate: 'solid' });
++    const plateOf = r => r.calls.find(c => c[0] === 'fillRect' && /^rgba\((5,7,6|10,14,12)/.test(c[1]) || c[0] === 'fillRect' && /^#(050706|0a0e0c)$/.test(c[1]));
++    if (preset === 'u05') { assert.ok(true); continue; } // U05 fills a rounded path, checked in the render
++    assert.match(plateOf(see)[1], /^rgba\(5,7,6,0\.(82|92)\)$/, preset);
++    assert.equal(plateOf(solid)[1], '#050706', preset);
++  }
++});
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/card-renderer-appearance.test.mjs source/vendor/discstudio/disc/card-renderer-appearance.test.mjs
+--- baseline-6.6.0/vendor/discstudio/disc/card-renderer-appearance.test.mjs	2026-10-21 20:37:48.328084900 +0000
++++ source/vendor/discstudio/disc/card-renderer-appearance.test.mjs	2026-10-21 20:45:29.460190700 +0000
+@@ -1,6 +1,6 @@
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+-import { drawCard, cardFrameSnapshot } from './card-renderer-core.ts';
++import { drawCard, cardFrameSnapshot, legibleAccent } from './card-renderer-core.ts';
+ 
+ const photo = 'data:image/png;base64,eyJ3aGl0ZS1kaXNjLXBob3RvLWJ5dGVzIjoiZXhhY3QifQ==';
+ const sample = {
+@@ -72,9 +72,10 @@
+     scene.layers.find(layer => layer.id === 'card-label').draw(drawn.ctx);
+     const values = drawn.calls.filter(c => c.type === 'text' && ['5', '4', '-1', '1'].includes(c.text));
+     assert.deepEqual(values.map(c => c.text), ['5', '4', '-1', '1'], preset);
+-    if (target === 'digits') assert.ok(values.every(c => c.fill === '#336699'), preset);
++    const readable = legibleAccent('#336699', '#38413e');
++    if (target === 'digits') assert.ok(values.every(c => c.fill === readable), `${preset} lifts a dark digit accent just enough to read`);
+     else assert.ok(values.every(c => c.fill !== '#336699'), preset);
+-    assert.ok(drawn.calls.some(c => c.fill === '#336699'), `${preset} uses chosen accent`);
++    assert.ok(drawn.calls.some(c => c.fill === (target === 'digits' ? readable : '#336699')), `${preset} uses chosen accent`);
+   }
+   const u04Left = await cardFrameSnapshot(sample, 'u04', env, { discSide: 'left', highlightTarget: 'digits', accentColor: '#336699' });
+   const u04Right = await cardFrameSnapshot(sample, 'u04', env, { discSide: 'right', highlightTarget: 'digits', accentColor: '#336699' });
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts source/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts
+--- baseline-6.6.0/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts	2026-10-21 20:37:48.765896900 +0000
++++ source/vendor/discstudio/disc/card-renderer-breakout-appearance.test.ts	2026-10-21 20:45:29.467033400 +0000
+@@ -33,12 +33,12 @@
+   }
+ });
+ 
+-test('dark digit accents keep the recipe-neutral tile surface without adapting chosen appearance', async () => {
++test('dark digit accents keep the recipe-neutral tile surface', async () => {
+   const canvas = createCanvas(1920, 1080);
+   await presetRenderers.b01(canvas.getContext('2d'), resolved, env, {
+     discSide: 'right', highlightTarget: 'digits', accentColor: '#000000',
+   });
+-  // B01 first flight tile starts at (84, 864); sample its clear upper interior.
+-  const pixel = canvas.getContext('2d').getImageData(110, 870, 1, 1).data;
++  // B01 first flight tile starts at (84, 914) on the fitted 330px plate; sample its clear upper interior.
++  const pixel = canvas.getContext('2d').getImageData(110, 920, 1, 1).data;
+   assert.deepEqual([...pixel], [32,38,35,255]);
+ });
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/card-renderer-core.ts source/vendor/discstudio/disc/card-renderer-core.ts
+--- baseline-6.6.0/vendor/discstudio/disc/card-renderer-core.ts	2026-10-21 20:37:48.621099300 +0000
++++ source/vendor/discstudio/disc/card-renderer-core.ts	2026-10-22 00:21:43.154857100 +0000
+@@ -27,7 +27,7 @@
+ const CARD_BG = 'rgba(14,18,22,0.94)';
+ const INK = '#ffffff';
+ const MINT = '#8fe3ae';
+-const FONT_STACK = '"DejaVu Sans", "Nimbus Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
++const FONT_STACK = '"DS Card Sans", "DejaVu Sans", "Nimbus Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif';
+ 
+ type ResolvedDisc = {
+   moldName: string;      // e.g. "Buzzz"
+@@ -267,9 +267,13 @@
+ const Z_RAIL = VW * 0.88;  // action rail starts here (right 12%)
+ const NIGHT92 = 'rgba(5,7,6,0.92)';
+ const NIGHT94 = 'rgba(5,7,6,0.94)';
++/** Plate fill: the layout's own see-through dark unless the card asks for a solid plate. */
++const plateFill = (appearance: U01Appearance | undefined, seeThrough: string) => appearance?.plate === 'solid' ? PLATE : seeThrough;
++/** B03's thin frame, offered on B01. */
++function drawFrame(ctx: any, x: number, y: number, w: number, h: number) { ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h); }
+ const ACID = '#c8f23d';
+ const CORAL = '#ff5c47';
+-const DISPLAY = '"DejaVu Sans Condensed", "Nimbus Sans Narrow", "DejaVu Sans", sans-serif';
++const DISPLAY = '"DS Card Sans Condensed", "DejaVu Sans Condensed", "Nimbus Sans Narrow", "DejaVu Sans", sans-serif';
+ const SCOREBUG_SURFACE = '#1a1b1a';
+ 
+ function luminance(hex: string): number {
+@@ -328,10 +332,24 @@
+   return contrastRatio(hex, '#000000') >= contrastRatio(hex, '#ffffff') ? '#000000' : '#ffffff';
+ }
+ 
++/** Accent used as TEXT on a dark surface: keep the sponsor colour when it already
++ * reads at 4.5:1, otherwise lift it toward white just far enough to read.
++ * Fills (tiles, rims, rules) keep the exact chosen colour. */
++export function legibleAccent(accent: string, surface: string): string {
++  if (contrastRatio(accent, surface) >= 4.5) return accent;
++  const rgb = [1, 3, 5].map(i => Number.parseInt(accent.slice(i, i + 2), 16));
++  for (let t = 0.05; t <= 1.0001; t += 0.05) {
++    const hex = '#' + rgb.map(c => Math.round(c + (255 - c) * t).toString(16).padStart(2, '0')).join('');
++    if (contrastRatio(hex, surface) >= 4.5) return hex;
++  }
++  return '#ffffff';
++}
++const PLATE = '#050706';
++
+ function drawU01FlightValues(ctx: any, nums: string[], x: number, y: number, align: 'left' | 'right', highlightTarget: 'tiles' | 'digits', accent: string) {
+   const defaultTile = '#38413e';
+   const digitTile = defaultTile;
+-  drawTilesRow(ctx, nums, x, y, 64, 10, 38, align, highlightTarget === 'tiles' ? accent : digitTile, highlightTarget === 'digits' ? accent : contrastInk(accent));
++  drawTilesRow(ctx, nums, x, y, 64, 10, 38, align, highlightTarget === 'tiles' ? accent : digitTile, highlightTarget === 'digits' ? legibleAccent(accent, digitTile) : contrastInk(accent));
+ }
+ 
+ /** Law 4: one display voice for the name. */
+@@ -358,7 +376,7 @@
+   // New creator layouts mirror the contents only within the existing 460px
+   // scorebug footprint; the photo pixels and flight glyph order never flip.
+   const discSide = appearance?.discSide ?? 'right';
+-  const cardX = 48, cardW = 460, cardY = 700, cardH = 360;
++  const cardX = 48, cardW = 460, cardY = 700, cardH = 300;
+   const align: 'left' | 'right' = discSide === 'left' ? 'right' : 'left';
+   const accent = appearance?.accentColor ?? MINT;
+   const highlightTarget = appearance?.highlightTarget ?? 'digits';
+@@ -368,7 +386,7 @@
+   await drawPhotoCircle(environment, ctx, rd.photoSrc, discSide === 'left' ? 246 : 310, 600, d, accent);
+ 
+   // Scorebug block: dark protection behind type only.
+-  ctx.fillStyle = NIGHT92;
++  ctx.fillStyle = plateFill(appearance, NIGHT92);
+   ctx.fillRect(cardX, cardY, cardW, cardH);
+   ctx.fillStyle = accent;
+   ctx.fillRect(discSide === 'left' ? cardX + cardW - 4 : cardX, cardY, 4, cardH);
+@@ -383,7 +401,7 @@
+ 
+   const details = manufacturerPlasticLine(rd);
+   if (details) {
+-    ctx.fillStyle = accent;
++    ctx.fillStyle = legibleAccent(accent, PLATE);
+     fitFont(ctx, details, supportMaxWidth, 600, 28);
+     // Canvas's maxWidth also protects the column at fitFont's minimum size.
+     ctx.textAlign = align;
+@@ -410,7 +428,7 @@
+ 
+   // Name band: dark with the same mint accent as the photo rim.
+   const bandY = 830, bandH = 340;
+-  ctx.fillStyle = NIGHT92;
++  ctx.fillStyle = plateFill(appearance, NIGHT92);
+   ctx.fillRect(cardX, bandY, cardW, bandH);
+   ctx.fillStyle = appearance ? accent : MINT;
+   if (appearance) ctx.fillRect(appearance.discSide === 'right' ? cardX + cardW - 4 : cardX, bandY, 4, bandH);
+@@ -424,12 +442,12 @@
+   const tilesY = 990;
+   if (appearance) drawTilesRow(ctx, nums, align === 'right' ? cardX + cardW - 28 : nameX, tilesY, 68, 12, 40, align,
+     highlightTarget === 'tiles' ? accent : '#38413e',
+-    highlightTarget === 'digits' ? accent : contrastInk(accent), true);
++    highlightTarget === 'digits' ? legibleAccent(accent, '#38413e') : contrastInk(accent), true);
+   else drawTilesRow(ctx, nums, nameX, tilesY, 68, 12, 40, 'left', '#38413e', MINT);
+ 
+   const details = manufacturerPlasticLine(rd);
+   if (details) {
+-    ctx.fillStyle = appearance ? accent : 'rgba(143,227,174,0.78)';
++    ctx.fillStyle = appearance ? legibleAccent(accent, PLATE) : 'rgba(143,227,174,0.78)';
+     fitFont(ctx, details, cardW - 56, 600, 30);
+     ctx.textAlign = align;
+     ctx.fillText(details, nameX, tilesY + 138, cardW - 56);
+@@ -484,12 +502,12 @@
+   const text = { id: 'card-label', identity: JSON.stringify([preset === 'u04'?'kinetic-v3':'spine-v2',mirrored,rd.moldName,preset === 'u04'?rd.manufacturer:'',rd.flights,accent,highlightTarget,u04Shift]), draw(ctx: any) {
+     if(preset === 'u04') {
+       drawPresetName(ctx,rd.moldName,u04Center,728,410,112,'center');
+-      ctx.textAlign='center';ctx.fillStyle=accent;fitFont(ctx,rd.manufacturer.toUpperCase(),400,600,52);ctx.fillText(rd.manufacturer.toUpperCase(),u04Center,622);
+-      drawTilesRow(ctx,flightTiles(rd),u04Center,770,72,10,44,'center',highlightTarget === 'tiles' ? accent : (appearance ? ('#38413e') : accent),highlightTarget === 'digits' ? (appearance ? accent : contrastInk(accent)) : contrastInk(accent),true);
++      ctx.textAlign='center';ctx.fillStyle=legibleAccent(accent,'#181818');fitFont(ctx,rd.manufacturer.toUpperCase(),400,600,52);ctx.fillText(rd.manufacturer.toUpperCase(),u04Center,622);
++      drawTilesRow(ctx,flightTiles(rd),u04Center,770,72,10,44,'center',highlightTarget === 'tiles' ? accent : (appearance ? ('#38413e') : accent),highlightTarget === 'digits' ? (appearance ? legibleAccent(accent,'#38413e') : contrastInk(accent)) : contrastInk(accent),true);
+     } else {
+       const cx=mirrorX(124);ctx.save();ctx.translate(cx,744);ctx.rotate(-Math.PI/2);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=INK;fitFont(ctx,rd.moldName.toUpperCase(),286,800,76,DISPLAY);ctx.fillText(rd.moldName.toUpperCase(),0,0);ctx.restore();
+       ctx.textBaseline='alphabetic';ctx.font=`600 42px ${FONT_STACK}`;ctx.textAlign='center';
+-      for(const [i,value] of flightTiles(rd).entries()){const y=920+i*72;const tileFill=appearance && highlightTarget==='digits'?('#38413e'):accent;ctx.fillStyle=tileFill;ctx.fillRect(mirrorX(140)-32,y,64,64);ctx.fillStyle=appearance?(highlightTarget==='tiles'?contrastInk(accent):accent):contrastInk(accent);fitFont(ctx,value,52,600,42);ctx.fillText(value,mirrorX(140),y+47);}
++      for(const [i,value] of flightTiles(rd).entries()){const y=920+i*72;const tileFill=appearance && highlightTarget==='digits'?('#38413e'):accent;ctx.fillStyle=tileFill;ctx.fillRect(mirrorX(140)-32,y,64,64);ctx.fillStyle=appearance?(highlightTarget==='tiles'?contrastInk(accent):legibleAccent(accent,'#38413e')):contrastInk(accent);fitFont(ctx,value,52,600,42);ctx.fillText(value,mirrorX(140),y+47);}
+     }
+   } };
+   const layers = preset === 'u04' || !preset.includes('behind') ? [surface,text,photo] : [photo,surface,text];
+@@ -512,7 +530,7 @@
+   await drawPhotoCircle(environment, ctx, rd.photoSrc, gx + gw / 2, 640, d, accent);
+ 
+   const gy = 800, gh = 320;
+-  ctx.fillStyle = 'rgba(10,14,12,0.62)';
++  ctx.fillStyle = appearance?.plate === 'solid' ? '#0a0e0c' : 'rgba(10,14,12,0.62)';
+   roundRect(ctx, gx, gy, gw, gh, 24);
+   ctx.fill();
+   ctx.strokeStyle = appearance ? accentRgba(accent, 0.58) : 'rgba(255,255,255,0.28)';
+@@ -531,10 +549,10 @@
+   const nums = flightTiles(rd);
+   drawTilesRow(ctx, nums, nameX, gy + 154, 64, 10, 38, align,
+     appearance ? (highlightTarget === 'tiles' ? accent : '#38413e') : MINT,
+-    appearance ? (highlightTarget === 'digits' ? accent : contrastInk(accent)) : '#0e1216', true);
++    appearance ? (highlightTarget === 'digits' ? legibleAccent(accent, '#38413e') : contrastInk(accent)) : '#0e1216', true);
+   const details = manufacturerPlasticLine(rd);
+   if (details) {
+-    ctx.fillStyle = appearance ? accent : MINT;
++    ctx.fillStyle = appearance ? legibleAccent(accent, '#0a0e0c') : MINT;
+     fitFont(ctx, details, gw - 72, 600, 30);
+     ctx.textAlign = align;
+     ctx.fillText(details, nameX, gy + 280, gw - 72);
+@@ -609,14 +627,14 @@
+ }
+ 
+ /** Flat bounded dark support behind a horizontal recipe's information. */
+-function scrimH(ctx: any, x: number, y: number, w: number, h: number, flip = false) {
+-  ctx.fillStyle = NIGHT(0.82);
++function scrimH(ctx: any, x: number, y: number, w: number, h: number, flip = false, appearance?: U01Appearance) {
++  ctx.fillStyle = plateFill(appearance, NIGHT(0.82));
+   ctx.fillRect(x, y, w, h);
+ }
+ 
+ /** Flat bounded dark support behind a horizontal recipe's information. */
+-function scrimV(ctx: any, x: number, y: number, w: number, h: number) {
+-  ctx.fillStyle = NIGHT(0.82);
++function scrimV(ctx: any, x: number, y: number, w: number, h: number, appearance?: U01Appearance) {
++  ctx.fillStyle = plateFill(appearance, NIGHT(0.82));
+   ctx.fillRect(x, y, w, h);
+ }
+ 
+@@ -638,7 +656,7 @@
+     drawTilesRow(ctx, nums, x, y, tile, gap, fontPx, align, accent, contrastInk(accent));
+   } else {
+     const tileFill = '#202623';
+-    drawTilesRow(ctx, nums, x, y, tile, gap, fontPx, align, tileFill, accent);
++    drawTilesRow(ctx, nums, x, y, tile, gap, fontPx, align, tileFill, legibleAccent(accent, tileFill));
+   }
+ }
+ 
+@@ -649,9 +667,10 @@
+ async function renderB01(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment, appearance?: U01Appearance) {
+   // Card footprint: bottom-left, 620x380.
+   const right = (appearance?.discSide ?? 'right') === 'left';
+-  const cx0 = right ? HW - 48 - 620 : 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
++  const cx0 = right ? HW - 48 - 620 : 48, cy0 = HH - 48 - 330, cw = 620, ch = 330;
+   // Defended type zone: scrim behind the card only, fading right.
+-  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right);
++  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right, appearance);
++  if (appearance?.frame) drawFrame(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch);
+   ctx.fillStyle = appearance?.accentColor ?? ACID;
+   ctx.fillRect(right ? cx0 + cw - 6 : cx0, cy0, 6, ch);
+   // Hero breaks out: 12-degree tilt, crossing the card's top-right corner.
+@@ -662,7 +681,7 @@
+   drawPresetName(ctx, rd.moldName, nx, cy0 + 132, cw - 220, 104, right ? 'right' : 'left');
+   const pw = plasticLine(rd);
+   if (pw) drawQuietLine(ctx, pw, nx, cy0 + 182, 34, right ? 'right' : 'left', cw - 220); // typed plastic stays in the name lane
+-  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 212, 62, 14, 36, appearance, right ? 'right' : 'left');
++  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 212, 74, 14, 44, appearance, right ? 'right' : 'left');
+ }
+ presetRenderers.b01 = renderB01;
+ 
+@@ -673,9 +692,9 @@
+ async function renderB02(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment, appearance?: U01Appearance) {
+   // Card footprint: bottom-left, 600x360.
+   const right = (appearance?.discSide ?? 'right') === 'left';
+-  const cx0 = right ? HW - 48 - 600 : 48, cy0 = HH - 48 - 360, cw = 600, ch = 360;
++  const cx0 = right ? HW - 48 - 600 : 48, cy0 = HH - 48 - 315, cw = 600, ch = 315;
+   // Layer 1: smoky gradient slab, card-sized, fading up and right.
+-  scrimV(ctx, cx0 - 20, cy0 - 60, cw + 160, ch + 60);
++  scrimV(ctx, cx0 - 20, cy0 - 60, cw + 160, ch + 60, appearance);
+   const nx = right ? cx0 + cw - 36 : cx0 + 36;
+   // Layer 2: hero at the card's top-right, beyond the name's reading lane.
+   ctx.font = `800 120px ${DISPLAY}`;
+@@ -688,7 +707,7 @@
+   drawPresetName(ctx, rd.moldName, nx, cy0 + 118, cw - 72, 120, right ? 'right' : 'left');
+   const pw = plasticLine(rd);
+   if (pw) drawQuietLine(ctx, pw, nx, cy0 + 168, 34, right ? 'right' : 'left', Math.max(260, nameW + 100)); // ends before the disc's near edge (nameW + 120)
+-  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 198, 62, 14, 36, appearance, right ? 'right' : 'left');
++  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 198, 74, 14, 44, appearance, right ? 'right' : 'left');
+ }
+ presetRenderers.b02 = renderB02;
+ 
+@@ -699,8 +718,8 @@
+ async function renderB03(ctx: any, rd: ResolvedDisc, environment: CardRenderEnvironment, appearance?: U01Appearance) {
+   // Card footprint: bottom-left plate, 580x340.
+   const right = (appearance?.discSide ?? 'right') === 'left';
+-  const px = right ? HW - 48 - 580 : 48, py = HH - 48 - 340, pw = 580, ph = 340;
+-  ctx.fillStyle = 'rgba(5,7,6,0.82)';
++  const px = right ? HW - 48 - 580 : 48, py = HH - 48 - 325, pw = 580, ph = 325;
++  ctx.fillStyle = plateFill(appearance, 'rgba(5,7,6,0.82)');
+   ctx.fillRect(px, py, pw, ph);
+   ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+   ctx.lineWidth = 2;
+@@ -709,19 +728,12 @@
+   const d = 340;
+   await drawHeroDisc(environment, ctx, rd.photoSrc, right ? px : px + pw, py, d,
+     { rim: 'rgba(255,255,255,0.9)', rimWidth: 8 });
+-  // Acid pin: the rule-break, made deliberate.
+-  ctx.save();
+-  ctx.translate(right ? px : px + pw, py);
+-  ctx.rotate(Math.PI / 4);
+-  ctx.fillStyle = appearance?.accentColor ?? ACID;
+-  ctx.fillRect(-8, -8, 16, 16);
+-  ctx.restore();
+   // Type stays disciplined inside the plate, clear of the disc.
+   const nx = right ? px + pw - 36 : px + 36;
+   drawPresetName(ctx, rd.moldName, nx, py + 128, pw - 220, 100, right ? 'right' : 'left');
+   const q = plasticLine(rd);
+   if (q) drawQuietLine(ctx, q, nx, py + 178, 34, right ? 'right' : 'left', pw - 220); // typed plastic stays in the name lane
+-  drawAppearanceTiles(ctx, flightTiles(rd), nx, py + 208, 62, 14, 36, appearance, right ? 'right' : 'left');
++  drawAppearanceTiles(ctx, flightTiles(rd), nx, py + 208, 74, 14, 44, appearance, right ? 'right' : 'left');
+ }
+ presetRenderers.b03 = renderB03;
+ 
+@@ -735,7 +747,7 @@
+   const right = (appearance?.discSide ?? 'right') === 'left';
+   const cx0 = right ? HW - 48 - 620 : 48, cy0 = HH - 48 - 380, cw = 620, ch = 380;
+   // Defended type zone: scrim behind the card only.
+-  scrimH(ctx, right ? cx0 - 120 : cx0, cy0, cw + 120, ch, right);
++  scrimH(ctx, right ? cx0 - 120 : cx0, cy0, cw + 120, ch, right, appearance);
+   // The motif: one small S-curve with a peak, inside the card.
+   const mirror = (localX: number) => right ? cx0 + cw - (localX - cx0) : localX;
+   // Keep both arc tails above the defended title lane, including its longest
+@@ -755,12 +767,11 @@
+   const d = 280;
+   await drawHeroDisc(environment, ctx, rd.photoSrc, peakX, peakY - d / 2 + 18, d,
+     { rim: 'rgba(255,255,255,0.9)', rimWidth: 7 });
+-  // Name station: bottom-left. Stats station: bottom-right.
++  // Numbers row under the arc, then the name along the bottom with the full
++  // plate width to grow into (Sam, 21 Oct 2026: numbers on top, name below).
+   const nx = right ? cx0 + cw - 36 : cx0 + 36;
+-  drawPresetName(ctx, rd.moldName, nx, cy0 + ch - 108, cw * 0.52, 88, right ? 'right' : 'left');
+-  const nums = flightTiles(rd);
+-  const total = nums.length * 62 + (nums.length - 1) * 14;
+-  drawAppearanceTiles(ctx, nums, right ? cx0 + 36 : cx0 + cw - 36 - total, cy0 + ch - 96, 62, 14, 36, appearance);
++  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + ch - 186, 62, 14, 36, appearance, right ? 'right' : 'left');
++  drawPresetName(ctx, rd.moldName, nx, cy0 + ch - 44, cw - 72, 88, right ? 'right' : 'left');
+ }
+ presetRenderers.b04 = renderB04;
+ 
+@@ -773,22 +784,23 @@
+   // Card footprint: bottom-left, 600x380.
+   const right = (appearance?.discSide ?? 'right') === 'left';
+   const cx0 = right ? HW - 48 - 600 : 48, cy0 = HH - 48 - 380, cw = 600, ch = 380;
+-  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right);
++  scrimH(ctx, right ? cx0 - 140 : cx0, cy0, cw + 140, ch, right, appearance);
+   // Name: horizontal, top of card. Leave a readable lane beside the hero.
+   const nx = right ? cx0 + cw - 36 : cx0 + 36;
+   // Hero: right side, breaking out top and right.
+   const d = 340;
+   await drawHeroDisc(environment, ctx, rd.photoSrc, right ? cx0 - 40 : cx0 + cw + 40, cy0 + 130, d,
+     { rim: 'rgba(255,255,255,0.9)', rimWidth: 8 });
+-  drawPresetName(ctx, rd.moldName, nx, cy0 + 108, cw - 220, 96, right ? 'right' : 'left');
+-  // Macro coin: same subject at 2.6x, overlapping the card's lower-left.
+-  await drawHeroDisc(environment, ctx, rd.photoSrc, right ? cx0 + cw - 120 : cx0 + 120, cy0 + ch - 90, 150,
+-    { rim: appearance?.accentColor ?? ACID, rimWidth: 5, macro: { zoom: 2.6, fx: 0.62, fy: 0.38 } });
+-  // Stats: bottom, clear of the coin.
+-  const sx = right ? cx0 + cw - 210 : cx0 + 210;
++  // Numbers on top with the macro coin beside them; the name runs along the
++  // bottom where it has the most room (Sam, 21 Oct 2026).
++  const side = right ? 'right' : 'left';
++  const along = (offset: number) => right ? cx0 + cw - offset : cx0 + offset;
++  drawAppearanceTiles(ctx, flightTiles(rd), nx, cy0 + 36, 58, 12, 34, appearance, side);
++  await drawHeroDisc(environment, ctx, rd.photoSrc, along(36 + 4 * 58 + 3 * 12 + 24 + 60), cy0 + 92, 120,
++    { rim: appearance?.accentColor ?? ACID, rimWidth: 5, macro: { zoom: 2.6, fx: appearance?.zoomFocus?.x ?? 0.62, fy: appearance?.zoomFocus?.y ?? 0.38 } });
+   const q = plasticLine(rd);
+-  if (q) drawQuietLine(ctx, q, nx, cy0 + 162, 32, right ? 'right' : 'left', cw - 220);
+-  drawAppearanceTiles(ctx, flightTiles(rd), sx, cy0 + ch - 88, 58, 12, 34, appearance, right ? 'right' : 'left');
++  if (q) drawQuietLine(ctx, q, nx, cy0 + ch - 128, 32, side, cw - 220);
++  drawPresetName(ctx, rd.moldName, nx, cy0 + ch - 44, cw - 116, 96, side);
+ }
+ presetRenderers.b05 = renderB05;
+ 
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/card-renderer-u01.test.mjs source/vendor/discstudio/disc/card-renderer-u01.test.mjs
+--- baseline-6.6.0/vendor/discstudio/disc/card-renderer-u01.test.mjs	2026-10-21 20:37:48.732836400 +0000
++++ source/vendor/discstudio/disc/card-renderer-u01.test.mjs	2026-10-21 20:45:19.239017600 +0000
+@@ -1,6 +1,6 @@
+ import { test } from 'node:test';
+ import assert from 'node:assert/strict';
+-import { drawCard, u01AccentContrastOnScorebug } from './card-renderer-core.ts';
++import { drawCard, legibleAccent, u01AccentContrastOnScorebug } from './card-renderer-core.ts';
+ import { renderCard } from './card-renderer.ts';
+ 
+ const MINT = '#8fe3ae';
+@@ -64,7 +64,7 @@
+   assert.deepEqual(loaded, [photo]);
+ 
+   const rule = calls.find(call => call.type === 'rect' && call.x === 48 && call.y === 700 && call.w === 4);
+-  assert.deepEqual(rule, { type: 'rect', x: 48, y: 700, w: 4, h: 360, fill: MINT });
++  assert.deepEqual(rule, { type: 'rect', x: 48, y: 700, w: 4, h: 300, fill: MINT });
+ 
+   const details = calls.find(call => call.type === 'text' && call.text === 'DISCRAFT · ESP');
+   const flight = calls.find(call => call.type === 'text' && call.text === '5');
+@@ -139,7 +139,7 @@
+ test('U01 left rail reflects content inside its local footprint without flipping photo pixels or flight order', async () => {
+   const { calls, loaded } = await renderU01(disc(), { discSide: 'left', highlightTarget: 'digits', accentColor: '#336699' });
+   assert.deepEqual(loaded, [photo]);
+-  const rule = calls.find(call => call.type === 'rect' && call.y === 700 && call.h === 360 && call.w === 4);
++  const rule = calls.find(call => call.type === 'rect' && call.y === 700 && call.h === 300 && call.w === 4);
+   assert.equal(rule.x, 504);
+   assert.equal(rule.fill, '#336699');
+   const photoDraw = calls.find(call => call.type === 'image');
+@@ -149,7 +149,7 @@
+   assert.equal(title.x, 480);
+   const tiles = calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text));
+   assert.deepEqual(tiles.map(call => call.text), ['5', '4', '-1', '1']);
+-  assert.ok(tiles.every(call => call.align === 'center' && call.fill === '#336699'));
++  assert.ok(tiles.every(call => call.align === 'center' && call.fill === legibleAccent('#336699', '#38413e')), 'dark accent digits are lifted just enough to read');
+   assert.ok(calls.some(call => call.type === 'stroke' && call.stroke === 'rgba(51,102,153,0.9)'), 'photo rim follows the selected accent');
+ });
+ 
+@@ -161,7 +161,7 @@
+   assert.equal(calls.filter(call => call.type === 'fill' && call.fill === '#888888').length, 4);
+ });
+ 
+-test('U01 keeps chosen digit hue and recipe-neutral backing for dark/mid/light accents', async () => {
++test('U01 keeps recipe-neutral backing and lifts dark digit accents just enough to read', async () => {
+   const dark = await renderU01(disc(), { discSide: 'right', highlightTarget: 'digits', accentColor: '#333333' });
+   const mid = await renderU01(disc(), { discSide: 'right', highlightTarget: 'digits', accentColor: '#777777' });
+   const brick = await renderU01(disc(), { discSide: 'right', highlightTarget: 'digits', accentColor: '#cc5533' });
+@@ -171,7 +171,8 @@
+   assert.deepEqual(tileFills(mid).slice(0, 4), ['#38413e', '#38413e', '#38413e', '#38413e']);
+   assert.deepEqual(tileFills(brick).slice(0, 4), ['#38413e', '#38413e', '#38413e', '#38413e']);
+   assert.deepEqual(tileFills(light).slice(0, 4), ['#38413e', '#38413e', '#38413e', '#38413e'], 'default MINT keeps the shipped dark tile blocks');
+-  for (const [result, accent] of [[dark, '#333333'], [mid, '#777777'], [brick, '#cc5533'], [light, '#8fe3ae']]) assert.ok(result.calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text)).every(call => call.fill === accent));
++  for (const [result, accent] of [[dark, '#333333'], [mid, '#777777'], [brick, '#cc5533'], [light, '#8fe3ae']]) assert.ok(result.calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text)).every(call => call.fill === legibleAccent(accent, '#38413e')));
++  assert.equal(legibleAccent('#8fe3ae', '#38413e'), '#8fe3ae', 'readable accents are used exactly');
+   const grayBlocks = await renderU01(disc(), { discSide: 'left', highlightTarget: 'tiles', accentColor: '#777777' });
+   assert.ok(grayBlocks.calls.filter(call => call.type === 'text' && ['5', '4', '-1', '1'].includes(call.text)).every(call => call.fill === '#000000'), 'pure black closes the #777777 threshold gap');
+ });
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/creator-walkthrough.ts source/vendor/discstudio/disc/creator-walkthrough.ts
+--- baseline-6.6.0/vendor/discstudio/disc/creator-walkthrough.ts	2026-10-21 20:37:46.516844300 +0000
++++ source/vendor/discstudio/disc/creator-walkthrough.ts	2026-10-22 01:07:09.225687800 +0000
+@@ -21,5 +21,12 @@
+   { id: 'export', label: '7. Export the queue', items: [item('export-queue-zip', 'Export only the existing queue', 'With at least one queued card, choose Export queue ZIP and inspect its files in your editor.', 'One ZIP contains each queued PNG plus manifest.json; repeated disc/style additions have unique filenames. Cards use 1080×1920 vertical or 1920×1080 horizontal frames with alpha outside the card.', 'If packaging fails, fix the shown error and retry; the queue remains intact. Download completion itself is not assumed.', 'Immutable PxC queue entries.', 'browser-export.ts uses export-queue-core.ts prepareExport and shared browser-card-renderer.ts.', 'ZIP download request; queue remains for retry or inspection.', 'export-ui.ts; browser-export.ts; export-queue-core.ts; browser-card-renderer.ts; zip.ts', 'ZIP contents, dimensions, alpha, and editor import match the held queue.', 'Opened ZIP and one PNG checked in the intended editor.')] },
+   { id: 'device', label: '8. Check a real device', items: [item('device-real', 'Use an actual iPhone or target device', 'On a real device, test touch crop, keyboard, app switching, photo picker, and ZIP download.', 'Record each observed behavior for that exact device/browser.', 'Mark an unrun or inconclusive behavior unknown; retry on the actual device.', 'Real device and browser version.', 'Human-operated browser behavior; no repository calculation certifies it.', 'Device-specific evidence or an explicit unknown.', 'Real-device review; no automated device claim in this source.', 'Actual touch and download evidence, not simulator inference.', 'Named device/browser session after a complete creator run.')] },
+   { id: 'review', label: '9. Review and accept', items: [item('review-checkpoint', 'Review normal and adverse paths', 'Review the normal path and try cancel, invalid photo, failed crop, unknown facts, storage failure, empty queue, preview race, and ZIP failure.', 'Every failure gives a next action without claiming success; known limits remain visible.', 'Capture the failure, recover with the stated action, and have a human record acceptance separately.', 'Normal and adversarial actions with resulting visible state.', 'Repository tests cover bounded data/ZIP behavior; creator inspection remains human.', 'Human inspection record distinct from acceptance.', 'creator-walkthrough.ts; experiences.test.ts; export-queue.test.ts', 'Limits include unverified real-device download completion and no full formal Neat PQL/PCR ledger.', 'Named human review of this build checkpoint and its evidence.')] },
++  { id: 'sam-queue', label: '10. Sam’s queue (6.6.1)', items: [
++    item('queue-round3', 'Judge round three: zoom spot, frame, plate', 'Open the DiscStudio Card Review page in Claude, section “Round three”, and leave a verdict in each of its four feedback slots.', 'Each slot shows Agree, Partly or Disagree with your note; Claude reads them from the page.', 'Skip any slot you have no view on; an empty slot changes nothing.', 'Rendered B05 zoom spots, B01 frame and plate cards for Buzzz SS, Servo and Anchor.', 'Human judgment; no repository calculation decides taste.', 'Verdicts in the review page’s feedback collection.', 'Card review artifact, feedback ids r3-b05-picker, r3-b05-cards, r3-b01-frame, r3-plate.', 'Your stance and note per slot.', 'Four filled slots, or the ones you chose to fill.'),
++    item('queue-retire-b03', 'Decide whether B03 retires', 'Compare B01 with Plate set to Solid and Frame On against B03 for the same disc.', 'If they read as the same card, say “retire B03” and Claude removes it from the layout list.', 'If B03 still earns its place, say what it does that B01 cannot.', 'B01 solid + frame and B03 renders.', 'Human judgment.', 'Keep or retire B03.', 'card-renderer-core.ts presetRenderers.b03; export-ui.ts PRESETS.', 'Whether the two cards are distinguishable at preview size.', 'Your call in the r3-b01-frame slot or in chat.'),
++    item('queue-windows-card', 'Export one real card on your Windows PC', 'Add the sample Servo, pick B01, set Plate to Solid and Frame to On, add it to the queue and export. Send the PNG to Claude.', 'The name uses the bundled DS Card Sans font, matching Claude’s render letter for letter.', 'If the name looks like a different font, send it anyway; that is the bug Claude needs to see.', 'Windows Chrome with this build.', 'browser-card-renderer.ts ensureCardFonts before drawCard.', 'One 1920×1080 PNG.', 'fonts/DejaVuSans*.woff2 loaded from ./fonts/.', 'Letter shapes of SERVO and the flight digits.', 'PNG compared with Claude’s render of the same settings.'),
++    item('queue-live-video', 'Judge see-through vs solid plate over live video', 'Put a card with Plate set to See-through over moving footage, then the same card with Solid.', 'You can tell which one stays readable while the background moves.', 'If neither reads well, say which layout and Claude tunes that plate alone.', 'Your live video or stream overlay.', 'Human judgment on motion; a still scene cannot show it.', 'Default plate per layout: see-through or solid.', 'export-queue-core.ts appearance.plate; card-renderer-core.ts plateFill.', 'Name and digits legibility during motion.', 'Your verdict in the r3-plate slot.'),
++    item('queue-merge-demo', 'Merge DiscStudio-demo pull request #4, or tell Claude to', 'Open pull request #4 on samuelpmahan/DiscStudio-demo and merge it, or reply “merge it”.', 'GitHub Pages republishes the demo as 6.6.1, build 3ca8886f5b58164b, the same build as thro-disc.pages.dev.', 'Leave it open to keep the public demo on 6.5.7.', 'Branch thro-cards-6.6.1 (commits 8a284b4, d496c89).', 'deploy-pages.yml publishes pages-artifact.zip.', 'GitHub Pages site on 6.6.1.', '.github/workflows/deploy-pages.yml.', 'BUILD_INFO.json buildId on the GitHub Pages site.', 'buildId 3ca8886f5b58164b on both sites.'),
++  ] },
+ ] as const;
+ export const creatorWalkthrough = Object.freeze({ groups: creatorWalkthroughGroups });
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/export-queue-core.ts source/vendor/discstudio/disc/export-queue-core.ts
+--- baseline-6.6.0/vendor/discstudio/disc/export-queue-core.ts	2026-10-21 20:37:46.318632700 +0000
++++ source/vendor/discstudio/disc/export-queue-core.ts	2026-10-22 00:21:43.137381200 +0000
+@@ -5,7 +5,7 @@
+ export type CardOrientation = 'horizontal' | 'vertical';
+ export const orientations: readonly CardOrientation[] = ['horizontal', 'vertical'];
+ export interface CardTransform { scale: number; dx: number; dy: number; }
+-export interface U01Appearance { discSide: 'left' | 'right'; highlightTarget: 'tiles' | 'digits'; accentColor: string; }
++export interface U01Appearance { discSide: 'left' | 'right'; highlightTarget: 'tiles' | 'digits'; accentColor: string; /** B05 zoom circle centre, as fractions of the disc photo (0..1). */ zoomFocus?: { x: number; y: number }; /** Plate behind the type: the layout's own see-through dark, or solid. */ plate?: 'see-through' | 'solid'; /** Thin white frame round the plate (B01; B03's frame). */ frame?: boolean; }
+ export const DEFAULT_U01_APPEARANCE: U01Appearance = Object.freeze({ discSide: 'right', highlightTarget: 'digits', accentColor: '#8fe3ae' });
+ export type CardAppearance = U01Appearance;
+ export function defaultCardAppearance(preset: string): CardAppearance {
+@@ -15,7 +15,16 @@
+ export function validateU01Appearance(value: unknown): U01Appearance {
+   const appearance = value as any;
+   if (!appearance || !['left', 'right'].includes(appearance.discSide) || !['tiles', 'digits'].includes(appearance.highlightTarget) || typeof appearance.accentColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(appearance.accentColor)) throw new Error('invalid U01 appearance.');
+-  return Object.freeze({ discSide: appearance.discSide, highlightTarget: appearance.highlightTarget, accentColor: appearance.accentColor.toLowerCase() });
++  const base = { discSide: appearance.discSide, highlightTarget: appearance.highlightTarget, accentColor: appearance.accentColor.toLowerCase() };
++  const extra: Partial<U01Appearance> = {};
++  if (appearance.zoomFocus !== undefined) {
++    const { x, y } = appearance.zoomFocus ?? {};
++    if (![x, y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error('invalid U01 appearance.');
++    extra.zoomFocus = Object.freeze({ x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
++  }
++  if (appearance.plate !== undefined) { if (!['see-through', 'solid'].includes(appearance.plate)) throw new Error('invalid U01 appearance.'); if (appearance.plate === 'solid') extra.plate = 'solid'; }
++  if (appearance.frame !== undefined) { if (typeof appearance.frame !== 'boolean') throw new Error('invalid U01 appearance.'); if (appearance.frame) extra.frame = true; }
++  return Object.freeze({ ...base, ...extra });
+ }
+ export function validateCardAppearance(value: unknown): CardAppearance {
+   try { return validateU01Appearance(value); } catch { throw new Error('invalid card appearance.'); }
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/export-ui.ts source/vendor/discstudio/disc/export-ui.ts
+--- baseline-6.6.0/vendor/discstudio/disc/export-ui.ts	2026-10-21 20:37:45.086311800 +0000
++++ source/vendor/discstudio/disc/export-ui.ts	2026-10-22 00:22:01.735890200 +0000
+@@ -1,7 +1,7 @@
+ import { createFrameRenderer, imageLayer } from './frame-seek.mjs';
+ import { renderCardBlob, renderPlacedCardBlob, renderStickerCardBlob, sizeBrowserSticker, browserStickerSizer, type CardOrientation, type CardPreset } from './browser-card-renderer.ts';
+ import { cardDimensions, cardFilename, defaultCardAppearance, type QueuedCard, type CardAppearance } from './export-queue-core.ts';
+-import { clampTransform, identityTransform, maxCardScale, resizeCardTransform } from './transform-geometry.mjs';
++import { anchoredDefaultPlacement, clampTransform, identityTransform, maxCardScale, resizeCardTransform } from './transform-geometry.mjs';
+ import { exportBrowserZip, downloadBlob } from './browser-export.ts';
+ import type { createExperience } from './model.ts';
+ import { paintedDiscsEnabled } from './kompozition.ts';
+@@ -49,7 +49,7 @@
+     <div class="bag-export-grid"><div><div id="bag-export-list" class="bag-export-list" aria-live="polite"></div><p id="bag-export-empty" class="subtle">Save a cropped disc photo to add it here.</p>
+       <section class="output-queue" aria-labelledby="output-queue-title"><h3 id="output-queue-title">Approved output</h3><p id="output-approval" class="subtle">Choose a disc, size its card, then Add to Export.</p><p id="output-queue-empty" class="subtle">Nothing approved yet.</p><ol id="output-queue-list"></ol><button id="output-review" type="button" hidden>Review remaining cards</button></section></div>
+     <div class="bag-export-controls"><div class="saved-setup"><strong id="saved-setup-label">No saved setup</strong><button id="setup-save" type="button">Save recipe</button><button id="setup-apply" type="button">Apply to selected</button></div><label>Orientation<select id="card-orientation"><option value="vertical">Vertical · 9:16</option><option value="horizontal">Horizontal · 16:9</option></select></label><label>Card layout<select id="card-preset"></select></label>
+-      <fieldset id="card-style-controls" class="card-style-controls"><legend id="card-style-title">Card details</legend><label><span id="card-side-label">Disc on outside edge</span><select id="card-disc-side"><option value="right">Right</option><option value="left">Left</option></select></label><label>Highlight on<select id="card-highlight-target"><option value="digits">Digits</option><option value="tiles">Tile blocks</option></select></label><label>Highlight color<input id="card-accent-color" type="color" value="#8fe3ae"></label><p id="card-accent-warning" class="card-accent-warning subtle" role="status" hidden>Low contrast: accented text and details may be hard to read. You can still Add to Export. Your chosen color will be kept.</p><p class="subtle">Mirroring moves the layout; the disc photo, text, and flight-value order stay upright. These details stay with each approved card.</p></fieldset>
++      <fieldset id="card-style-controls" class="card-style-controls"><legend id="card-style-title">Card details</legend><label><span id="card-side-label">Disc on outside edge</span><select id="card-disc-side"><option value="right">Right</option><option value="left">Left</option></select></label><label>Highlight on<select id="card-highlight-target"><option value="digits">Digits</option><option value="tiles">Tile blocks</option></select></label><label>Highlight color<input id="card-accent-color" type="color" value="#8fe3ae"></label><label id="card-plate-wrap">Plate<select id="card-plate"><option value="see-through">See-through</option><option value="solid">Solid</option></select></label><label id="card-frame-wrap" hidden>Frame<select id="card-frame"><option value="off">Off</option><option value="on">On</option></select></label><div id="card-zoom-control" class="card-zoom-control" hidden><span>Zoom spot</span><canvas id="card-zoom-picker" width="160" height="160" tabindex="0" role="slider" aria-label="Zoom spot on the disc. Tap the disc, or use the arrow keys."></canvas><p class="subtle">Tap the part of the disc the small circle should show.</p></div><p id="card-accent-warning" class="card-accent-warning subtle" role="status" hidden>Dark colour: numbers and details are lightened just enough to read. Tiles, rims and rules keep your exact colour.</p><p class="subtle">Mirroring moves the layout; the disc photo, text, and flight-value order stay upright. These details stay with each approved card.</p></fieldset>
+       <div class="canvas-background-controls"><label>Preview background<select id="canvas-background"><option value="example">Example scene</option><option value="none">No background</option><option value="upload">Upload background…</option></select></label><input id="canvas-background-upload" type="file" accept="image/*" hidden><p class="subtle">Backgrounds fill the selected frame without stretching. Transparent PNG and ZIP omit them. Combined PNG uses the current background fitted to the approved card’s orientation.</p></div>
+       <label>Card size <output id="card-scale-value">100%</output> · <output id="card-sticker-size">— pixels</output><input id="card-scale" type="range" min="0.5" max="1.5" step="0.01" value="0.66" aria-valuetext="100%"></label>
+       <div id="scene-framing-controls" class="scene-framing-controls" hidden><button id="scene-adjust" type="button" aria-pressed="false">Adjust preview image</button><label>Image focus left / right<input id="scene-pan-x" type="range" min="0" max="100" step="1" value="50"></label><label>Image focus up / down<input id="scene-pan-y" type="range" min="0" max="100" step="1" value="50"></label><label>Scene zoom <output id="scene-zoom-value">100%</output><input id="scene-zoom" type="range" min="1" max="2" step="0.01" value="1"></label><button id="scene-reset" type="button">Reset this frame</button></div>
+@@ -73,6 +73,9 @@
+   // A resize sequence derives every requested size from this held placement.
+   // Reset only when the card or actual placement changes, never after scale clamping.
+   let resizeAnchor: Readonly<Transform> = Object.freeze({ ...placement });
++  // Until the player drags, resizes or applies a saved setup, each card gets the
++  // default size anchored to its own corner of the frame.
++  let placementCustom = false;
+   const resetResizeAnchor = () => { resizeAnchor = Object.freeze({ ...placement }); };
+   const showCardSize = () => { const label = `${sizePercent(placement.scale)}%`; $('card-scale-value').textContent = label; scaleInput.setAttribute('aria-valuetext', label); };
+   function syncSceneFramingControls() {
+@@ -109,13 +112,67 @@
+     const selected = preset.value as CardPreset;
+     cardAppearance = perPresetAppearance.get(selected) ?? defaultCardAppearance(selected);
+     cardControls.hidden = !selected;
+-    $('card-style-title').textContent = `${selected.toUpperCase()} card details`; $('card-side-label').textContent = ['u02','u04','u05'].includes(selected) ? 'Card group side' : 'Disc on outside edge';
++    $('card-style-title').textContent = `${selected.toUpperCase()} card details`; sideLabels(selected);
+     const value = cardAppearance;
+     cardSide.value = value.discSide; cardHighlight.value = value.highlightTarget; cardAccent.value = value.accentColor;
++    $('card-plate-wrap').hidden = !hasPlate(selected); cardPlate.value = value.plate ?? 'see-through';
++    $('card-frame-wrap').hidden = selected !== 'b01'; cardFrame.value = value.frame ? 'on' : 'off';
+     $('card-accent-warning').hidden = cardDigitAccentContrast(value.accentColor, preset.value) >= 4.5;
++    drawZoomPicker();
+   }
++  /** B05 zoom spot: show the selected disc photo and the square the zoom circle
++   * will show; tapping or arrow keys move it. Default spot matches the renderer. */
++  const zoomPicker = $('card-zoom-picker') as HTMLCanvasElement, zoomImages = new Map<string, HTMLImageElement>();
++  const zoomFocusNow = () => cardAppearance.zoomFocus ?? { x: 0.62, y: 0.38 };
++  function drawZoomPicker() {
++    const box = $('card-zoom-control'); box.hidden = preset.value !== 'b05'; if (box.hidden) return;
++    const row = rows().find(r => r.address === selectedAddress), src = row && row.disc.depiction.kind === 'photo' ? row.disc.depiction.src : null;
++    const ctx = zoomPicker.getContext('2d')!, w = zoomPicker.width; ctx.clearRect(0, 0, w, w);
++    if (!src) return;
++    let image = zoomImages.get(src); if (!image) { image = new Image(); image.onload = drawZoomPicker; image.src = src; zoomImages.set(src, image); }
++    if (!image.complete || !image.naturalWidth) return;
++    // Whole photo contained in the square; the box is the renderer's own crop:
++    // side = min(w,h)/2.6, centred on the focus, clamped inside the photo.
++    const iw = image.naturalWidth, ih = image.naturalHeight, k = w / Math.max(iw, ih), ox = (w - iw * k) / 2, oy = (w - ih * k) / 2;
++    ctx.fillStyle = '#050706'; ctx.fillRect(0, 0, w, w); ctx.drawImage(image, ox, oy, iw * k, ih * k);
++    const f = zoomFocusNow(), s = Math.min(iw, ih) / 2.6;
++    const sx = Math.min(Math.max(f.x * iw - s / 2, 0), iw - s), sy = Math.min(Math.max(f.y * ih - s / 2, 0), ih - s);
++    const x = ox + sx * k, y = oy + sy * k, side = s * k;
++    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.rect(0, 0, w, w); ctx.rect(x + side, y, -side, side); ctx.fill('evenodd');
++    ctx.strokeStyle = cardAppearance.accentColor; ctx.lineWidth = 3; ctx.strokeRect(x, y, side, side);
++    zoomPicker.setAttribute('aria-valuetext', `${Math.round(f.x * 100)}% across, ${Math.round(f.y * 100)}% down`);
++  }
++  function setZoomFocus(x: number, y: number) {
++    const clamp = (n: number) => Math.min(1, Math.max(0, Math.round(n * 100) / 100));
++    cardAppearance = Object.freeze({ ...cardAppearance, zoomFocus: Object.freeze({ x: clamp(x), y: clamp(y) }) });
++    perPresetAppearance.set(preset.value as CardPreset, cardAppearance); drawZoomPicker(); void renderPreview();
++  }
++  zoomPicker.addEventListener('pointerdown', event => {
++    const r = zoomPicker.getBoundingClientRect(), row = rows().find(item => item.address === selectedAddress);
++    const image = row && row.disc.depiction.kind === 'photo' ? zoomImages.get(row.disc.depiction.src) : undefined;
++    const iw = image?.naturalWidth || 1, ih = image?.naturalHeight || 1, k = 1 / Math.max(iw, ih);
++    const px = (event.clientX - r.left) / r.width, py = (event.clientY - r.top) / r.height;
++    setZoomFocus((px - (1 - iw * k) / 2) / (iw * k), (py - (1 - ih * k) / 2) / (ih * k));
++  });
++  zoomPicker.addEventListener('keydown', event => { const f = zoomFocusNow(), step = 0.05, moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }; const m = moves[event.key]; if (!m) return; event.preventDefault(); setZoomFocus(f.x + m[0], f.y + m[1]); });
++
++  /** Say what each side option visibly does for this layout (values unchanged,
++   * so saved setups keep their meaning). Short words: the select is narrow. */
++  function sideLabels(selected: CardPreset) {
++    const cardMoves = selected[0] === 'b' || ['u02', 'u04', 'u05'].includes(selected);
++    // Horizontal layouts store 'right' for the card at the left edge (disc toward the middle).
++    const words: Record<string, string> = selected[0] === 'b' ? { right: 'Left', left: 'Right' }
++      : cardMoves ? { left: 'Left', right: 'Right' } : { right: 'Inside', left: 'Outside' };
++    $('card-side-label').textContent = cardMoves ? 'Card side' : 'Disc side';
++    for (const option of [...cardSide.options]) option.textContent = words[option.value];
++  }
++  /** U03 and U04 draw their own spine and fade; every other layout has a plate behind the type. */
++  const cardPlate = $('card-plate') as HTMLSelectElement, cardFrame = $('card-frame') as HTMLSelectElement;
++  function hasPlate(selected: string) { return !selected.startsWith('u03') && selected !== 'u04'; }
+   function readCardControls() {
+-    cardAppearance = Object.freeze({ discSide: cardSide.value as CardAppearance['discSide'], highlightTarget: cardHighlight.value as CardAppearance['highlightTarget'], accentColor: cardAccent.value.toLowerCase() });
++    const zoomFocus = preset.value === 'b05' ? cardAppearance.zoomFocus : undefined;
++    const solid = hasPlate(preset.value) && cardPlate.value === 'solid', framed = preset.value === 'b01' && cardFrame.value === 'on';
++    cardAppearance = Object.freeze({ discSide: cardSide.value as CardAppearance['discSide'], highlightTarget: cardHighlight.value as CardAppearance['highlightTarget'], accentColor: cardAccent.value.toLowerCase(), ...(zoomFocus ? { zoomFocus } : {}), ...(solid ? { plate: 'solid' as const } : {}), ...(framed ? { frame: true } : {}) });
+     perPresetAppearance.set(preset.value as CardPreset, cardAppearance);
+     $('card-accent-warning').hidden = cardDigitAccentContrast(cardAppearance.accentColor, preset.value) >= 4.5;
+     void renderPreview();
+@@ -184,7 +241,7 @@
+       if (serial !== previewSerial) return;
+       alpha=nextAlpha; (section as any).__alphaBounds=bounds;
+       const maxScale=maxFittingScale(bounds); scaleInput.max=String(maxScale);
+-      placement=fitPreviewPlacement(placement,frame,bounds,maxScale);
++      placement=placementCustom?fitPreviewPlacement(placement,frame,bounds,maxScale):{...anchoredDefaultPlacement({width:frame.width,height:frame.height,alphaBounds:[...bounds],scale:Math.min(DEFAULT_CARD_SCALE,maxScale)})};
+       // Fit the measured sticker too: interpolation may add a boundary pixel.
+       while(true){try{const sized=sizeBrowserSticker(image,frame.width,frame.height,bounds,baseCardIdentity,placement.scale);stickerOrigin({width:frame.width,height:frame.height,nativeBounds:bounds,placement,sticker:sized});break;}catch(error){if(placement.scale<=.5)throw error;placement=fitPreviewPlacement({...placement,scale:Math.max(.5,placement.scale-.01)},frame,bounds,maxScale);}}
+       resetResizeAnchor(); previewReady=true;setBusy(busy);
+@@ -197,7 +254,7 @@
+         if(ox<0||oy<0||ox>=sticker.width||oy>=sticker.height||sticker.canvas.getContext('2d').getImageData(ox,oy,1,1).data[3]===0)return;
+         canvas.setPointerCapture(event.pointerId); const startX=event.clientX,startY=event.clientY, start={...placement};
+         const gesture=createPlacementGesture(start,(_current,next:PointerEvent)=>{const b=(section as any).__alphaBounds as number[];return clampTransform({width:frame.width,height:frame.height,alphaBounds:b,scale:start.scale,dx:start.dx+(next.clientX-startX)/rect.width,dy:start.dy+(next.clientY-startY)/rect.height});});
+-        const move=(next:PointerEvent)=>{placement=gesture.move(next);previewDraw.schedule();};
++        const move=(next:PointerEvent)=>{placementCustom=true;placement=gesture.move(next);previewDraw.schedule();};
+         const finish=()=>{placement=gesture.finish();resetResizeAnchor();previewDraw.flush();cleanup();};
+         const cancel=()=>{placement=gesture.cancel();resetResizeAnchor();previewDraw.flush();cleanup();};
+         const cleanup=()=>{canvas.removeEventListener('pointermove',move);canvas.removeEventListener('pointerup',finish);canvas.removeEventListener('pointercancel',cancel);};
+@@ -246,7 +303,7 @@
+       const copy = document.createElement('span'), name = document.createElement('strong'), detail = document.createElement('small');
+       name.textContent = row.disc.nickname || row.seed.name; detail.textContent = `${row.seed.manufacturer} · ${row.disc.plastic || 'plastic unknown'}`;
+       copy.append(name, detail); button.append(img, copy);
+-      button.onclick = () => { selectedAddress = row.address; selectedAddresses.add(row.address); placement = defaultCardPlacement(); renderBag(); void renderPreview(); };
++      button.onclick = () => { selectedAddress = row.address; selectedAddresses.add(row.address); placementCustom = false; placement = defaultCardPlacement(); renderBag(); void renderPreview(); };
+       wrap.append(check, button);
+       if (experience.depictionSources(row.address).photo?.refit) {
+         const refit = document.createElement('button'); refit.type = 'button'; refit.className = 'bag-refit-photo'; refit.textContent = 'Re-crop';
+@@ -258,7 +315,7 @@
+     $('bag-export-empty').hidden = bag.length > 0; updateSetupLabel();
+   }
+   function saveSetup(){previewDraw.flush();try{const name=window.prompt('Name this reusable card setup',savedSetup?.name||'My card setup')?.trim();if(!name)return;savedSetup=storeSavedSetup(localStorage,{version:1,name,preset:preset.value as CardPreset,orientation:orientation.value as CardOrientation,placement,...(cardAppearance?{cardAppearance}:{})});updateSetupLabel();status(`Remembered ${name}.`);}catch(error){status(`Setup was not saved: ${String(error)}`);}}
+-  function applySetup(){if(!savedSetup||!selectedRows().length)return;orientation.value=savedSetup.orientation;presets();chosenBackground=null;void refreshBackground();preset.value=savedSetup.preset==='u03'?'u03-front':savedSetup.preset.endsWith('-mirror')?savedSetup.preset.replace('-mirror',''):savedSetup.preset;const remembered=savedSetup.cardAppearance??savedSetup.u01Appearance??(savedSetup.preset.endsWith('-mirror')?{...defaultCardAppearance(savedSetup.preset)}:defaultCardAppearance(preset.value));perPresetAppearance.set(preset.value as CardPreset,{...remembered});syncCardControls();placement={...savedSetup.placement};selectedAddress=selectedRows()[0].address;scaleInput.value=String(placement.scale);renderBag();void renderPreview();status(`Applied ${savedSetup.name} to ${selectedRows().length} selected discs. Add to Export to approve these layouts.`);}
++  function applySetup(){if(!savedSetup||!selectedRows().length)return;orientation.value=savedSetup.orientation;presets();chosenBackground=null;void refreshBackground();preset.value=savedSetup.preset==='u03'?'u03-front':savedSetup.preset.endsWith('-mirror')?savedSetup.preset.replace('-mirror',''):savedSetup.preset;const remembered=savedSetup.cardAppearance??savedSetup.u01Appearance??(savedSetup.preset.endsWith('-mirror')?{...defaultCardAppearance(savedSetup.preset)}:defaultCardAppearance(preset.value));perPresetAppearance.set(preset.value as CardPreset,{...remembered});syncCardControls();placementCustom=true;placement={...savedSetup.placement};selectedAddress=selectedRows()[0].address;scaleInput.value=String(placement.scale);renderBag();void renderPreview();status(`Applied ${savedSetup.name} to ${selectedRows().length} selected discs. Add to Export to approve these layouts.`);}
+   async function imageAlphaBounds(blob: Blob, heldFrame: {width:number;height:number}) { const image=new Image(),url=URL.createObjectURL(blob);try{image.src=url;await image.decode();const canvas=document.createElement('canvas');canvas.width=heldFrame.width;canvas.height=heldFrame.height;const ctx=canvas.getContext('2d',{willReadFrequently:true})!;ctx.drawImage(image,0,0);const alpha=ctx.getImageData(0,0,heldFrame.width,heldFrame.height).data,b=[heldFrame.width,heldFrame.height,0,0];for(let y=0;y<heldFrame.height;y++)for(let x=0;x<heldFrame.width;x++)if(alpha[(y*heldFrame.width+x)*4+3]){b[0]=Math.min(b[0],x);b[1]=Math.min(b[1],y);b[2]=Math.max(b[2],x+1);b[3]=Math.max(b[3],y+1);}return b;}finally{URL.revokeObjectURL(url);}}
+   async function renderReviewCandidate(candidate: ReviewCandidate, generation: number) { try { const appearance=candidate.card.cardAppearance??candidate.card.u01Appearance, original=await renderCardBlob(candidate.card.disc as any,candidate.card.orientation,candidate.card.cardDesign as CardPreset,appearance), size=cardDimensions(candidate.card.orientation); let clipping: unknown = null; try{validateTransform({width:size.width,height:size.height,alphaBounds:await imageAlphaBounds(original,size),...(candidate.card.placement??identityTransform)});}catch(error){clipping=error;} const placed=await renderPlacedCardBlob(candidate.card.disc as any,candidate.card.orientation,candidate.card.cardDesign as CardPreset,candidate.card.placement,appearance);if(generation!==reviewGeneration)return;const url=URL.createObjectURL(placed);reviewUrls.set(candidate.id,url);reviewCandidates=transitionCandidate(reviewCandidates,candidate.id,clipping?'needs-adjustment':'ready',clipping?'Placement clips visible pixels. Adjust this card on canvas.':undefined); } catch(error) { if(generation!==reviewGeneration)return;reviewCandidates=transitionCandidate(reviewCandidates,candidate.id,'needs-adjustment','Could not render this card. Retry after adjustment.'); } if(generation===reviewGeneration)renderReview(); }
+   function syncReviewBackgroundToggle(){const label=reviewDialog.querySelector<HTMLElement>('#review-background-toggle')!,toggle=label.querySelector<HTMLInputElement>('input')!,available=!!uploadedBackground&&!!backgroundUrl;label.hidden=!available;toggle.checked=available&&reviewShowTestBackground;toggle.disabled=!available;}
+@@ -269,7 +326,7 @@
+     drawBackgroundCover(canvas.getContext('2d')!,image,canvas.width,canvas.height,{...framingFor(direction)});
+     const url=canvas.toDataURL('image/png');reviewBackgroundThumbs.set(direction,url);return url;
+   }
+-  function renderReview(){const list=reviewDialog.querySelector<HTMLElement>('#batch-review-list')!, summary=reviewDialog.querySelector<HTMLElement>('#batch-review-summary')!, all=reviewDialog.querySelector<HTMLButtonElement>('#batch-approve-all')!;syncReviewBackgroundToggle();list.classList.toggle('single-card',reviewCandidates.length===1);const ready=pendingCards(reviewCandidates);summary.textContent=`${reviewCandidates.length} exact card${reviewCandidates.length===1?'':'s'} · ${ready.length} ready to approve`;const validating=reviewCandidates.some(candidate=>candidate.state==='rendering'||candidate.state==='checking');all.disabled=busy||validating||!ready.length||(!!outputReviewAddress&&ready.length!==reviewCandidates.length);all.textContent=validating?'Checking cards…':outputReviewAddress?'Approve remaining collection':`Approve all ready (${ready.length})`;list.replaceChildren(...reviewCandidates.map((candidate,index)=>{const article=document.createElement('article');article.className='batch-review-item';article.dataset.state=candidate.state;const thumb=document.createElement('div'),frame=document.createElement('div'),image=document.createElement('img'),copy=document.createElement('div'),title=document.createElement('strong'),state=document.createElement('small'),description=document.createElement('p'),button=document.createElement('button');thumb.className='batch-review-thumb';copy.className='batch-review-copy';frame.className='batch-review-frame';frame.dataset.orientation=candidate.card.orientation;if(reviewShowTestBackground&&backgroundUrl)frame.style.backgroundImage=`url("${reviewBackgroundThumb(candidate.card.orientation)}")`;const name=candidate.card.disc.nickname||candidate.card.disc.mold.split('.').at(-1)||'Disc';image.alt=`Final ${name} card`;const url=reviewUrls.get(candidate.id);if(url) image.src=url;title.textContent=`${index+1}. ${name}`;state.textContent=candidate.state==='approved'?'Approved':candidate.state==='needs-adjustment'?'Needs adjustment':candidate.state==='ready'?'Ready for approval':'Preparing exact preview…';const appearance=candidate.card.cardAppearance??candidate.card.u01Appearance;const look=appearance?` · disc ${appearance.discSide} · highlight ${appearance.highlightTarget} · ${appearance.accentColor}`:'';description.textContent=candidate.reason||`${candidate.card.cardDesign.toUpperCase()} · ${candidate.card.orientation} · ${sizePercent(candidate.card.placement?.scale??1)}%${look}`;button.type='button';button.textContent=candidate.state==='approved'?'Approved':outputReviewAddress?candidate.state==='needs-adjustment'?'Remove or replace this card':'Included in review':candidate.state==='needs-adjustment'?'Adjust on canvas':'Approve this card';button.disabled=busy||!!outputReviewAddress||candidate.state==='approved'||candidate.state==='rendering'||candidate.state==='checking';button.onclick=()=>{if(candidate.state==='needs-adjustment'){reviewDialog.close();selectedAddress=rows().find(row=>row.disc.id===candidate.card.disc.id)?.address??selectedAddress;selectedAddresses=new Set([selectedAddress]);placement={...(candidate.card.placement??identityTransform)};orientation.value=candidate.card.orientation;presets();preset.value=candidate.card.cardDesign.endsWith('-mirror')?candidate.card.cardDesign.replace('-mirror',''):candidate.card.cardDesign;perPresetAppearance.set(preset.value as CardPreset,{...(candidate.card.cardAppearance??candidate.card.u01Appearance??defaultCardAppearance(candidate.card.cardDesign))});syncCardControls();renderBag();void renderPreview();status('Adjust the clipped card, then open review again.');}else if(candidate.state==='ready')void approveCandidates([candidate]);};frame.append(image);thumb.append(frame);copy.append(title,state,description,button);article.append(thumb,copy);if(candidate.state==='rendering'){reviewCandidates=transitionCandidate(reviewCandidates,candidate.id,'checking');void renderReviewCandidate(candidate,reviewGeneration);}return article;}));}
++  function renderReview(){const list=reviewDialog.querySelector<HTMLElement>('#batch-review-list')!, summary=reviewDialog.querySelector<HTMLElement>('#batch-review-summary')!, all=reviewDialog.querySelector<HTMLButtonElement>('#batch-approve-all')!;syncReviewBackgroundToggle();list.classList.toggle('single-card',reviewCandidates.length===1);const ready=pendingCards(reviewCandidates);summary.textContent=`${reviewCandidates.length} exact card${reviewCandidates.length===1?'':'s'} · ${ready.length} ready to approve`;const validating=reviewCandidates.some(candidate=>candidate.state==='rendering'||candidate.state==='checking');all.disabled=busy||validating||!ready.length||(!!outputReviewAddress&&ready.length!==reviewCandidates.length);all.textContent=validating?'Checking cards…':outputReviewAddress?'Approve remaining collection':`Approve all ready (${ready.length})`;list.replaceChildren(...reviewCandidates.map((candidate,index)=>{const article=document.createElement('article');article.className='batch-review-item';article.dataset.state=candidate.state;const thumb=document.createElement('div'),frame=document.createElement('div'),image=document.createElement('img'),copy=document.createElement('div'),title=document.createElement('strong'),state=document.createElement('small'),description=document.createElement('p'),button=document.createElement('button');thumb.className='batch-review-thumb';copy.className='batch-review-copy';frame.className='batch-review-frame';frame.dataset.orientation=candidate.card.orientation;if(reviewShowTestBackground&&backgroundUrl)frame.style.backgroundImage=`url("${reviewBackgroundThumb(candidate.card.orientation)}")`;const name=candidate.card.disc.nickname||candidate.card.disc.mold.split('.').at(-1)||'Disc';image.alt=`Final ${name} card`;const url=reviewUrls.get(candidate.id);if(url) image.src=url;title.textContent=`${index+1}. ${name}`;state.textContent=candidate.state==='approved'?'Approved':candidate.state==='needs-adjustment'?'Needs adjustment':candidate.state==='ready'?'Ready for approval':'Preparing exact preview…';const appearance=candidate.card.cardAppearance??candidate.card.u01Appearance;const look=appearance?` · disc ${appearance.discSide} · highlight ${appearance.highlightTarget} · ${appearance.accentColor}`:'';description.textContent=candidate.reason||`${candidate.card.cardDesign.toUpperCase()} · ${candidate.card.orientation} · ${sizePercent(candidate.card.placement?.scale??1)}%${look}`;button.type='button';button.textContent=candidate.state==='approved'?'Approved':outputReviewAddress?candidate.state==='needs-adjustment'?'Remove or replace this card':'Included in review':candidate.state==='needs-adjustment'?'Adjust on canvas':'Approve this card';button.disabled=busy||!!outputReviewAddress||candidate.state==='approved'||candidate.state==='rendering'||candidate.state==='checking';button.onclick=()=>{if(candidate.state==='needs-adjustment'){reviewDialog.close();selectedAddress=rows().find(row=>row.disc.id===candidate.card.disc.id)?.address??selectedAddress;selectedAddresses=new Set([selectedAddress]);placementCustom=true;placement={...(candidate.card.placement??identityTransform)};orientation.value=candidate.card.orientation;presets();preset.value=candidate.card.cardDesign.endsWith('-mirror')?candidate.card.cardDesign.replace('-mirror',''):candidate.card.cardDesign;perPresetAppearance.set(preset.value as CardPreset,{...(candidate.card.cardAppearance??candidate.card.u01Appearance??defaultCardAppearance(candidate.card.cardDesign))});syncCardControls();renderBag();void renderPreview();status('Adjust the clipped card, then open review again.');}else if(candidate.state==='ready')void approveCandidates([candidate]);};frame.append(image);thumb.append(frame);copy.append(title,state,description,button);article.append(thumb,copy);if(candidate.state==='rendering'){reviewCandidates=transitionCandidate(reviewCandidates,candidate.id,'checking');void renderReviewCandidate(candidate,reviewGeneration);}return article;}));}
+   async function approveCandidates(candidates: readonly ReviewCandidate[]){const eligible=candidates.filter(candidate=>candidate.state==='ready');if(!eligible.length||busy)return;setBusy(true);try{if(outputReviewAddress){if(eligible.length!==reviewCandidates.length)throw Error('Review all remaining cards together.');await experience.approveOutputQueue(outputReviewAddress);}else await experience.enqueueOutput(eligible.map(candidate=>candidate.card));for(const candidate of eligible)reviewCandidates=transitionCandidate(reviewCandidates,candidate.id,'approved');renderQueue();status(`Approved ${eligible.length} exact card${eligible.length===1?'':'s'} for export.`);}catch(error){status(`Cards were not approved: ${String(error)}`);}finally{setBusy(false);renderReview();}}
+   async function addToExport(){
+     previewDraw.flush();if(busy||!previewReady){status('Wait for the current card preview.');return;}
+@@ -298,8 +355,8 @@
+   async function exportZip(){previewDraw.flush();const queue=outputQueue(),expected=experience.latestOutputApproval?.outputQueueSnapshotId as string|undefined;if(!queue.length||!expected){status('Add a card to Export before exporting.');return;}setBusy(true);try{const result=await exportBrowserZip(queue,async card=>new Uint8Array(await(await renderStickerCardBlob(card.disc as any,card.orientation,card.cardDesign as CardPreset,card.placement?.scale??1,card.cardAppearance??card.u01Appearance)).arrayBuffer()));await experience.validateOutputExport(expected);downloadBlob(result.blob,'discstudio-output-queue.zip');await experience.recordOutputExport({...result,expectedOutputQueueSnapshotId:expected,downloadRequested:true});renderQueue();status('Transparent card stickers packaged.');}catch(error){status(`ZIP was not prepared: ${String(error)}`);}finally{setBusy(false);}}
+   async function exportCombined(){previewDraw.flush();const card=outputQueue().at(-1);if(!card){status('Add a card to Export first.');return;}setBusy(true);try{const choice=backgroundChoice.value, framing=choice==='upload'?{...framingFor(card.orientation)}:undefined, background=await getBackground(card.orientation,choice),blob=await renderPlacedCardBlob(card.disc as any,card.orientation,card.cardDesign as CardPreset,card.placement,card.cardAppearance??card.u01Appearance),image=new Image(),url=URL.createObjectURL(blob),size=cardDimensions(card.orientation);try{image.src=url;await image.decode();const canvas=document.createElement('canvas');canvas.width=size.width;canvas.height=size.height;const ctx=canvas.getContext('2d')!;if(background)drawBackgroundCover(ctx,background,size.width,size.height,framing);ctx.drawImage(image,0,0);const combined=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Combined PNG encoding failed.')),'image/png'));downloadBlob(combined,'discstudio-combined-preview.png');status(`Combined PNG prepared with the current ${choice==='none'?'transparent scene':'background'} fitted to the approved ${card.orientation} card.`);}finally{URL.revokeObjectURL(url);}}catch(error){status(`Combined PNG was not prepared: ${String(error)}`);}finally{setBusy(false);}}
+   orientation.onchange=()=>{presets();chosenBackground=null;void renderPreview();void refreshBackground();};preset.onchange=()=>{syncCardControls();void renderPreview();};
+-  cardSide.onchange=readCardControls; cardHighlight.onchange=readCardControls; cardAccent.onchange=readCardControls;
+-  scaleInput.oninput=()=>{const prior={...placement};const b=(section as any).__alphaBounds as number[]|undefined;try{placement=rescalePreviewPlacement(resizeAnchor,Number(scaleInput.value),Number(scaleInput.max),frame,b);if(baseImage&&b){const sized=sizeBrowserSticker(baseImage,frame.width,frame.height,b,baseCardIdentity,placement.scale);stickerOrigin({width:frame.width,height:frame.height,nativeBounds:b,placement,sticker:sized});}}catch{placement=prior;scaleInput.value=String(prior.scale);status('That size cannot fit inside this scene.');} showCardSize();previewDraw.schedule();};
++  cardSide.onchange=readCardControls; cardPlate.onchange=readCardControls; cardFrame.onchange=readCardControls; cardHighlight.onchange=readCardControls; cardAccent.onchange=readCardControls;
++  scaleInput.oninput=()=>{const prior={...placement};const b=(section as any).__alphaBounds as number[]|undefined;try{placementCustom=true;placement=rescalePreviewPlacement(resizeAnchor,Number(scaleInput.value),Number(scaleInput.max),frame,b);if(baseImage&&b){const sized=sizeBrowserSticker(baseImage,frame.width,frame.height,b,baseCardIdentity,placement.scale);stickerOrigin({width:frame.width,height:frame.height,nativeBounds:b,placement,sticker:sized});}}catch{placement=prior;scaleInput.value=String(prior.scale);status('That size cannot fit inside this scene.');} showCardSize();previewDraw.schedule();};
+   scaleInput.onchange=()=>previewDraw.flush();
+   $('scene-adjust').onclick=()=>{sceneAdjusting=!sceneAdjusting;syncSceneFramingControls();};
+   for(const [id,field] of [['scene-pan-x','x'],['scene-pan-y','y'],['scene-zoom','zoom']] as const) {
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt source/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt
+--- baseline-6.6.0/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt	1970-01-01 00:00:00.000000000 +0000
++++ source/vendor/discstudio/disc/fonts/DEJAVU-LICENSE.txt	2026-10-21 20:42:26.055416900 +0000
+@@ -0,0 +1,78 @@
++Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
++Upstream-Name: DejaVu fonts
++Upstream-Author: Stepan Roh <src@users.sourceforge.net> (original author),
++                  see /usr/share/doc/fonts-dejavu-core/AUTHORS for full list
++Source: https://dejavu-fonts.github.io/
++
++Files: *
++Copyright: Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. 
++ Bitstream Vera is a trademark of Bitstream, Inc.
++ DejaVu changes are in public domain.
++License: bitstream-vera
++ Permission is hereby granted, free of charge, to any person obtaining a copy
++ of the fonts accompanying this license ("Fonts") and associated
++ documentation files (the "Font Software"), to reproduce and distribute the
++ Font Software, including without limitation the rights to use, copy, merge,
++ publish, distribute, and/or sell copies of the Font Software, and to permit
++ persons to whom the Font Software is furnished to do so, subject to the
++ following conditions:
++ .
++ The above copyright and trademark notices and this permission notice shall
++ be included in all copies of one or more of the Font Software typefaces.
++ .
++ The Font Software may be modified, altered, or added to, and in particular
++ the designs of glyphs or characters in the Fonts may be modified and
++ additional glyphs or characters may be added to the Fonts, only if the fonts
++ are renamed to names not containing either the words "Bitstream" or the word
++ "Vera".
++ .
++ This License becomes null and void to the extent applicable to Fonts or Font
++ Software that has been modified and is distributed under the "Bitstream
++ Vera" names.
++ .
++ The Font Software may be sold as part of a larger software package but no
++ copy of one or more of the Font Software typefaces may be sold by itself.
++ .
++ THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
++ OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY,
++ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT,
++ TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL BITSTREAM OR THE GNOME
++ FOUNDATION BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING
++ ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES,
++ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
++ THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER DEALINGS IN THE
++ FONT SOFTWARE.
++ .
++ Except as contained in this notice, the names of Gnome, the Gnome
++ Foundation, and Bitstream Inc., shall not be used in advertising or
++ otherwise to promote the sale, use or other dealings in this Font Software
++ without prior written authorization from the Gnome Foundation or Bitstream
++ Inc., respectively. For further information, contact: fonts at gnome dot
++ org.
++
++Files: debian/*
++Copyright: (C) 2005-2006 Peter Cernak <pce@users.sourceforge.net> 
++           (C) 2006-2011 Davide Viti <zinosat@tiscali.it>
++           (C) 2011-2013 Christian Perrier <bubulle@debian.org>
++           (C) 2013 Fabian Greffrath <fabian+debian@greffrath.com>
++License: GPL-2+
++ This program is free software; you can redistribute it
++ and/or modify it under the terms of the GNU General Public
++ License as published by the Free Software Foundation; either
++ version 2 of the License, or (at your option) any later
++ version.
++ .
++ This program is distributed in the hope that it will be
++ useful, but WITHOUT ANY WARRANTY; without even the implied
++ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
++ PURPOSE.  See the GNU General Public License for more
++ details.
++ .
++ You should have received a copy of the GNU General Public
++ License along with this package; if not, write to the Free
++ Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++ Boston, MA  02110-1301 USA
++ .
++ On Debian systems, the full text of the GNU General Public
++ License version 2 can be found in the file
++ /usr/share/common-licenses/GPL-2'.
+Binary files baseline-6.6.0/vendor/discstudio/disc/fonts/DejaVuSans-Bold.woff2 and source/vendor/discstudio/disc/fonts/DejaVuSans-Bold.woff2 differ
+Binary files baseline-6.6.0/vendor/discstudio/disc/fonts/DejaVuSans.woff2 and source/vendor/discstudio/disc/fonts/DejaVuSans.woff2 differ
+Binary files baseline-6.6.0/vendor/discstudio/disc/fonts/DejaVuSansCondensed-Bold.woff2 and source/vendor/discstudio/disc/fonts/DejaVuSansCondensed-Bold.woff2 differ
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/mold-runtime-manifest.ts source/vendor/discstudio/disc/mold-runtime-manifest.ts
+--- baseline-6.6.0/vendor/discstudio/disc/mold-runtime-manifest.ts	2026-10-21 20:37:46.994223200 +0000
++++ source/vendor/discstudio/disc/mold-runtime-manifest.ts	2026-10-22 01:07:24.447365500 +0000
+@@ -1,6 +1,6 @@
+ export const moldRuntimeManifest = Object.freeze({
+   "schema": 1,
+-  "catalogVersion": "6.6.0",
++  "catalogVersion": "6.6.1",
+   "sourceCatalogSha256": "40c30c8599e9d7b396de23bb07a722ae20812e03ea0b18a9cf2d228feecdfa6c",
+   "dictionarySha256": "a76ad385fbf1ae830c4f37beb521a0b61ac1e5be4c2aa1f78e746f6d8d7b653d",
+   "payloadSha256": "4299c011d4293d12dac6f833dffce119724f4fd2e3568fbb43c77a998b8cf2e9",
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/package.json source/vendor/discstudio/disc/package.json
+--- baseline-6.6.0/vendor/discstudio/disc/package.json	2026-10-21 20:37:48.574943800 +0000
++++ source/vendor/discstudio/disc/package.json	2026-10-21 20:46:15.390153600 +0000
+@@ -10,7 +10,7 @@
+     "build": "node --experimental-strip-types build.mjs",
+     "serve": "node serve.mjs",
+     "test": "npm run test:tournament",
+-    "test:tournament": "node --experimental-strip-types mold-runtime-build.mjs --write && node --experimental-strip-types --test background-cover.test.mjs build-version.test.mjs card-renderer.test.ts frame-seek.test.mjs sticker-raster.test.mjs card-renderer-u01.test.mjs card-renderer-appearance.test.mjs card-renderer-breakout-appearance.test.ts export-queue.test.ts batch-review.test.ts creator-selection.test.ts preview-placement.test.ts preview-draw-scheduler.test.mjs calculation-select.test.ts operations.test.ts model.test.ts catalog.test.ts mold-runtime.test.ts mold-wildcard-trie.test.mjs mold-search.test.ts bag-current-version.test.ts painted-overlay.test.ts photo-crop.test.ts experimental/ellipse-fit-fix/fit-adapter.test.mjs experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs experimental/ellipse-fit-fix/ellipse-review-flow.test.mjs photo-refit.test.ts circle-candidates.test.ts experiences.test.ts persistence.test.ts legacy-archive.test.ts session-storage.test.ts rimfit-persistence.test.ts transform-geometry.test.mjs",
++    "test:tournament": "node --experimental-strip-types mold-runtime-build.mjs --write && node --experimental-strip-types --test background-cover.test.mjs build-version.test.mjs card-renderer.test.ts card-fixes.test.mjs frame-seek.test.mjs sticker-raster.test.mjs card-renderer-u01.test.mjs card-renderer-appearance.test.mjs card-renderer-breakout-appearance.test.ts export-queue.test.ts batch-review.test.ts creator-selection.test.ts preview-placement.test.ts preview-draw-scheduler.test.mjs calculation-select.test.ts operations.test.ts model.test.ts catalog.test.ts mold-runtime.test.ts mold-wildcard-trie.test.mjs mold-search.test.ts bag-current-version.test.ts painted-overlay.test.ts photo-crop.test.ts experimental/ellipse-fit-fix/fit-adapter.test.mjs experimental/ellipse-fit-fix/rim-aware-refinement.test.mjs experimental/ellipse-fit-fix/ellipse-review-flow.test.mjs photo-refit.test.ts circle-candidates.test.ts experiences.test.ts persistence.test.ts legacy-archive.test.ts session-storage.test.ts rimfit-persistence.test.ts transform-geometry.test.mjs",
+     "test:all-history": "node --experimental-strip-types --test *.test.ts",
+     "test:capture": "node --test paired-capture.test.mjs url-free-materializer.test.mjs"
+   },
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/vendor/discstudio/disc/transform-geometry.mjs source/vendor/discstudio/disc/transform-geometry.mjs
+--- baseline-6.6.0/vendor/discstudio/disc/transform-geometry.mjs	2026-10-21 20:37:46.485372900 +0000
++++ source/vendor/discstudio/disc/transform-geometry.mjs	2026-10-21 21:05:06.739775300 +0000
+@@ -37,6 +37,22 @@
+   return Math.min(limit, width / (right - left), height / (bottom - top));
+ }
+ 
++/** Default size for a freshly shown card. Per axis: a card that hugs a frame
++ * edge (within 15% of it) shrinks toward that edge, so a lower-third card stays
++ * in its corner. Otherwise it shrinks around its own centre, except vertically
++ * in a portrait frame, where it keeps its own bottom edge so it settles a
++ * little toward the bottom corner (Sam, 21 Oct 2026). Never toward the middle. */
++export function anchoredDefaultPlacement({ width, height, alphaBounds, scale, edgeBand = 0.15 }) {
++  transformedBounds({ width, height, alphaBounds, scale });
++  const [left, top, right, bottom] = alphaBounds;
++  const anchor = (low, high, size) => low <= size * edgeBand ? low : size - high <= size * edgeBand ? high : (low + high) / 2;
++  const anchorX = anchor(left, right, width);
++  const anchorY = height > width && top > height * edgeBand && height - bottom > height * edgeBand ? bottom : anchor(top, bottom, height);
++  const dx = (anchorX - width / 2) * (1 - scale) / width;
++  const dy = (anchorY - height / 2) * (1 - scale) / height;
++  return clampTransform({ width, height, alphaBounds, scale, dx, dy });
++}
++
+ /** Derive a new explicit transform. Retain the visible card's center until the
+  * frame boundary requires clamping. `current` is the caller-held resize anchor;
+  * repeated sizes should reuse it until a card or actual placement change.
+diff -ruN '--exclude=dist' '--exclude=node_modules' baseline-6.6.0/version.json source/version.json
+--- baseline-6.6.0/version.json	2026-10-21 20:37:41.887852300 +0000
++++ source/version.json	2026-10-21 20:44:21.342380200 +0000
+@@ -1,7 +1,7 @@
+ {
+   "x": 6,
+   "y": 6,
+-  "z": 0,
++  "z": 1,
+   "changeKind": "information",
+-  "taskId": "discstudio-plastic-free-text"
++  "taskId": "thro-card-fixes-1"
+ }

@@ -1,0 +1,14 @@
+{
+  "schema": "discstudio-feature-maturity-citation-erratum@1",
+  "scope": "Citation spelling correction only; no Feature, Stage, Demo, contract, or implementation version change.",
+  "original": {
+    "ledgerSha256": "3a8691a10f30109053b10306eb2667be1cd1fc37649456ac3c7782a188883e42",
+    "decisionSha256": "d20f11535abd882d0b7f44ab08abb1cfc96f4cc0b2ae5db1f6d8fc864a6b2a81",
+    "previewSelectionDriveIdAsWritten": "13hBNOD6IhyVVCq9wKhQrFLjG7okyOoZP"
+  },
+  "corrected": {
+    "ledgerSha256": "294c9814205a9d127601523fc40f26a94752db1dd1ea7ce4a8bbad7a7acc9644",
+    "decisionSha256": "3b34b53b567f4bce29567876f83a91a2ee8de6f4a8f201f35a14b79a1c50a2cd",
+    "verifiedPreviewSelectionDriveId": "13hBNOD6IhyVVCq9wKhQrFLqG7okyOoZP"
+  }
+}

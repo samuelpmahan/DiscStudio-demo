@@ -33,7 +33,7 @@ This runs the supported tournament gate: photo-first save/readback, CircleFit-to
 
 ## Crop fitting
 
-CircleFit is the creator default. It runs its edge-ring search on a bounded working raster, maps the proposal to source pixels, and refines that same foreground component at full source resolution. The crop remains one editable circle; manual use stays available when CircleFit abstains. The former RimFit v3 ellipse experiment remains deferred source and is not imported by the creator.
+CircleFit is the creator default. It runs its edge-ring search on a bounded working raster, maps the proposal to source pixels, and refines that same foreground component at full source resolution. Manual use stays available when CircleFit abstains. EllipseFit remains explicit and opt-in: RimFit v3 returns only a MAYBE proposal for visible creator review, with editable center, radii, and axis angle. Invalid geometry disables Use photo; a failed proposal requires the creator to restore the circle path. Prepared ellipse crops are affine circularizations that retain source-photo orientation and independent stamp rotation; they do not infer perspective.
 
 ## Optional paired capture
 

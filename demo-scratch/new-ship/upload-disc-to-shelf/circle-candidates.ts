@@ -193,6 +193,11 @@ function sameRegion(a: DiscCircle, b: DiscCircle) {
   return Math.hypot(a.x - b.x, a.y - b.y) < scale * .7 && Math.abs(a.radius - b.radius) < scale * .25;
 }
 
+/** Skip smaller interior boundaries without preventing recovery of a larger rim. */
+function insideExcludedDisc(candidateCircle: DiscCircle, excludedCircle: DiscCircle) {
+  return candidateCircle.radius < excludedCircle.radius * .9 && Math.hypot(candidateCircle.x - excludedCircle.x, candidateCircle.y - excludedCircle.y) < excludedCircle.radius * .95;
+}
+
 function globalCircleCandidates(working: Raster, source: Raster, excluded: readonly CircleCandidate[], wanted: number, idPrefix: string) {
   const excludedCircles = (excluded ?? []).map(row => row?.circle).filter((circle): circle is DiscCircle => !!circle);
   const selected: Array<{ raw: RawCircle; mapped: DiscCircle }> = [];
@@ -202,7 +207,7 @@ function globalCircleCandidates(working: Raster, source: Raster, excluded: reado
   // the few final spatial winners rather than every near-duplicate seed.
   for (const raw of broadWorkingSeeds(working)) {
     const mappedRaw = boundedCircle(source.width, source.height, mapWorkingCircleToSource(raw.circle, working.width, working.height, source.width, source.height));
-    if (!mappedRaw || excludedCircles.some(circle => sameRegion(mappedRaw, circle)) || selectedWorking.some(row => sameRegion(raw.circle, row.circle))) continue;
+    if (!mappedRaw || excludedCircles.some(circle => sameRegion(mappedRaw, circle) || insideExcludedDisc(mappedRaw, circle)) || selectedWorking.some(row => sameRegion(raw.circle, row.circle))) continue;
     selectedWorking.push(raw);
     if (selectedWorking.length >= Math.max(6, wanted * 3)) break;
   }
@@ -218,8 +223,12 @@ function globalCircleCandidates(working: Raster, source: Raster, excluded: reado
     // raster may have a different edge bandwidth, but the mapped geometry is
     // still source-valid and the existing refiner can safely polish it here.
     const refined = sourceFit(working, source, row.raw.circle) ?? row.mapped;
-    if (excludedCircles.some(circle => sameRegion(refined, circle)) || polished.some(item => sameRegion(refined, item.circle))) continue;
-    polished.push(candidate(`${idPrefix}-${polished.length + 1}`, { ...refined, confidence: row.raw.score }, row.raw.score));
+    if (excludedCircles.some(circle => sameRegion(refined, circle) || insideExcludedDisc(refined, circle)) || polished.some(item => sameRegion(refined, item.circle))) continue;
+    // A disc nearly filling the short image dimension leaves little room for
+    // an optimistic outer-edge fit. Trim it inward so the crop excludes the
+    // photographed background even when that sacrifices a little rim.
+    const radius = refined.radius > Math.min(source.width, source.height) * .46 ? refined.radius * .94 : refined.radius;
+    polished.push(candidate(`${idPrefix}-${polished.length + 1}`, { ...refined, radius, confidence: row.raw.score }, row.raw.score));
     if (polished.length >= wanted) break;
   }
   return polished;

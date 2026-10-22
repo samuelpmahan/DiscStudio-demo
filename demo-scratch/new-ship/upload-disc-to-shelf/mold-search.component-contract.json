@@ -1,0 +1,315 @@
+{
+  "schema": "neat-component-contract@1",
+  "componentId": "DiscStudio.UploadDiscToShelf.mold-search",
+  "experience": "UploadDiscToShelf",
+  "workItem": "recipes/discstudio-photo-card.json",
+  "namespace": "component.upload-disc-to-shelf-mold-search@1",
+  "sourceBase": {
+    "version": "6.5.0",
+    "archiveDriveId": "1ehwfLPSb8E5d8xU-a2xH_iu8Wec_YArG",
+    "archiveSha256": "b9b738e2fad7fe83f62587334be59814eb399c0a53b0be5f618d746ae5a5e218",
+    "archiveBytes": 3690721,
+    "sourcePins": [
+      {
+        "path": "vendor/discstudio/disc/catalog-lite.ts",
+        "sha256": "1d774d095dcd6b9e93b5792654f1af2166c33ae6282e2031f2394264d9ac8a4d"
+      },
+      {
+        "path": "vendor/discstudio/disc/model.ts",
+        "sha256": "d0dfb7df5e36bca944562f8c999fba04e3b6186422459843e6051e29ff41563c"
+      },
+      {
+        "path": "vendor/discstudio/disc/mold-library.ts",
+        "sha256": "a71ae0034b187e5daa80022e4242c19de8aa1ea440f44df976395805ea9c376a"
+      },
+      {
+        "path": "vendor/discstudio/disc/mold-search.ts",
+        "sha256": "db9c8d3ac2b22adfb90da07ae22d94c70fd9b3100407e4e6637efbec43c64447"
+      },
+      {
+        "path": "vendor/discstudio/disc/upload-ui.ts",
+        "sha256": "b333fe6fb4ec607dd245655495a181d4c2551f7588aefc23084f067862a2bf2d"
+      }
+    ]
+  },
+  "implementationStatus": "EXISTS_IN_BASELINE",
+  "versioning": {
+    "current": {
+      "version": "0.0.0",
+      "status": "UNSTARTED",
+      "note": "Version tracking is unstarted; the implementation already exists in the 6.5.0 baseline and no component version has been accepted."
+    },
+    "proposed": {
+      "version": "0.1.0",
+      "status": "PROPOSED",
+      "accepted": false,
+      "acceptedBy": null
+    },
+    "policy": "0.1.0 is the first explicit contract set; 0.1.x refines it; a minor increase expands the contract set before 1.0; each component and composition independently earns 1.0 only after tests, joint validation, and explicit human acceptance.",
+    "untrackedScope": [
+      "The overall UploadDiscToShelf composition has no assigned component version in this proposal.",
+      "Other Experience components remain unknown and are not assigned placeholder versions."
+    ]
+  },
+  "scope": {
+    "include": [
+      "A source-ordered packed trie indexes all canonical mold names. A single * consumes exactly one Unicode code point; a trailing run of * is redundant prefix syntax; adjacent ** elsewhere is invalid. Manufacturer-first queries filter the name-index ordinals through the packed manufacturer dictionary.",
+      "One compact runtime catalog carries mold names, manufacturers, and the four flight values. The authoritative catalog bytes and exact source-row identity remain separate provenance bindings.",
+      "Search suggestions do not write PxC. Explicit selection, or direct save of an address-bearing draft, materializes only that selected seed Part at a stable address with catalog version/source provenance.",
+      "A saved Disc retains the exact seed Part and resolved facts it captured; later catalog changes or seed corrections do not rewrite the saved Disc snapshot.",
+      "The static full and lite catalogs remain build inputs; the browser receives the packed generated runtime asset and integrity checks, not a duplicate source catalog or a world-sized PxC catalog."
+    ],
+    "exclude": [
+      "Runtime catalog ingestion or refresh.",
+      "A manual missing-entry flow.",
+      "Flight-conflict UI changes.",
+      "Photo crop, renderer, or layout redesign.",
+      "A browser query-time threshold until the user approves one."
+    ]
+  },
+  "requirements": [
+    {
+      "id": "packed-wildcard-search",
+      "statement": "The composed UploadDiscToShelf path queries a packed source-ordered mold-name trie, supports exactly-one-codepoint * matching, treats trailing * runs as redundant, rejects adjacent ** elsewhere, and preserves source order."
+    },
+    {
+      "id": "manufacturer-name-search",
+      "statement": "Manufacturer-first input is supported by filtering name-trie source ordinals with the packed manufacturer dictionary; reversed token order and typo correction are not part of this contract."
+    },
+    {
+      "id": "single-runtime-catalog-provenance",
+      "statement": "One runtime asset supplies name, manufacturer, and four flight facts; selected Parts retain stable ID, catalog version, exact authoritative catalog SHA-256, and source-row identity."
+    },
+    {
+      "id": "selected-only-world-snapshots",
+      "statement": "Search is read-only with respect to PxC; selection/direct save materializes only the selected mold, and prior saved Disc snapshots remain stable."
+    },
+    {
+      "id": "valid-startup-and-query-state",
+      "statement": "The mold control stays disabled until its catalog and event handlers are ready. Missing/corrupt assets leave the page mountable with a visible retry message and unsafe selection/save controls disabled; invalid wildcard syntax clears the prior selection and reports the error."
+    }
+  ],
+  "potentialBadThings": [
+    {
+      "id": "index-source-order-drift",
+      "risk": "Trie ordinals could point at the wrong source row if the build index and packed record table use different ordering."
+    },
+    {
+      "id": "invalid-query-stale-selection",
+      "risk": "A malformed query could leave an old hidden selection available to save or display."
+    },
+    {
+      "id": "asset-failure-blank-page",
+      "risk": "A missing or corrupt packed asset could reject the entire module graph before an error state mounts."
+    },
+    {
+      "id": "world-sized-catalog",
+      "risk": "Preloading all 724 seed Parts into PxC would store catalog state unrelated to the player’s selected discs."
+    },
+    {
+      "id": "saved-snapshot-drift",
+      "risk": "Changing catalog bytes or a selected seed correction could silently alter a previously saved Disc."
+    },
+    {
+      "id": "split-runtime-catalog",
+      "risk": "Separate packed name and detail indices could disagree on manufacturer, facts, or source order."
+    },
+    {
+      "id": "unmeasured-browser-responsiveness",
+      "risk": "Node timings and compressed bytes do not establish browser startup-to-interactable, first visible suggestion, or main-thread stall behavior."
+    }
+  ],
+  "acceptance": {
+    "requiredChecks": [
+      "packed-wildcard-search",
+      "manufacturer-name-search",
+      "single-runtime-catalog-provenance",
+      "selected-only-world-snapshots",
+      "asset-integrity-and-failure-capture",
+      "build-source-separation"
+    ],
+    "openRequirements": [
+      {
+        "id": "browser-cold-start-to-interactable",
+        "status": "PENDING",
+        "note": "A browser measurement must include navigation, packed-asset fetch/hash/open/decode, event-handler readiness, and first accepted user action."
+      },
+      {
+        "id": "browser-input-to-first-painted-suggestion",
+        "status": "PENDING",
+        "note": "Measure real input through first correct visible suggestion after paint, including an attempted input during startup; the UI now remains disabled until handlers are ready."
+      },
+      {
+        "id": "browser-main-thread-stalls",
+        "status": "PENDING",
+        "note": "Collect browser main-thread stall/long-task observations under an explicitly named local browser/cache/CPU context."
+      },
+      {
+        "id": "browser-query-budget",
+        "status": "UNAPPROVED_AND_UNMEASURED",
+        "illustrativeRangeMs": [
+          1000,
+          1500
+        ],
+        "approvedThresholdMs": null,
+        "browserMeasurementMs": null,
+        "note": "The 1–1.5 second range is illustrative only. It is not an approved threshold and Node timing is not a substitute."
+      },
+      {
+        "id": "joint-experience-validation",
+        "status": "PENDING",
+        "note": "Local code and automated checks do not constitute human acceptance of this component or the complete UploadDiscToShelf composition."
+      }
+    ],
+    "humanAcceptance": "PENDING_USER_DECISION"
+  },
+  "sourcePins": [
+    {
+      "path": "capabilities/smartsync.mjs",
+      "sha256": "ad049e25b691b46b7e38c233c7590d3ad1300bb31f8f854ba701a1a8aa741904"
+    },
+    {
+      "path": "policies/neat.mjs",
+      "sha256": "b49005c265e8b44feb538717c560d731b26a14d31fa733f2aa683af08e022d30"
+    },
+    {
+      "path": "tests/neat-work-state.test.mjs",
+      "sha256": "d86235c7f5cce1bf33f6d3d09c4ad8a2e4f87c900c0a9207e6a0779d844f4d86"
+    },
+    {
+      "path": "vendor/discstudio/disc/app.ts",
+      "sha256": "7737ccdb5acb95cb2c958767e27d5377f1d33f9a9b934fc39bd1c2119f9508fa"
+    },
+    {
+      "path": "vendor/discstudio/disc/build.mjs",
+      "sha256": "6d97c9275550d14435988c9d3c31e3546c15619ae85b773ab545d536059c3a75"
+    },
+    {
+      "path": "vendor/discstudio/disc/catalog.test.ts",
+      "sha256": "67da39ed32a22f1b1c1eba4372b71ca61d3319921ff8acda996c08de9d31d18c"
+    },
+    {
+      "path": "vendor/discstudio/disc/catalog-lite.ts",
+      "sha256": "1d774d095dcd6b9e93b5792654f1af2166c33ae6282e2031f2394264d9ac8a4d"
+    },
+    {
+      "path": "vendor/discstudio/disc/catalog.ts",
+      "sha256": "40c30c8599e9d7b396de23bb07a722ae20812e03ea0b18a9cf2d228feecdfa6c"
+    },
+    {
+      "path": "vendor/discstudio/disc/experiences.test.ts",
+      "sha256": "4ca10ee15e38e6883c0970d492df78a86803345a347c44600f1239342983c92f"
+    },
+    {
+      "path": "vendor/discstudio/disc/experience-page.ts",
+      "sha256": "3ff0fdfc00d36b034983826d9ff37d1f86572aff71ffc2c5532be18d7c4bea8e"
+    },
+    {
+      "path": "vendor/discstudio/disc/index.html",
+      "sha256": "845aaf491c23e2424f283a37fb68649385bcb67e72925f159e08aba12051907c"
+    },
+    {
+      "path": "vendor/discstudio/disc/legacy-archive.test.ts",
+      "sha256": "5f7208cf958b105bcc5660afb7660ca1e5dce94b6925bdb540cfee3c2e55d3f7"
+    },
+    {
+      "path": "vendor/discstudio/disc/model.test.ts",
+      "sha256": "3274ff370f474c65b1a46680eb6739c5757b366272f01122dff78405c58a1bdb"
+    },
+    {
+      "path": "vendor/discstudio/disc/model.ts",
+      "sha256": "7621268bd252149503246051c2dba354262ebb6c71a934f4af1ac0a37b21b4a5"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-library.ts",
+      "sha256": "367cc51d78e34121df7bb0dd966b41ad4cdb0f9056ebedd2811898cc26f99328"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-runtime-build.mjs",
+      "sha256": "94d8aa8783e073d6be4a63b68211acddc5fa8774dffeb6980fa48defeb189bf5"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-runtime-index.ts",
+      "sha256": "ae2d4cd1bdffe737c60927ac11b0bc01867d52d1b36949ba77a76b1c1f950e86"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-runtime.test.ts",
+      "sha256": "0f8c498c10947c9300972fafc12e22bf06c2124848b25b8238f6f891c94e17bc"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-search.test.ts",
+      "sha256": "bdfe20eb155f4c6c229399e6c62607849506f5453d705a7ef2045f1ea81ffa85"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-search.ts",
+      "sha256": "db9c8d3ac2b22adfb90da07ae22d94c70fd9b3100407e4e6637efbec43c64447"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-wildcard-trie.test.ts",
+      "sha256": "a9ad6fc0252aeeb947d5034977a0876f422e65be19702985294a67fd9183c9eb"
+    },
+    {
+      "path": "vendor/discstudio/disc/mold-wildcard-trie.ts",
+      "sha256": "d799f4bac66f4ba7a9219542dc1a2f06e5dc801b11500ab3bf5b521b41d9e3ca"
+    },
+    {
+      "path": "vendor/discstudio/disc/package.json",
+      "sha256": "aeab7c83d96a00fd2a4e9ab0b2fef9cc5f1c59768130e9a1e31cc759f87a81fc"
+    },
+    {
+      "path": "vendor/discstudio/disc/persistence.test.ts",
+      "sha256": "e4278f5769a320214b0d1be0d4233086f4044b3073d58a321159614fbdac82ad"
+    },
+    {
+      "path": "vendor/discstudio/disc/persistent-experience.ts",
+      "sha256": "dd4355c619f43bafb4a21dba16fdc75251ed7bff181ef9ee3b7209cb36f84e17"
+    },
+    {
+      "path": "vendor/discstudio/disc/upload-ui.ts",
+      "sha256": "595e9d4d5bbdd4d2ccc974ca6d15d28bdf44ef5b9b69a5dfbe58176969fb065c"
+    },
+    {
+      "path": "vendor/discstudio/disc/style.css",
+      "sha256": "d0efa33464b2ffb0a2aea4566e26cbf4bf409c469e079d9c693677d7ecbcc80b"
+    }
+  ],
+  "receipts": [
+    {
+      "kind": "baseline-gap",
+      "path": "vendor/discstudio/disc/mold-search.baseline-receipt.json",
+      "sha256": "eb049e65b6ffd2cd354fa829d6bc4648c42f81b687bee01803d26cda10ee83e6"
+    },
+    {
+      "kind": "validation",
+      "path": "vendor/discstudio/disc/mold-search.validation-receipt.json",
+      "sha256": "acfb30e4ff6ca98b58d13ed67388b6cd0d7ad9acb48cd461309ad9b044d8e17a"
+    }
+  ],
+  "reportedBaselineObservation": {
+    "sourceArchiveSha256": "b9b738e2fad7fe83f62587334be59814eb399c0a53b0be5f618d746ae5a5e218",
+    "status": "LOCALLY_REPRODUCED_HISTORICAL_MODEL_GAP_NOT_BROWSER",
+    "receiptPath": "vendor/discstudio/disc/mold-search.baseline-receipt.json",
+    "note": "Historical evidence from the pre-wildcard model composition: strict prefix gating excluded the following typo/helper matches. This observation is not a current acceptance requirement; wildcard semantics are defined above.",
+    "queries": [
+      {
+        "query": "Discraft Buzx",
+        "composedMatchCount": 0,
+        "legacyFuzzyHelperFinds": [
+          "Discraft Buzzz",
+          "Discraft Buzzz OS",
+          "Discraft Buzzz SS"
+        ]
+      },
+      {
+        "query": "Buz Disc",
+        "composedMatchCount": 0,
+        "legacyFuzzyHelperFinds": [
+          "Discraft Buzzz",
+          "Discraft Buzzz OS",
+          "Discraft Buzzz SS"
+        ]
+      }
+    ]
+  },
+  "acceptanceTarget": "recipes/discstudio-photo-card.json"
+}

@@ -5,10 +5,40 @@ import { identityTransform } from './transform-geometry.mjs';
 export type CardOrientation = 'horizontal' | 'vertical';
 export const orientations: readonly CardOrientation[] = ['horizontal', 'vertical'];
 export interface CardTransform { scale: number; dx: number; dy: number; }
-export interface QueuedCard { disc: Disc; orientation: CardOrientation; cardDesign: string; placement?: CardTransform; }
+export interface U01Appearance { discSide: 'left' | 'right'; highlightTarget: 'tiles' | 'digits'; accentColor: string; /** B05 zoom circle centre, as fractions of the disc photo (0..1). */ zoomFocus?: { x: number; y: number }; /** Plate behind the type: the layout's own see-through dark, or solid. */ plate?: 'see-through' | 'solid'; /** Thin white frame round the plate (B01; B03's frame). */ frame?: boolean; }
+export const DEFAULT_U01_APPEARANCE: U01Appearance = Object.freeze({ discSide: 'right', highlightTarget: 'digits', accentColor: '#8fe3ae' });
+export type CardAppearance = U01Appearance;
+export function defaultCardAppearance(preset: string): CardAppearance {
+  return Object.freeze({ discSide: preset.endsWith('-mirror') || ['u02','u04','u05'].includes(preset) ? 'left' : 'right', highlightTarget: preset === 'u01' || preset === 'u02' || preset[0] === 'b' ? 'digits' : 'tiles', accentColor: /^(u03|u04|b0)/.test(preset) ? '#c8f23d' : '#8fe3ae' });
+}
+export interface QueuedCard { disc: Disc; orientation: CardOrientation; cardDesign: string; placement?: CardTransform; cardAppearance?: CardAppearance; approvalId?: string; approvalContentId?: string; /** Kept for earlier approved U01 snapshots. */ u01Appearance?: U01Appearance; }
+export function validateU01Appearance(value: unknown): U01Appearance {
+  const appearance = value as any;
+  if (!appearance || !['left', 'right'].includes(appearance.discSide) || !['tiles', 'digits'].includes(appearance.highlightTarget) || typeof appearance.accentColor !== 'string' || !/^#[0-9a-f]{6}$/i.test(appearance.accentColor)) throw new Error('invalid U01 appearance.');
+  const base = { discSide: appearance.discSide, highlightTarget: appearance.highlightTarget, accentColor: appearance.accentColor.toLowerCase() };
+  const extra: Partial<U01Appearance> = {};
+  if (appearance.zoomFocus !== undefined) {
+    const { x, y } = appearance.zoomFocus ?? {};
+    if (![x, y].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error('invalid U01 appearance.');
+    extra.zoomFocus = Object.freeze({ x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 });
+  }
+  if (appearance.plate !== undefined) { if (!['see-through', 'solid'].includes(appearance.plate)) throw new Error('invalid U01 appearance.'); if (appearance.plate === 'solid') extra.plate = 'solid'; }
+  if (appearance.frame !== undefined) { if (typeof appearance.frame !== 'boolean') throw new Error('invalid U01 appearance.'); if (appearance.frame) extra.frame = true; }
+  return Object.freeze({ ...base, ...extra });
+}
+export function validateCardAppearance(value: unknown): CardAppearance {
+  try { return validateU01Appearance(value); } catch { throw new Error('invalid card appearance.'); }
+}
 export type CardRenderer = (card: QueuedCard) => Promise<Uint8Array>;
 export interface CardDimensions { width: number; height: number; }
 export function cardDimensions(orientation: CardOrientation): CardDimensions { return orientation === 'vertical' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 }; }
+export function pngPixelDimensions(png: Uint8Array): CardDimensions {
+  const signature=[137,80,78,71,13,10,26,10];
+  if(png.length<33||signature.some((value,index)=>png[index]!==value)||String.fromCharCode(...png.slice(12,16))!=='IHDR')throw Error('Renderer returned an invalid PNG.');
+  const view=new DataView(png.buffer,png.byteOffset,png.byteLength),width=view.getUint32(16),height=view.getUint32(20);
+  if(view.getUint32(8)!==13||width<1||height<1)throw Error('Renderer returned invalid PNG dimensions.');
+  return {width,height};
+}
 const slug = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'card';
 export function moldSlug(disc: Pick<Disc, 'mold'>): string { const match = /^ds\.px\.seed\.([^.]+)/.exec(disc.mold); return slug(match?.[1] ?? disc.mold.split('.').pop() ?? disc.mold); }
 export function cardFilename(card: QueuedCard, taken: Set<string> = new Set()): string {
@@ -22,6 +52,16 @@ function checkCard(card: QueuedCard, index: number): void {
   if (typeof card.disc.mold !== 'string' || !card.disc.mold) throw new Error(`${where}: disc needs a mold address.`);
   if (!orientations.includes(card.orientation)) throw new Error(`${where}: orientation must be 'horizontal' or 'vertical'.`);
   if (typeof card.cardDesign !== 'string' || !card.cardDesign.trim()) throw new Error(`${where}: cardDesign must be a non-empty string.`);
+  if (card.approvalId !== undefined && (typeof card.approvalId !== 'string' || !/^ds\.approval\.enqueue-\d+\.\d+$/.test(card.approvalId))) throw new Error(`${where}: invalid approval instance identity.`);
+  if (card.approvalContentId !== undefined && (typeof card.approvalContentId !== 'string' || !/^sha256:[a-f0-9]{64}$/.test(card.approvalContentId))) throw new Error(`${where}: invalid approval content identity.`);
+  if (card.u01Appearance !== undefined) {
+    if (card.orientation !== 'vertical' || card.cardDesign !== 'u01') throw new Error(`${where}: U01 appearance is only valid for vertical u01 cards.`);
+    try { validateU01Appearance(card.u01Appearance); } catch { throw new Error(`${where}: invalid U01 appearance.`); }
+  }
+  if (card.cardAppearance !== undefined) {
+    if (card.u01Appearance !== undefined) throw new Error(`${where}: choose one card appearance field.`);
+    try { validateCardAppearance(card.cardAppearance); } catch { throw new Error(`${where}: invalid card appearance.`); }
+  }
   const placement = card.placement ?? identityTransform;
   if (![placement.scale, placement.dx, placement.dy].every(Number.isFinite) || placement.scale < 0.5 || placement.scale > 1.5 || Math.abs(placement.dx) > 1 || Math.abs(placement.dy) > 1) throw new Error(`${where}: invalid placement transform.`);
 }
@@ -35,14 +75,15 @@ function snapshot(value: unknown): any {
 }
 export function queueCards(items: readonly QueuedCard[]): readonly QueuedCard[] {
   if (!Array.isArray(items)) throw new Error('queueCards: expected an array.');
-  items.forEach(checkCard); return Object.freeze(items.map(card => snapshot(card)));
+  items.forEach(checkCard);
+  return Object.freeze(items.map(card => snapshot(card.cardAppearance ? { ...card, cardAppearance: validateCardAppearance(card.cardAppearance) } : card.u01Appearance ? { ...card, u01Appearance: validateU01Appearance(card.u01Appearance) } : card)));
 }
 export interface ManifestCard {
-  filename: string; discId: string; nickname: string; mold: string; plastic: string; weight: number | null;
+  filename: string; approvalId?: string; approvalContentId?: string; discId: string; nickname: string; mold: string; plastic: string; weight: number | null;
   flight: { speed: number | null; glide: number | null; turn: number | null; fade: number | null };
   orientation: CardOrientation; cardDesign: string; width: number; height: number; byteLength: number; sha256: string;
   flightSource: { speed: 'own' | 'mold' | 'unknown'; glide: 'own' | 'mold' | 'unknown'; turn: 'own' | 'mold' | 'unknown'; fade: 'own' | 'mold' | 'unknown' };
-  placement: CardTransform; backgroundIncluded: false;
+  placement: CardTransform; backgroundIncluded: false; cardAppearance?: CardAppearance; u01Appearance?: U01Appearance;
 }
 export interface ExportManifest { type: 'discstudio-export'; version: 1; cardCount: number; cards: ManifestCard[]; }
 export type RenderedExport = { filename: string; png: Uint8Array; card: QueuedCard };
@@ -52,7 +93,7 @@ export async function prepareExport(queue: readonly QueuedCard[], renderCard: Ca
   for (const card of cards) {
     const filename = cardFilename(card, taken), png = new Uint8Array(await renderCard(card));
     if (!png.length) throw new Error(`exportZip: renderer returned empty bytes for ${filename}.`);
-    const { width, height } = cardDimensions(card.orientation);
+    const { width, height } = pngPixelDimensions(png);
     rendered.push({ filename, png, card });
     const rendererFlights = (card.disc as any).renderer?.flights as (number | null)[] | undefined;
     const fields = ['speed', 'glide', 'turn', 'fade'] as const;
@@ -60,9 +101,13 @@ export async function prepareExport(queue: readonly QueuedCard[], renderCard: Ca
       if (Object.hasOwn(card.disc, field) && card.disc[field] !== undefined) return [field, { value: card.disc[field] ?? null, source: card.disc[field] === null ? 'unknown' : 'own' }];
       const inherited = rendererFlights?.[index]; return [field, { value: inherited ?? null, source: inherited == null ? 'unknown' : 'mold' }];
     })) as Record<typeof fields[number], { value: number | null; source: 'own' | 'mold' | 'unknown' }>;
-    manifestCards.push({ filename, discId: card.disc.id, nickname: card.disc.nickname, mold: card.disc.mold, plastic: card.disc.plastic, weight: card.disc.weight,
+    const u01Appearance = card.cardDesign === 'u01' && card.orientation === 'vertical' ? (card.u01Appearance ?? DEFAULT_U01_APPEARANCE) : undefined;
+    const cardAppearance = card.cardAppearance;
+    manifestCards.push({ filename, ...(card.approvalId ? { approvalId: card.approvalId } : {}), ...(card.approvalContentId ? { approvalContentId: card.approvalContentId } : {}), discId: card.disc.id, nickname: card.disc.nickname, mold: card.disc.mold, plastic: card.disc.plastic, weight: card.disc.weight,
       flight: { speed: values.speed.value, glide: values.glide.value, turn: values.turn.value, fade: values.fade.value }, flightSource: { speed: values.speed.source, glide: values.glide.source, turn: values.turn.source, fade: values.fade.source }, orientation: card.orientation, cardDesign: card.cardDesign,
-      width, height, byteLength: png.length, sha256: await sha256(png), placement: { ...(card.placement ?? identityTransform) }, backgroundIncluded: false });
+      width, height, byteLength: png.length, sha256: await sha256(png), placement: { ...(card.placement ?? identityTransform) }, backgroundIncluded: false,
+      ...(cardAppearance ? { cardAppearance: { ...cardAppearance } } : {}),
+      ...(!cardAppearance && u01Appearance ? { u01Appearance: { ...u01Appearance } } : {}) });
   }
   return { rendered, manifest: { type: 'discstudio-export', version: 1, cardCount: manifestCards.length, cards: manifestCards } };
 }

@@ -1,29 +1,35 @@
+import { validateRefitSource, type RefitSource } from './photo-refit.ts';
 import { Part, PxC } from '../part-first-kernel/src/pxc.mjs';
 import { renderDiscPainting } from './paint.ts';
 import { validatePaintRecipe, recipeFromDraft, renderDepiction, type PaintRecipe } from './paint-recipe.ts';
 import { shelfQuery } from './shelf-query.ts';
 import { createBag } from './bags.ts';
 import { plasticGuides } from './plastics.ts';
-import { catalogLite, searchMolds, getMoldDetails } from './mold-library.ts';
+import { searchMolds, getMoldDetails, moldRecord, moldRuntimeAvailable, moldRuntimeError, type MoldProvenanceRef } from './mold-library.ts';
 import { create, read, update, destroy, runStage, type Stage } from './operations.ts';
+import { selectCalculation, type CalculationSelectClause } from './calculation-select.ts';
 import { find } from './devtools-data.mjs';
-import type { State } from './persistence.ts';
+import type { State, CommitReceipt } from './persistence.ts';
 import { queueCards, type QueuedCard } from './export-queue-core.ts';
-import { approvedQueueIdentity } from './approval-identity.ts';
+import { approvedQueueIdentity, withApprovalInstances } from './approval-identity.ts';
 import { paintedDiscsEnabled } from './kompozition.ts';
 
 export type Seed = { id: string; manufacturer: string; mold: string; flight: (number | null)[]; source?: string; sourceKind?: string; observations?: { flight: (number | null)[]; source: string }[]; conflicting?: boolean; reviewStatus?: string };
 export const flightFields = ['speed', 'glide', 'turn', 'fade'] as const;
 type Flights = Record<typeof flightFields[number], number | null>;
-export type Mold = Omit<Seed, 'mold' | 'flight'> & Flights & { name: string };
+export type Mold = Omit<Seed, 'mold' | 'flight'> & Flights & { name: string; provenance?: MoldProvenanceRef };
 type Correction = Pick<Mold, 'manufacturer' | 'name'> & Partial<Flights>;
 export type Draft = Partial<Flights> & { mold: string; nickname: string; weight: number | null; plastic: string; Color1: string; Color2: string; paintMode: 'split' | 'halo'; colorPainting: boolean };
-export type Depiction = { kind: 'painted' | 'photo'; src: string; name: string };
+export type Depiction = { kind: 'painted' | 'photo'; src: string; name: string; refit?: RefitSource };
 export type Disc = Draft & { id: string; depiction: Depiction; paintRecipe?: string; photo?: string; choice?: string; art?: string };
-export type DepictionSources = { recipe?: PaintRecipe; photo?: Depiction | null };
-export const seeds: Seed[] = catalogLite as Seed[];
-// {?} Lite-first: id+manufacturer+mold only. Full details lazy via getMoldDetails.
+export type DepictionSources = { recipe?: PaintRecipe | null; photo?: Depiction | null };
 const seedAddress = (id: string) => `ds.px.seed.${id}`;
+function moldFromPacked(record: NonNullable<ReturnType<typeof moldRecord>>): Mold {
+  return Object.freeze({ id: record.id, manufacturer: record.manufacturer, name: record.mold,
+    speed: record.flight[0] ?? null, glide: record.flight[1] ?? null,
+    turn: record.flight[2] ?? null, fade: record.flight[3] ?? null,
+    provenance: record.provenance });
+}
 export const initialDraft = (): Draft => ({ mold: seedAddress('buzzz'), nickname: '', weight: null, plastic: '', Color1: '#98d4ba', Color2: '#f8b393', paintMode: 'split', colorPainting: false });
 function checkFlights(value: Partial<Flights>) {
   for (const field of flightFields) if (Object.hasOwn(value, field) && value[field] !== null && !Number.isFinite(value[field])) throw Error(`${field} must be finite or null; remove the field to inherit.`);
@@ -35,14 +41,73 @@ function checkDraft(draft: Draft) {
   for (const color of [draft.Color1, draft.Color2]) if (!/^#[\da-f]{6}$/i.test(color)) throw new Error('Choose two valid colors.');
   if (!['split', 'halo'].includes(draft.paintMode) || typeof draft.colorPainting !== 'boolean') throw new Error('Choose a paint mode and color setting.');
 }
-export function createExperience(log: (event: Record<string, unknown>) => void = event => console.info(JSON.stringify(event)), options: { state?: State; persist?: (state: State) => void; status?: () => string } = {}) {
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function hasText(value: unknown): value is string { return typeof value === 'string' && value.trim().length > 0; }
+function validFactValues(value: Record<string, any>, fields: readonly string[]) {
+  return fields.every(field => !Object.hasOwn(value, field) || value[field] === null || (typeof value[field] === 'number' && Number.isFinite(value[field])));
+}
+function validFactsInputs(inputs: Readonly<Record<string, any>>) {
+  const seed = inputs.seed?.value, draft = inputs.draft?.value;
+  return isRecord(seed) && hasText(seed.id) && hasText(seed.manufacturer) && hasText(seed.name)
+    && isRecord(draft) && hasText(draft.mold) && validFactValues(seed, flightFields) && validFactValues(draft, flightFields);
+}
+function resolveDiscFacts(seed: Record<string, any>, draft: Record<string, any>, seedFlightShape: 'complete' | 'sparse') {
+  const resolved: Record<string, any> = { ...seed, ...draft };
+  const flightFactSources: Record<string, 'draft-override' | 'seed' | 'missing-seed'> = {};
+  for (const field of flightFields) {
+    if (Object.hasOwn(draft, field)) {
+      resolved[field] = draft[field];
+      flightFactSources[field] = 'draft-override';
+    } else if (Object.hasOwn(seed, field)) {
+      resolved[field] = seed[field];
+      flightFactSources[field] = 'seed';
+    } else {
+      // The sparse clause materializes absent catalog facts as explicit unknowns.
+      resolved[field] = null;
+      flightFactSources[field] = 'missing-seed';
+    }
+  }
+  return Object.freeze({
+    ...resolved,
+    flightFactSources: Object.freeze(flightFactSources),
+    factResolution: Object.freeze({
+      seedFlightShape,
+      presentSeedFlights: Object.freeze(flightFields.filter(field => Object.hasOwn(seed, field))),
+      missingSeedFlights: Object.freeze(flightFields.filter(field => !Object.hasOwn(seed, field))),
+    }),
+  });
+}
+
+const discFactsSelectClauses: readonly CalculationSelectClause[] = Object.freeze([
+  Object.freeze({
+    name: 'complete-seed-flight-facts',
+    calculationAddress: 'fn.disc.resolveFacts.complete',
+    matches: (inputs: Readonly<Record<string, any>>) => validFactsInputs(inputs)
+      && flightFields.every(field => Object.hasOwn(inputs.seed.value, field)),
+  }),
+  Object.freeze({
+    name: 'sparse-seed-flight-facts',
+    calculationAddress: 'fn.disc.resolveFacts.sparse',
+    matches: (inputs: Readonly<Record<string, any>>) => validFactsInputs(inputs)
+      && flightFields.some(field => !Object.hasOwn(inputs.seed.value, field)),
+  }),
+]);
+
+const resolveCompleteDiscFacts = ({ seed, draft }: { seed: Record<string, any>; draft: Record<string, any> }) => resolveDiscFacts(seed, draft, 'complete');
+const resolveSparseDiscFacts = ({ seed, draft }: { seed: Record<string, any>; draft: Record<string, any> }) => resolveDiscFacts(seed, draft, 'sparse');
+
+export function createExperience(log: (event: Record<string, unknown>) => void = event => console.info(JSON.stringify(event)), options: { state?: State; persist?: (state: State) => void | { storage: 'browser-archive' | 'session-memory' }; status?: () => string } = {}) {
   const pxc = options.state?.pxc ?? new PxC();
   if (!options.state) {
-  // Lite install: id, manufacturer, name only. Flight numbers lazy on selection.
-  seeds.forEach(({ mold, ...seed }) => pxc.set(seedAddress(seed.id), new Part(Object.freeze({ ...seed, name: mold }))));
+  // Fresh PxC starts without catalog rows; the immutable runtime index is outside the World.
   pxc.set('ds.px.plasticGuides', new Part(plasticGuides));
   for (const [address, implementation] of Object.entries({ 'fn.read': read, 'fn.find': find, 'oc.create': create, 'oc.update': update, 'oc.destroy': destroy,
     'fn.tick': (outputs: any) => Object.freeze({ outputs: Object.freeze(Object.keys(outputs)) }),
+    'fn.disc.resolveFacts.complete': resolveCompleteDiscFacts,
+    'fn.disc.resolveFacts.sparse': resolveSparseDiscFacts,
     'fn.renderPainting': renderDiscPainting,
     'fn.paintRecipe': ({ recipe }: any) => validatePaintRecipe(recipe), 'fn.renderDepiction': renderDepiction,
     'fn.shelfQuery': shelfQuery, 'fn.createBag': createBag,
@@ -88,21 +153,17 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   const events: Record<string, unknown>[] = [];
   const emit = (event: Record<string, unknown>) => { events.push(event); try { log(event); } catch (error) { console.warn('Diagnostic sink failed; receipt remains in PxC.', error); } };
   const selected = new Map<Depiction, string>();
-  const currentSeeds = new Map(options.state?.currentSeeds ?? seeds.map(seed => [seed.id, seedAddress(seed.id)]));
-  // Keep the immutable catalog index outside PxC for read/search paths. PxC
-  // remains authoritative for corrections and persistence, but asking for
-  // suggestions should not perform hundreds of browser-side Part lookups on
-  // every keystroke.
-  const baseSeedOptions = new Map(seeds.map(({ mold, ...seed }) => [seedAddress(seed.id), Object.freeze({ ...seed, name: mold })]));
-  let seedCacheKey = '', seedCache: { address: string; seed: Mold }[] = [];
-  const indexedSeeds = () => {
-    const key = [...currentSeeds].map(([id, address]) => `${id}:${address}`).join('|');
-    if (key === seedCacheKey) return seedCache;
-    seedCacheKey = key;
-    seedCache = [...currentSeeds].map(([id, address]) => ({ address, seed: (address === seedAddress(id) ? baseSeedOptions.get(address) : pxc.get(address).value) as Mold }));
-    return seedCache;
+  // Fresh PxC contains only selected seed Parts. Catalog lookup state is held
+  // outside PxC; restored archives retain their existing addresses verbatim.
+  const currentSeeds = new Map(options.state?.currentSeeds ?? []);
+  const maybeSeedAt = (address: string): Mold | null => {
+    try { return pxc.get(address).value as Mold; }
+    catch (error) {
+      if (error instanceof Error && error.message === `Missing Part: ${address}`) return null;
+      throw error;
+    }
   };
-  const persist = (nextShelf = shelfAddress, molds = currentSeeds, nextBags = bagsAddress, nextBag = bagAddress) => options.persist?.({ pxc, serial, shelfAddress: nextShelf, currentSeeds: [...molds], bagsAddress: nextBags, bagAddress: nextBag });
+  const persist = (nextShelf = shelfAddress, molds = currentSeeds, nextBags = bagsAddress, nextBag = bagAddress, commitReceipt?: CommitReceipt) => options.persist?.({ pxc, serial, shelfAddress: nextShelf, currentSeeds: [...molds], bagsAddress: nextBags, bagAddress: nextBag, commitReceipt });
   const candidates = new Map<string, string>();
   const artAt = (disc: Disc) => disc.art ?? `ds.px.art.${disc.id}`;
   async function projectRows(operationId: string) {
@@ -117,44 +178,63 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
   }
   function checkPhoto(photo: Depiction | null) {
     if (photo !== null && (photo.kind !== 'photo' || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(photo.src))) throw Error('Invalid prepared photo.');
+    if (photo?.refit !== undefined) validateRefitSource(photo.refit);
+  }
+  function snapshotDepiction(value: Depiction): Depiction {
+    return Object.freeze({ ...value, ...(value.refit !== undefined ? { refit: validateRefitSource(value.refit) } : {}) });
+  }
+  async function materializeSeed(address: string, persistSelection = true): Promise<{ address: string; seed: Mold }> {
+    const existing = maybeSeedAt(address) ?? undefined;
+    const id = existing?.id ?? address.replace(/^ds\.px\.seed\./, '').split('.')[0];
+    const current = currentSeeds.get(id);
+    if (current && current !== address) return { address: current, seed: pxc.get(current).value as Mold };
+    if (existing && flightFields.every(field => Object.hasOwn(existing, field)) && existing.provenance) return { address, seed: existing };
+    const details = await getMoldDetails(id);
+    if (!details) {
+      if (existing) return { address, seed: existing };
+      throw Error('Selected catalog mold is unavailable. Reload DiscStudio to retry.');
+    }
+    const source = moldFromPacked(details);
+    const base = existing ?? source;
+    const hydrated = Object.freeze({ ...source, ...base,
+      ...Object.fromEntries(flightFields.map(field => [field, Object.hasOwn(base, field) ? base[field] : source[field]])),
+      provenance: base.provenance ?? source.provenance }) as Mold;
+    // Use the stable source address for a fresh selection. If a legacy Part
+    // already occupies that identity, append a new immutable corrected Part.
+    const into = existing ? `ds.px.seed.${id}.selected.${++serial}` : seedAddress(id);
+    pxc.set(into, new Part(hydrated)); currentSeeds.set(id, into);
+    if (persistSelection) persist();
+    return { address: into, seed: hydrated };
   }
   return {
     pxc, events,
+    get catalogAvailable() { return moldRuntimeAvailable; },
+    get catalogError() { return moldRuntimeError; },
     get persistenceStatus() { return options.status?.() ?? 'Session only · reload starts fresh.'; },
     get shelfAddress() { return shelfAddress; },
     get bagAddress() { return bagAddress; },
     get bagsAddress() { return bagsAddress; },
     get outputQueueAddress() { return outputQueueAddress; },
     seedOptions(query = ''): { address: string; seed: Mold }[] {
-      // Trie-based prefix search. O(k) where k = query length.
-      const matches = searchMolds(query, 20);
-      return matches.map(({ id, manufacturer, mold }) => {
-        const address = currentSeeds.get(id) ?? seedAddress(id);
-        return { address, seed: pxc.get(address).value as Mold ?? { id, manufacturer, name: mold } as Mold };
+      // Suggestions are decoded from the compact index and never materialized
+      // into PxC. Only an explicit selection creates the seed Part.
+      return searchMolds(query, 20).map(record => {
+        const retainedAddress = currentSeeds.get(record.id);
+        const address = retainedAddress ?? seedAddress(record.id);
+        // A persisted currentSeeds pointer is authoritative. Missing pointers
+        // fail closed rather than silently reverting a retained correction.
+        const retained = retainedAddress ? pxc.get(retainedAddress).value as Mold : moldFromPacked(record);
+        return { address, seed: retained };
       });
     },
-    // UI callers inspect retained seed Parts synchronously. Full catalog facts are
-    // an optional renderer effect, not a prerequisite for authoring a photo.
+    // UI callers inspect only exact selected/restored PxC snapshots here; this
+    // never falls through to a newer catalog record.
     seedAt(address: string): Mold { return pxc.get(address).value as Mold; },
-    async hydrateSeed(address: string): Promise<{ address: string; seed: Mold }> {
-      const base = pxc.get(address).value as Mold;
-      const id = base.id ?? address.replace(/^ds\.px\.seed\./, '').split('.')[0];
-      const current = currentSeeds.get(id);
-      if (current && current !== address) return { address: current, seed: pxc.get(current).value as Mold };
-      if (flightFields.every(field => Object.hasOwn(base, field))) return { address, seed: base };
-      const details = await getMoldDetails(id);
-      if (!details) return { address, seed: base };
-      const { mold, flight = [], ...detail } = details;
-      const hydrated = Object.freeze({ ...base, ...detail, name: mold ?? base.name, ...Object.fromEntries(flightFields.map((field, index) => [field, flight[index] ?? null])) }) as Mold;
-      const into = `ds.px.seed.${id}.hydrated.${++serial}`;
-      pxc.set(into, new Part(hydrated)); currentSeeds.set(id, into); seedCacheKey = '';
-      persist();
-      return { address: into, seed: hydrated };
-    },
+    async hydrateSeed(address: string) { return materializeSeed(address); },
     resolve(disc: Draft) { return read({ base: pxc.get(disc.mold).value, own: disc }); },
     depictionSources(address: string) {
       const disc = pxc.get(address).value as Disc;
-      return { recipe: disc.paintRecipe ? pxc.get(disc.paintRecipe).value as PaintRecipe : recipeFromDraft(disc, disc.depiction),
+      return { recipe: disc.paintRecipe ? pxc.get(disc.paintRecipe).value as PaintRecipe : disc.depiction.kind === 'painted' ? recipeFromDraft(disc, disc.depiction) : null,
         photo: disc.photo ? pxc.get(disc.photo).value as Depiction | null : disc.depiction.kind === 'photo' ? disc.depiction : null,
         choice: disc.choice ? pxc.get(disc.choice).value as 'painted' | 'photo' : disc.depiction.kind };
     },
@@ -195,18 +275,20 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
     async updateDepiction(address: string, changes: { recipe?: PaintRecipe; photo?: Depiction | null; choice?: 'painted' | 'photo'; mold?: string }) {
       if (!paintedDiscsEnabled && (changes.choice === 'painted' || changes.recipe)) throw Error('Painted discs require the painted-discs overlay.');
       const disc = pxc.get(address).value as Disc, retained = this.depictionSources(address);
-      const recipe = validatePaintRecipe(changes.recipe === undefined ? retained.recipe : changes.recipe);
+      const recipeInput = changes.recipe === undefined ? retained.recipe : changes.recipe;
+      const recipe = recipeInput == null ? null : validatePaintRecipe(recipeInput);
       const photo = changes.photo === undefined ? retained.photo : changes.photo;
       checkPhoto(photo);
       const choice = changes.choice ?? retained.choice;
-      if (!['painted', 'photo'].includes(choice) || (choice === 'photo' && !photo)) throw Error('Choose a retained depiction source.');
+      if (!['painted', 'photo'].includes(choice) || (choice === 'photo' && !photo) || (choice === 'painted' && !recipe)) throw Error('Choose a retained depiction source.');
       const mold = changes.mold ?? disc.mold; pxc.get(mold); checkDraft({ ...disc, mold });
       const id = `depict-${++serial}`, into = `ds.px.disc.${id}`;
       const recipeAddress = `ds.px.recipe.${id}`, photoAddress = `ds.px.photo.${id}`, choiceAddress = `ds.px.choice.${id}`, artAddress = `ds.px.art.${id}`;
-      await pxc.compose({ into: recipeAddress, calculation: 'fn.paintRecipe', inputs: { recipe: new Part(recipe) } });
-      pxc.set(photoAddress, new Part(photo ? Object.freeze({ ...photo }) : null)); pxc.set(choiceAddress, new Part(choice));
+      if (recipe) await pxc.compose({ into: recipeAddress, calculation: 'fn.paintRecipe', inputs: { recipe: new Part(recipe) } });
+      else pxc.set(recipeAddress, new Part(null));
+      pxc.set(photoAddress, new Part(photo ? snapshotDepiction(photo) : null)); pxc.set(choiceAddress, new Part(choice));
       await pxc.compose({ into: artAddress, calculation: 'fn.renderDepiction', inputs: { recipe: recipeAddress, photo: photoAddress, choice: choiceAddress, seed: mold } });
-      const depiction: Depiction = choice === 'photo' ? photo! : Object.freeze({ kind: 'painted', name: recipe.family, src: `./art/${recipe.family}.svg` });
+      const depiction: Depiction = choice === 'photo' ? photo! : Object.freeze({ kind: 'painted', name: recipe!.family, src: `./art/${recipe!.family}.svg` });
       await pxc.compose({ into, calculation: 'oc.update', inputs: { value: address, patch: new Part(Object.freeze({ mold, depiction, paintRecipe: recipeAddress, photo: photoAddress, choice: choiceAddress, art: artAddress })) } });
       candidates.set(into, address);
       return into;
@@ -254,7 +336,6 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
       persist(shelfAddress, new Map([...currentSeeds, [seed.id, into]]));
       currentSeeds.set(seed.id, into);
-      seedCacheKey = '';
       emit(receipt);
       return into;
     },
@@ -262,16 +343,16 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       checkPhoto(photo);
       const id = ++serial;
       const address = `ds.px.draft.photos.${id}`;
-      pxc.set(address, new Part(Object.freeze({ ...photo })));
+      pxc.set(address, new Part(snapshotDepiction(photo)));
       return address;
     },
     outputQueue(): readonly QueuedCard[] { return pxc.get(outputQueueAddress).value as readonly QueuedCard[]; },
     get latestOutputApproval() { return latestOutputApproval; },
     get latestOutputExport() { return latestOutputExport; },
     async enqueueOutput(cards: readonly QueuedCard[]) {
-      const held = queueCards(cards);
-      if (!held.length) throw Error('Select at least one disc before adding output.');
-      const operationId = `enqueue-${++serial}`, cardsAddress = `ds.px.output.cards.${operationId}`, next = `ds.px.output.queue.${operationId}`, previousQueue = outputQueueAddress;
+      const submitted = queueCards(cards);
+      if (!submitted.length) throw Error('Select at least one disc before adding output.');
+      const operationId = `enqueue-${++serial}`, held = await withApprovalInstances(submitted, operationId), cardsAddress = `ds.px.output.cards.${operationId}`, next = `ds.px.output.queue.${operationId}`, previousQueue = outputQueueAddress;
       pxc.set(cardsAddress, new Part(held));
       await pxc.compose({ into: next, calculation: 'fn.appendOutputQueue', inputs: { queue: outputQueueAddress, cards: cardsAddress } });
       const result = pxc.get(next).value as readonly QueuedCard[];
@@ -282,10 +363,13 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); latestOutputApproval = receipt; emit(receipt);
       return next;
     },
-    async approveOutputQueue() {
+    async approveOutputQueue(expectedQueueAddress?: string) {
+      const queueAddress = outputQueueAddress;
+      if (expectedQueueAddress !== undefined && expectedQueueAddress !== queueAddress) throw Error('Output queue changed during review. Review the remaining cards again.');
       const queue = this.outputQueue();
       if (!queue.length) throw Error('Approve requires at least one queued card.');
       const operationId = `approve-output-${++serial}`, approved = await approvedQueueIdentity(queue);
+      if (outputQueueAddress !== queueAddress) throw Error('Output queue changed during review. Review the remaining cards again.');
       const receipt = Object.freeze({ event: 'output.queue.approved', operationId, action: 'reapprove-current-queue', outputQueue: outputQueueAddress, count: queue.length, addedCount: 0, approvalSnapshotId: approved.identity, outputQueueSnapshotId: approved.identity });
       pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt)); latestOutputApproval = receipt; emit(receipt);
       return outputQueueAddress;
@@ -327,7 +411,7 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
         return depiction;
       }
       const photo = pxc.get(photoKeys[photoKeys.length - 1]).value as Depiction;
-      const depiction = Object.freeze({ ...photo });
+      const depiction = snapshotDepiction(photo);
       pxc.set(depictionAddress, new Part(depiction));
       selected.set(depiction, depictionAddress);
       return depiction;
@@ -337,49 +421,87 @@ export function createExperience(log: (event: Record<string, unknown>) => void =
       saving = true;
       const operationId = `save-${++serial}`;
       const discAddress = `ds.px.disc.${operationId}`, nextShelf = `ds.px.shelf.${operationId}`, nextBag = `ds.px.bag.${operationId}`;
+      const expectedShelfHead = shelfAddress, expectedBagHead = bagAddress;
       try {
         checkDraft(draft);
+        // Preserve the existing direct-save(initialDraft()) contract while
+        // keeping fresh PxC sparse until an explicit selection/save boundary.
+        const selectedSeed = await materializeSeed(draft.mold, false);
+        draft = { ...draft, mold: selectedSeed.address };
         if (depiction.kind !== 'photo' && (!paintedDiscsEnabled || depiction.kind !== 'painted')) throw new Error('Demo is photo-only. Upload a photo.');
         if (depiction.kind === 'photo' && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(depiction.src)) throw new Error('Invalid prepared photo.');
         const draftAddress = `ds.px.draft.${operationId}`, depictionAddress = `ds.px.depiction.${operationId}`;
         pxc.get(draft.mold);
         pxc.set(draftAddress, new Part(Object.freeze({ ...draft })));
+        const selectedFacts = selectCalculation(pxc, 'disc.facts.resolve', discFactsSelectClauses, { seed: draft.mold, draft: draftAddress });
+        const selectedFactsBindingAddress = `ds.px.binding.${operationId}.resolvedFacts`;
+        pxc.set(selectedFactsBindingAddress, selectedFacts.calculation);
         const selectedAddress = selected.get(depiction);
-        pxc.set(depictionAddress, selectedAddress ? pxc.get(selectedAddress) : new Part(Object.freeze({ ...depiction })));
+        pxc.set(depictionAddress, selectedAddress ? pxc.get(selectedAddress) : new Part(snapshotDepiction(depiction)));
         const artAddress = `ds.px.art.${operationId}`;
         const recipe = depiction.kind === 'painted'
           ? validatePaintRecipe(sources.recipe ?? recipeFromDraft(draft, depiction))
           : null;
         const photo = sources.photo === undefined ? depiction.kind === 'photo' ? depiction : null : sources.photo;
         checkPhoto(photo);
-        if (depiction.kind === 'photo' && (!photo || photo.src !== depiction.src)) throw Error('Selected photo must match the retained source.');
+        if (depiction.kind === 'photo' && (!photo || photo.src !== depiction.src || JSON.stringify(photo.refit ?? null) !== JSON.stringify(depiction.refit ?? null))) throw Error('Selected photo must match the retained source.');
         const recipeAddress = `ds.px.recipe.${operationId}`, photoAddress = `ds.px.photo.${operationId}`, choiceAddress = `ds.px.choice.${operationId}`;
         if (!recipe) pxc.set(recipeAddress, new Part(null));
-        pxc.set(photoAddress, new Part(photo ? Object.freeze({ ...photo }) : null));
+        pxc.set(photoAddress, new Part(photo ? snapshotDepiction(photo) : null));
         pxc.set(choiceAddress, new Part(depiction.kind));
+        const selectionReceiptAddress = `ds.px.receipt.select.${operationId}`;
+        const selectFactsTickAddress = `ds.px.tick.${operationId}.selectFacts`;
+        const resolvedFactsAddress = `ds.px.resolved.${operationId}`;
         const stage: Stage = [
+          { into: selectFactsTickAddress, calculations: [{ into: resolvedFactsAddress, calculation: selectedFactsBindingAddress, inputs: selectedFacts.inputPartAddresses }] },
           { into: `ds.px.tick.${operationId}.specialize`, calculations: [
             ...(recipe ? [{ into: recipeAddress, calculation: 'fn.paintRecipe', inputs: { recipe: new Part(recipe) } }] : []),
             { into: discAddress, calculation: 'oc.create', inputs: { value: draftAddress, id: new Part(operationId), depiction: depictionAddress, paintRecipe: new Part(recipeAddress), photo: new Part(photoAddress), choice: new Part(choiceAddress), art: new Part(artAddress) } },
-            { into: `ds.px.resolved.${operationId}`, calculation: 'fn.read', inputs: { base: draft.mold, own: discAddress } },
           ] },
           { into: `ds.px.tick.${operationId}.depict`, calculations: [{ into: artAddress, calculation: 'fn.renderDepiction', inputs: { recipe: recipeAddress, photo: photoAddress, choice: choiceAddress, seed: draft.mold } }] },
           { into: `ds.px.tick.${operationId}.retain`, calculations: [
-            { into: nextShelf, calculation: 'fn.addToShelf', inputs: { shelf: shelfAddress, reference: new Part(discAddress), disc: discAddress } },
-            { into: nextBag, calculation: 'fn.addToBag', inputs: { bag: bagAddress, reference: new Part(discAddress), disc: discAddress } },
+            { into: nextShelf, calculation: 'fn.addToShelf', inputs: { shelf: expectedShelfHead, reference: new Part(discAddress), disc: discAddress } },
+            { into: nextBag, calculation: 'fn.addToBag', inputs: { bag: expectedBagHead, reference: new Part(discAddress), disc: discAddress } },
           ] },
         ];
         pxc.set(`ds.px.stage.${operationId}`, new Part(Object.freeze(stage)));
-        for await (const _boundary of runStage(pxc, stage)) { /* Boundary Parts are inspectable in DevTools. */ }
+        for await (const boundary of runStage(pxc, stage)) {
+          if (boundary === selectFactsTickAddress) {
+            const resolved = pxc.get(resolvedFactsAddress);
+            if (resolved.composition?.calculation !== selectedFacts.calculation) throw Error('SELECT bound a different Calculation than it composed.');
+            const selectionReceipt = Object.freeze({
+              event: 'pxc.select.completed',
+              query: selectedFacts.query,
+              clause: selectedFacts.clause,
+              calculationAddress: selectedFacts.calculationAddress,
+              boundCalculationAddress: selectedFactsBindingAddress,
+              inputPartAddresses: selectedFacts.inputPartAddresses,
+              outputAddress: resolvedFactsAddress,
+              calculationInvoked: resolved.composition.calculation === selectedFacts.calculation,
+            });
+            pxc.set(selectionReceiptAddress, new Part(selectionReceipt));
+            emit(selectionReceipt);
+          }
+        }
         const disc = pxc.get(discAddress).value as Disc;
         const shelf = pxc.get(nextShelf).value as string[];
         const bag = pxc.get(nextBag).value as string[];
         const expected = { ...draft, id: operationId, depiction, paintRecipe: recipeAddress, photo: photoAddress, choice: choiceAddress, art: artAddress };
-        if (JSON.stringify(disc) !== JSON.stringify(expected) || !shelf.includes(discAddress)) throw new Error('Save readback failed.');
-        if (!bag.includes(discAddress)) throw new Error('Bag readback failed.');
-        const receipt = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, ticks: stage.map(tick => tick.into), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true, storage: 'session-memory' });
-        pxc.set(`ds.px.receipt.${operationId}`, new Part(receipt));
-        persist(nextShelf, currentSeeds, bagsAddress, nextBag);
+        const previousShelf = pxc.get(expectedShelfHead).value as string[];
+        const previousBag = pxc.get(expectedBagHead).value as string[];
+        if (JSON.stringify(disc) !== JSON.stringify(expected)
+          || shelf.length !== previousShelf.length + 1 || shelf.some((address, index) => address !== (index === previousShelf.length ? discAddress : previousShelf[index]))
+          || bag.length !== previousBag.length + 1 || bag.some((address, index) => address !== (index === previousBag.length ? discAddress : previousBag[index]))) throw new Error('Save readback failed.');
+        // Candidate Parts can exist without publication. Only these two heads
+        // define the visible collection; compare both before writing either.
+        if (shelfAddress !== expectedShelfHead || bagAddress !== expectedBagHead) throw Error('UploadDiscToShelf collection heads changed before commit.');
+        const receiptBase = Object.freeze({ event: 'disc.save.completed', operationId, calculation: 'fn.addToShelf', discAddress, expectedShelfHead, expectedBagHead, shelfAddress: nextShelf, bagAddress: nextBag, artAddress, selectionReceiptAddress, selectedClause: selectedFacts.clause, selectedCalculationAddress: selectedFacts.calculationAddress, ticks: stage.map(tick => tick.into), paintMode: disc.paintMode, colorPainting: disc.colorPainting, seedAddress: disc.mold, depictionRef: disc.depiction.src.startsWith('data:') ? 'local-photo' : disc.depiction.src, readbackMatched: true, shelfContainsDisc: true, bagContainsDisc: true });
+        const receiptAddress = `ds.px.receipt.${operationId}`;
+        const outcome = persist(nextShelf, currentSeeds, bagsAddress, nextBag, {
+          address: receiptAddress, value: { ...receiptBase, storage: 'browser-archive' },
+        });
+        const receipt = Object.freeze({ ...receiptBase, storage: outcome?.storage ?? 'session-memory' });
+        pxc.set(receiptAddress, new Part(receipt));
         // Do not consume a retryable draft until a save has either reached the
         // durable archive or been explicitly accepted as this-tab-only work.
         // Unexpected persistence failures still leave the photo retryable.
